@@ -1,0 +1,24 @@
+# Render blueprint. Railway needs no config file: it picks up the Dockerfile.
+services:
+  - type: web
+    name: wedding-plan-academy
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    healthCheckPath: /login
+    envVars:
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATA_BACKEND
+        value: local
+      - key: DATA_DIR
+        value: /var/data
+      - key: APP_URL
+        sync: false
+      - key: CONTACT_EMAIL
+        value: academy@estasiweddings.nl
+    # Only needed while DATA_BACKEND=local: keeps .data across deploys.
+    disk:
+      name: academy-data
+      mountPath: /var/data
+      sizeGB: 1

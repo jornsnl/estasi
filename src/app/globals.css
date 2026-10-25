@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+/*
+ * Estasi huisstijl: wit als hoofdkleur, gedempt goud secundair, bordeaux voor
+ * details. Goud #A4914A haalt op wit geen 4.5:1 contrast, dus voor tekst
+ * gebruiken we de donkere variant gold-ink en het lichte goud alleen voor
+ * lijnen, iconen en grote koppen.
+ */
+@theme {
+  --color-paper: #ffffff;
+  --color-cream: #faf8f3;
+  --color-line: #e8e2d4;
+  --color-gold: #a4914a;
+  --color-gold-soft: #f3efe2;
+  --color-gold-ink: #6f6230;
+  --color-bordeaux: #722f37;
+  --color-bordeaux-soft: #f6ecee;
+  --color-ink: #2a2624;
+  --color-muted: #6b6560;
+  --color-success: #3f6b4a;
+  --color-success-soft: #e9f1eb;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-cormorant), ui-serif, Georgia, serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    /* Cormorant uses old-style figures by default; a "1" then reads as "I". */
+    font-variant-numeric: lining-nums;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-serif text-ink;
+    font-weight: 500;
+    letter-spacing: 0.005em;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-bordeaux);
+    outline-offset: 2px;
+  }
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@layer components {
+  .btn-primary {
+    @apply btn bg-bordeaux text-white hover:bg-[#5d262d];
+  }
+  .btn-secondary {
+    @apply btn border border-line bg-white text-ink hover:border-gold hover:bg-cream;
+  }
+  .btn-ghost {
+    @apply btn px-3 text-muted hover:bg-cream hover:text-ink;
+  }
+  .btn-danger {
+    @apply btn border border-bordeaux/30 bg-white text-bordeaux hover:bg-bordeaux-soft;
+  }
+  .card {
+    @apply rounded-xl border border-line bg-white;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-ink;
+  }
+  .hint {
+    @apply mt-1 text-sm text-muted;
+  }
+  .input {
+    @apply block w-full rounded-md border border-line bg-white px-3 py-2.5 text-[15px] text-ink placeholder:text-muted/70 focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25;
+  }
+  .eyebrow {
+    @apply text-xs font-semibold tracking-[0.14em] text-gold-ink uppercase;
+  }
+  .prose-academy {
+    @apply max-w-none text-[16px] leading-7 text-ink;
+  }
+  .prose-academy p {
+    @apply my-3;
+  }
+  .prose-academy h2 {
+    @apply mt-6 mb-2 text-2xl;
+  }
+  .prose-academy h3 {
+    @apply mt-5 mb-2 text-xl;
+  }
+  .prose-academy ul {
+    @apply my-3 list-disc pl-6;
+  }
+  .prose-academy ol {
+    @apply my-3 list-decimal pl-6;
+  }
+  .prose-academy a {
+    @apply text-bordeaux underline underline-offset-2;
+  }
+  .prose-academy strong {
+    @apply font-semibold;
+  }
+  .prose-academy blockquote {
+    @apply my-4 border-l-2 border-gold pl-4 text-muted italic;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
