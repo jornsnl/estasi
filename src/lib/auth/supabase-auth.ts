@@ -17,7 +17,12 @@ export const CONFIRM_PATH = "/auth/bevestigen";
 /** Returns the Supabase user id, or null when the e-mail or password is wrong. */
 export async function signInWithPassword(email: string, password: string): Promise<string | null> {
   const { data, error } = await (await authClient()).auth.signInWithPassword({ email, password });
-  if (error || !data.user) return null;
+  if (error || !data.user) {
+    // The visitor always sees the same message; the real reason goes to the server log
+    // (for example invalid_credentials, email_not_confirmed or an invalid API key).
+    console.warn(`[inloggen] ${email}: Supabase ${error?.status ?? ""} ${error?.code ?? ""} ${error?.message ?? "geen gebruiker"}`);
+    return null;
+  }
   return data.user.id;
 }
 
