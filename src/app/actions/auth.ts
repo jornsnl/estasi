@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getStore, isLocalMode, isSupabaseMode } from "@/lib/data";
 import { hashPassword, MIN_PASSWORD_LENGTH, newToken, verifyPassword } from "@/lib/auth/password";
 import { clear, hit, isLimited, LOGIN_PER_EMAIL, LOGIN_PER_IP, RESET_PER_IP } from "@/lib/auth/rate-limit";
-import { currentSession, endSession, homeFor, startLocalSession } from "@/lib/auth/session";
+import { currentSession, endSession, forgetFactors, homeFor, startLocalSession } from "@/lib/auth/session";
 import {
   isLinkType,
   sendPasswordReset,
@@ -200,5 +200,6 @@ export async function verifyMfa(previous: MfaState, formData: FormData): Promise
     return { ...previous, error: "Deze code klopt niet of is verlopen. Probeer de nieuwste code." };
   }
   clear(key);
+  forgetFactors(current.user.id);
   redirect(next ?? homeFor(current.user));
 }

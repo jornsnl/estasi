@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getStore, isSupabaseMode, type User } from "@/lib/data";
-import { authClient } from "@/lib/supabase/server";
+import { adminClient, authClient } from "@/lib/supabase/server";
 
 /**
  * Who is logged in. Two backends:
@@ -82,8 +82,30 @@ async function session(): Promise<SessionInfo | null> {
   if (error || !data?.claims?.sub) return null;
   const aal = data.claims.aal === "aal2" ? "aal2" : "aal1";
   // MFA is optional. Whoever linked an app must still give the code, otherwise the app protects nothing.
-  const { data: level } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  return { userId: data.claims.sub, aal, needsCode: level?.nextLevel === "aal2" && aal !== "aal2" };
+  // Whether an app is linked comes from Supabase itself, never from the cookie (which the visitor can edit).
+  const needsCode = aal !== "aal2" && (await hasVerifiedFactor(data.claims.sub));
+  return { userId: data.claims.sub, aal, needsCode };
+}
+
+// Linked authenticator apps, asked from Supabase Auth with the secret key and
+// remembered for a minute so not every page view costs an extra request.
+const FACTOR_TTL_MS = 60_000;
+const factorState = globalThis as unknown as { __academyFactors?: Map<string, { value: boolean; until: number }> };
+const factorCache = () => (factorState.__academyFactors ??= new Map());
+
+export async function hasVerifiedFactor(userId: string): Promise<boolean> {
+  const cached = factorCache().get(userId);
+  if (cached && cached.until > Date.now()) return cached.value;
+  const { data, error } = await adminClient().auth.admin.mfa.listFactors({ userId });
+  // When Supabase cannot answer, assume an app is linked: asking for a code is the safe side.
+  const value = error ? true : (data?.factors ?? []).some((f) => f.status === "verified");
+  if (!error) factorCache().set(userId, { value, until: Date.now() + FACTOR_TTL_MS });
+  return value;
+}
+
+/** After linking or removing an app, look it up again on the next request. */
+export function forgetFactors(userId: string) {
+  factorCache().delete(userId);
 }
 
 export async function endSession() {
