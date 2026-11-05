@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { audit } from "@/lib/academy";
 import { newToken } from "@/lib/auth/password";
 import { requireOwner } from "@/lib/auth/session";
-import { getStore, type Enrollment, type PackageType, type PracticalStatus } from "@/lib/data";
+import { deleteAccount, inviteAccount, resendAccess } from "@/lib/auth/supabase-auth";
+import { getStore, isSupabaseMode, type Enrollment, type PackageType, type PracticalStatus } from "@/lib/data";
 import { accessStatus, addMonths, ACCESS_MONTHS, pause, resume } from "@/lib/domain/access";
 import { storeUpload, UploadError } from "@/lib/uploads";
 import { formatDate } from "@/lib/util/format";
@@ -36,53 +37,90 @@ export async function createStudent(formData: FormData) {
   }
 
   const now = new Date().toISOString();
-  const userId = newId();
-  await store.createUser({
-    id: userId,
-    email,
-    name,
-    role: "student",
-    passwordHash: null,
-    setupToken: newToken(),
-    setupTokenExpiresAt: new Date(Date.now() + SETUP_DAYS * 86_400_000).toISOString(),
-    createdAt: now,
-    lastActiveAt: null,
-  });
-  await store.saveProfile({
-    userId,
-    phone: str(formData, "phone", 40),
-    city: str(formData, "city", 120),
-    companyName: str(formData, "companyName", 160),
-    photoFileId: null,
-    instagram: "",
-    website: "",
-    intro: "",
-    goals: "",
-    updatedAt: now,
-  });
-  await store.createEnrollment({
-    id: newId(),
-    userId,
-    package: pkg,
-    purchasedAt,
-    endsAt: addMonths(purchasedAt, ACCESS_MONTHS),
-    pausedAt: null,
-    pauses: [],
-    revokedAt: null,
-    onlineCompletedAt: null,
-    certificateReleasedAt: null,
-    certificateCode: null,
-    practicalStatus: "none",
-    ownerNotes: str(formData, "ownerNotes", 3000),
-  });
+  const supabase = isSupabaseMode();
+  let userId: string;
+  try {
+    // With Supabase the account (and its id) comes from Supabase Auth, which also mails the invite.
+    userId = supabase ? await inviteAccount(email, name) : newId();
+  } catch (err) {
+    console.error(err);
+    done("/beheer/cursisten/nieuw", "De uitnodiging kon niet worden verstuurd. Controleer het e-mailadres en de e-mailinstellingen in Supabase.", true);
+  }
+  try {
+    await store.createUser({
+      id: userId,
+      email,
+      name,
+      role: "student",
+      passwordHash: null,
+      setupToken: supabase ? null : newToken(),
+      setupTokenExpiresAt: supabase ? null : new Date(Date.now() + SETUP_DAYS * 86_400_000).toISOString(),
+      activatedAt: null,
+      createdAt: now,
+      lastActiveAt: null,
+    });
+    await store.saveProfile({
+      userId,
+      phone: str(formData, "phone", 40),
+      city: str(formData, "city", 120),
+      companyName: str(formData, "companyName", 160),
+      photoFileId: null,
+      instagram: "",
+      website: "",
+      intro: "",
+      goals: "",
+      updatedAt: now,
+    });
+    await store.createEnrollment({
+      id: newId(),
+      userId,
+      package: pkg,
+      purchasedAt,
+      endsAt: addMonths(purchasedAt, ACCESS_MONTHS),
+      pausedAt: null,
+      pauses: [],
+      revokedAt: null,
+      onlineCompletedAt: null,
+      certificateReleasedAt: null,
+      certificateCode: null,
+      practicalStatus: "none",
+      ownerNotes: str(formData, "ownerNotes", 3000),
+    });
+  } catch (err) {
+    // Do not leave a half made account behind (the users row cascades away with it).
+    if (supabase) await deleteAccount(userId).catch(() => undefined);
+    throw err;
+  }
   await audit(owner, "Cursist aangemaakt", `Pakket ${pkg}, aankoopdatum ${formatDate(purchasedAt)}`, userId);
-  done(studentPath(userId), "Cursist aangemaakt. Stuur de activatielink hieronder naar de cursist.");
+  done(
+    studentPath(userId),
+    supabase
+      ? `Cursist aangemaakt. De uitnodiging is gemaild naar ${email}.`
+      : "Cursist aangemaakt. Stuur de activatielink hieronder naar de cursist.",
+  );
 }
 
 export async function newSetupLink(formData: FormData) {
   const owner = await requireOwner();
+  const store = getStore();
   const userId = str(formData, "userId");
-  await getStore().updateUser(userId, {
+  const user = await store.getUser(userId);
+  if (!user || user.role !== "student") done("/beheer", "Cursist niet gevonden.", true);
+
+  if (isSupabaseMode()) {
+    let kind: "invite" | "reset";
+    try {
+      kind = await resendAccess(user);
+    } catch (err) {
+      console.error(err);
+      done(studentPath(userId), "Versturen is niet gelukt. Probeer het over een minuut opnieuw.", true);
+    }
+    const what = kind === "invite" ? "Nieuwe uitnodiging" : "Wachtwoord-herstellink";
+    await audit(owner, `${what} gemaild`, "", userId);
+    done(studentPath(userId), `${what} gemaild naar ${user.email}.`);
+  }
+
+  await store.updateUser(userId, {
     setupToken: newToken(),
     setupTokenExpiresAt: new Date(Date.now() + SETUP_DAYS * 86_400_000).toISOString(),
   });

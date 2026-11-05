@@ -1,11 +1,16 @@
-import { currentUser } from "@/lib/auth/session";
-import { getFiles, getStore } from "@/lib/data";
+import { currentSession } from "@/lib/auth/session";
+import { getFiles, getStore, isSupabaseMode } from "@/lib/data";
 import { hasLessonAccess } from "@/lib/domain/access";
 
 /** Serves uploads after checking that the viewer may see them. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await currentUser();
-  if (!user) return new Response("Niet ingelogd", { status: 401 });
+  const session = await currentSession();
+  if (!session) return new Response("Niet ingelogd", { status: 401 });
+  const { user } = session;
+  // Same rule as /beheer: the owner needs the second factor before seeing student files.
+  if (user.role === "owner" && isSupabaseMode() && session.aal !== "aal2") {
+    return new Response("Tweestapsverificatie nodig", { status: 403 });
+  }
 
   const file = await getFiles().read((await params).id);
   if (!file) return new Response("Niet gevonden", { status: 404 });

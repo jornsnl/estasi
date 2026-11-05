@@ -8,13 +8,16 @@ export function hashPassword(password: string): string {
   return `scrypt:${salt}:${hash}`;
 }
 
+// Checked when the account does not exist, so the response time does not
+// reveal which e-mail addresses are known.
+const DUMMY_HASH = hashPassword(randomBytes(16).toString("hex"));
+
 export function verifyPassword(password: string, stored: string | null): boolean {
-  if (!stored) return false;
-  const [scheme, salt, hash] = stored.split(":");
+  const [scheme, salt, hash] = (stored ?? DUMMY_HASH).split(":");
   if (scheme !== "scrypt" || !salt || !hash) return false;
   const expected = Buffer.from(hash, "hex");
   const actual = scryptSync(password, salt, expected.length);
-  return timingSafeEqual(expected, actual);
+  return timingSafeEqual(expected, actual) && stored !== null;
 }
 
 export const MIN_PASSWORD_LENGTH = 10;

@@ -57,25 +57,41 @@ src/lib/auth/                Wachtwoorden (scrypt) en ondertekende sessiecookie
 src/app/(student)/           Cursistschermen
 src/app/beheer/              Beheeromgeving
 src/app/actions/             Server actions (alle schrijfacties, met rolcontrole)
+src/lib/data/supabase-store.ts  Opslag in Supabase (database + Storage)
 supabase/migrations/         Databaseschema met row level security voor Supabase
 ```
 
 Alle schrijfacties lopen via server actions die eerst de rol controleren; bestanden gaan via `/api/bestanden/[id]` met een toegangscontrole (een cursist kan nooit bestanden van een andere cursist openen).
 
-## Naar Supabase
+## Supabase (productie)
 
-De app praat alleen met de interface `DataStore` (`src/lib/data/store.ts`). Overstappen betekent:
+Met `DATA_BACKEND=supabase` gebruikt de app Supabase voor alles: database, bestanden (privé bucket `academy`), inloggen, uitnodigingen, wachtwoordherstel per e-mail en tweestapsverificatie (verplicht voor de opleider).
 
-1. Supabase project aanmaken (regio EU) en `supabase/migrations/0001_init.sql` uitvoeren. Het schema bevat al row level security: een cursist kan alleen eigen antwoorden lezen en schrijven, en alleen bij actieve toegang.
-2. Een `SupabaseDataStore` en `SupabaseFileStorage` (privé bucket `academy`) schrijven die dezelfde interface implementeren, en in `src/lib/data/index.ts` kiezen op `DATA_BACKEND=supabase`.
-3. Inloggen omzetten naar Supabase Auth (`src/lib/auth/session.ts`); daarmee komen ook wachtwoordherstel per e-mail en MFA voor de beheerder.
-4. Demodata of echte inhoud importeren.
+Hoe het in elkaar zit:
+* Alle gegevens lopen via de server met de secret key (`src/lib/data/supabase-store.ts`). De server actions controleren eerst de rol. De tabellen zijn dicht voor de publieke API; row level security staat aan als extra slot
+* Inloggen via Supabase Auth (`src/lib/auth/session.ts` en `supabase-auth.ts`). Sessies staan in cookies en worden ververst door `src/middleware.ts`
+* Uitnodiging en herstel: Supabase mailt een link naar `/auth/bevestigen`. De link wordt pas gebruikt als de cursist op Doorgaan drukt, zodat virusscanners in de mail hem niet opmaken. Daarna kiest de cursist een wachtwoord op `/wachtwoord-instellen`
+* Opleider: na het wachtwoord volgt `/tweestaps` (authenticator app). Zonder die code geen toegang tot `/beheer` en tot bestanden van cursisten
+* Mislukte inlogpogingen worden per e-mailadres en per IP beperkt (`src/lib/auth/rate-limit.ts`)
 
-## Deployen (Render of Railway)
+### Eenmalig instellen
 
-Er staat een `Dockerfile` (werkt op beide) en een `render.yaml` blueprint. Benodigde variabelen staan in `.env.example`; in productie is `SESSION_SECRET` (minimaal 32 tekens) verplicht.
+1. **Migraties**: voer in de SQL editor van Supabase eerst `supabase/migrations/0001_init.sql` uit en daarna `0002_supabase_auth.sql`.
+2. **Authentication, Sign In / Providers**: e-mail aan, **Allow new users to sign up uit** (alleen uitnodigen). Minimale wachtwoordlengte 10. Email OTP Expiration op 86400 (24 uur), zodat een uitnodiging een dag geldig is.
+3. **Authentication, URL Configuration**: Site URL = de `APP_URL`, en bij Redirect URLs `APP_URL/**`.
+4. **Authentication, SMTP**: eigen SMTP instellen (bijvoorbeeld Resend, afzender op het domein van Estasi). De ingebouwde mailer van Supabase mailt alleen naar teamleden en maar een paar keer per uur.
+5. **Authentication, Email Templates**: zet in de templates de link zo:
+   * Invite user: `{{ .SiteURL }}/auth/bevestigen?token_hash={{ .TokenHash }}&type=invite`
+   * Reset password: `{{ .SiteURL }}/auth/bevestigen?token_hash={{ .TokenHash }}&type=recovery`
+6. **Authentication, Multi-Factor**: TOTP aan (standaard aan).
+7. **Authentication, Rate Limits**: alle inlogpogingen komen van het IP van de server. Zet de limiet voor sign-ins ruim (bijvoorbeeld 300 per 5 minuten); de app beperkt zelf al per e-mailadres en per bezoeker.
+8. **Eigenaar en instellingen**: met de variabelen uit `.env.example` in `.env.local`:
+   ```bash
+   npm run supabase:setup -- --eigenaar sabine@estasiweddings.nl --naam "Sabine"
+   ```
+   Dit controleert de migraties, vult de instellingen, maakt het opleidersaccount en mailt de uitnodiging. Met `--voorbeeldinhoud` laadt het ook de zes voorbeeldmodules (alleen als er nog geen modules zijn). Opnieuw draaien is veilig.
 
-Zolang `DATA_BACKEND=local` draait, staan de gegevens op schijf. Koppel dan een persistente schijf (Render: zit in `render.yaml`; Railway: voeg een volume toe op `/var/data` en zet `DATA_DIR=/var/data`). Voor echte cursistgegevens is Supabase de bedoeling.
+Raakt de opleider de authenticator app kwijt: in Supabase onder Authentication, Users, het account openen en de MFA factor verwijderen. Bij de volgende keer inloggen koppelt ze een nieuwe app.
 
 ## Voorstel fase 1: betalen en toegang
 
@@ -83,7 +99,7 @@ Totdat de betaalprovider gekozen is: betaling buiten het platform (factuur of be
 
 ## Nog open (uit het bouwplan)
 
-* Echte e-mails (activatie, wachtwoordherstel, certificaat, vervalmelding 30 dagen vooraf). Lokaal komt de herstellink in de serverlog en toont het beheer de activatielink
+* E-mails voor certificaat en vervalmelding (30 dagen vooraf). Uitnodiging en wachtwoordherstel lopen via Supabase; lokaal komt de herstellink in de serverlog en toont het beheer de activatielink
 * Fase 2: community, privéchat, pushmeldingen
 * Huisstijl: kleuren nu volgens het bouwplan (wit, goud `#A4914A`, bordeaux `#722F37`) met Cormorant Garamond en Inter, centraal in `src/app/globals.css`. Goud is voor tekst verdonkerd naar `#6F6230` vanwege leesbaarheid
 * Videoplatform (advies: Vimeo met domeinbeperking), back-ups, bewaartermijnen en privacyverklaring

@@ -8,10 +8,13 @@ export interface User {
   email: string;
   name: string;
   role: Role;
+  /** Local mode only; with Supabase the password lives in Supabase Auth. */
   passwordHash: string | null;
-  /** One-time token for activating an account or resetting a password. */
+  /** Local mode only. One-time token for activating an account or resetting a password. */
   setupToken: string | null;
   setupTokenExpiresAt: string | null;
+  /** When the account got its first password. */
+  activatedAt: string | null;
   createdAt: string;
   lastActiveAt: string | null;
 }
