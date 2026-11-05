@@ -5,7 +5,6 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
 import { currentSession } from "@/lib/auth/session";
 import { isSupabaseMode } from "@/lib/data";
-import { authClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Wachtwoord kiezen" };
 // The backend (local or Supabase) is only known at runtime.
@@ -17,8 +16,7 @@ export default async function SetPasswordPage({ searchParams }: { searchParams: 
   if (!current) redirect("/auth/bevestigen?verlopen=1");
 
   // With an authenticator app set up, Supabase only changes the password after the code.
-  const { data: aal } = await (await authClient()).auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
+  if (current.needsCode) {
     redirect(`/tweestaps?next=${encodeURIComponent("/wachtwoord-instellen")}`);
   }
 
