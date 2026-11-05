@@ -65,25 +65,25 @@ Alle schrijfacties lopen via server actions die eerst de rol controleren; bestan
 
 ## Supabase (productie)
 
-Met `DATA_BACKEND=supabase` gebruikt de app Supabase voor alles: database, bestanden (privé bucket `academy`), inloggen, uitnodigingen, wachtwoordherstel per e-mail en tweestapsverificatie (verplicht voor de opleider).
+Met `DATA_BACKEND=supabase` gebruikt de app Supabase voor alles: database, bestanden (privé bucket `academy`), inloggen, uitnodigingen, wachtwoordherstel per e-mail en optionele tweestapsverificatie.
 
 Hoe het in elkaar zit:
 * Alle gegevens lopen via de server met de secret key (`src/lib/data/supabase-store.ts`). De server actions controleren eerst de rol. De tabellen zijn dicht voor de publieke API; row level security staat aan als extra slot
 * Inloggen via Supabase Auth (`src/lib/auth/session.ts` en `supabase-auth.ts`). Sessies staan in cookies en worden ververst door `src/middleware.ts`
 * Uitnodiging en herstel: Supabase mailt een link naar `/auth/bevestigen`. De link wordt pas gebruikt als de cursist op Doorgaan drukt, zodat virusscanners in de mail hem niet opmaken. Daarna kiest de cursist een wachtwoord op `/wachtwoord-instellen`
-* Opleider: na het wachtwoord volgt `/tweestaps` (authenticator app). Zonder die code geen toegang tot `/beheer` en tot bestanden van cursisten
+* Tweestapsverificatie is optioneel. De opleider zet hem aan via Instellingen (aanbevolen). Wie een authenticator app heeft gekoppeld, moet bij elke nieuwe login de code geven
 * Mislukte inlogpogingen worden per e-mailadres en per IP beperkt (`src/lib/auth/rate-limit.ts`)
 
 ### Eenmalig instellen
 
-1. **Migraties**: voer in de SQL editor van Supabase eerst `supabase/migrations/0001_init.sql` uit en daarna `0002_supabase_auth.sql`.
+1. **Migraties**: gaan vanzelf bij elke deploy (zie Deployen). Handmatig kan ook: `npm run db:migrate` met `DATABASE_URL` gezet, of de bestanden uit `supabase/migrations` op volgorde in de SQL editor plakken.
 2. **Authentication, Sign In / Providers**: e-mail aan, **Allow new users to sign up uit** (alleen uitnodigen). Minimale wachtwoordlengte 10. Email OTP Expiration op 86400 (24 uur), zodat een uitnodiging een dag geldig is.
 3. **Authentication, URL Configuration**: Site URL = de `APP_URL`, en bij Redirect URLs `APP_URL/**`.
 4. **Authentication, SMTP**: eigen SMTP instellen (bijvoorbeeld Resend, afzender op het domein van Estasi). De ingebouwde mailer van Supabase mailt alleen naar teamleden en maar een paar keer per uur.
 5. **Authentication, Email Templates**: zet in de templates de link zo:
    * Invite user: `{{ .SiteURL }}/auth/bevestigen?token_hash={{ .TokenHash }}&type=invite`
    * Reset password: `{{ .SiteURL }}/auth/bevestigen?token_hash={{ .TokenHash }}&type=recovery`
-6. **Authentication, Multi-Factor**: TOTP aan (standaard aan).
+6. **Authentication, Multi-Factor**: TOTP aan (standaard aan), zodat de opleider hem kan gebruiken.
 7. **Authentication, Rate Limits**: alle inlogpogingen komen van het IP van de server. Zet de limiet voor sign-ins ruim (bijvoorbeeld 300 per 5 minuten); de app beperkt zelf al per e-mailadres en per bezoeker.
 8. **Eigenaar en instellingen**: met de variabelen uit `.env.example` in `.env.local`:
    ```bash
@@ -91,7 +91,29 @@ Hoe het in elkaar zit:
    ```
    Dit controleert de migraties, vult de instellingen, maakt het opleidersaccount en mailt de uitnodiging. Met `--voorbeeldinhoud` laadt het ook de zes voorbeeldmodules (alleen als er nog geen modules zijn). Opnieuw draaien is veilig.
 
-Raakt de opleider de authenticator app kwijt: in Supabase onder Authentication, Users, het account openen en de MFA factor verwijderen. Bij de volgende keer inloggen koppelt ze een nieuwe app.
+Raakt de opleider de authenticator app kwijt: in Supabase onder Authentication, Users, het account openen en de MFA factor verwijderen. Daarna logt ze weer in met alleen haar wachtwoord en kan ze via Instellingen een nieuwe app koppelen.
+
+## Deployen (Render of Railway)
+
+Er staat een `Dockerfile` (werkt op beide) en een `render.yaml` blueprint. Zet in de hosting:
+
+| Variabele | Waarde |
+| --- | --- |
+| `DATA_BACKEND` | `supabase` |
+| `APP_URL` | het publieke adres, bijvoorbeeld `https://academy.estasiweddings.nl` (zonder `/` aan het eind) |
+| `CONTACT_EMAIL` | `academy@estasiweddings.nl` |
+| `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
+| `SUPABASE_ANON_KEY` | publishable key (`sb_publishable_...`) of de oude anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | secret key (`sb_secret_...`) of de oude service_role key, geheim |
+| `DATABASE_URL` | voor de migraties: in Supabase de knop **Connect**, dan **Session pooler** (poort 5432), met het databasewachtwoord ingevuld. Geheim |
+
+En in Render bij Settings (met de blueprint staat dit er al in):
+* **Auto-Deploy**: *On Commit*, dan gaat elke push naar `main` live
+* **Pre-Deploy Command**: `node scripts/migrate.mjs`
+
+Het migratiescript voert alleen de nieuwe bestanden uit `supabase/migrations` uit, op volgorde. Wat al gedaan is staat in de tabel `public.schema_migrations`; migraties die eerder met de hand zijn uitgevoerd worden herkend. Elke migratie loopt in één transactie: mislukt hij, dan wordt alles teruggedraaid, stopt de deploy en blijft de vorige versie draaien. Een nieuwe migratie is dus gewoon een nieuw bestand, bijvoorbeeld `0003_iets.sql`.
+
+Er is geen schijf en geen `SESSION_SECRET` nodig. Wil je een demo draaien met `DATA_BACKEND=local`, dan is `SESSION_SECRET` (minimaal 32 tekens) verplicht en heb je een persistente schijf nodig met `DATA_DIR` erop.
 
 ## Voorstel fase 1: betalen en toegang
 

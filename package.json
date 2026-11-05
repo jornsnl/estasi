@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "reset-data": "node scripts/reset-data.mjs",
-    "supabase:setup": "vite-node --config vitest.config.ts scripts/supabase-setup.ts"
+    "supabase:setup": "vite-node --config vitest.config.ts scripts/supabase-setup.ts",
+    "db:migrate": "node scripts/migrate.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -20,6 +21,7 @@
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
     "next": "^15.5.28",
+    "pg": "^8.23.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",
@@ -30,6 +32,7 @@
     "@eslint/eslintrc": "^3.3.7",
     "@tailwindcss/postcss": "^4.1.14",
     "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",
