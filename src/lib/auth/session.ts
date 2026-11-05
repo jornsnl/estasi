@@ -67,17 +67,23 @@ interface SessionInfo {
   userId: string;
   /** "aal2" once the second factor was checked in this session (Supabase only). */
   aal: "aal1" | "aal2";
+  /** The account has an authenticator app linked, but this session has not given the code yet. */
+  needsCode: boolean;
 }
 
 async function session(): Promise<SessionInfo | null> {
   if (!isSupabaseMode()) {
     const userId = decode((await cookies()).get(COOKIE)?.value);
-    return userId ? { userId, aal: "aal1" } : null;
+    return userId ? { userId, aal: "aal1", needsCode: false } : null;
   }
   // getClaims verifies the access token's signature; never trust the cookie as is.
-  const { data, error } = await (await authClient()).auth.getClaims();
+  const supabase = await authClient();
+  const { data, error } = await supabase.auth.getClaims();
   if (error || !data?.claims?.sub) return null;
-  return { userId: data.claims.sub, aal: data.claims.aal === "aal2" ? "aal2" : "aal1" };
+  const aal = data.claims.aal === "aal2" ? "aal2" : "aal1";
+  // MFA is optional. Whoever linked an app must still give the code, otherwise the app protects nothing.
+  const { data: level } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  return { userId: data.claims.sub, aal, needsCode: level?.nextLevel === "aal2" && aal !== "aal2" };
 }
 
 export async function endSession() {
@@ -89,14 +95,18 @@ export async function endSession() {
   }
 }
 
+/** The signed in user, or null. Also null while a linked authenticator app still waits for its code. */
 export async function currentUser(): Promise<User | null> {
   const info = await session();
-  if (!info) return null;
+  if (!info || info.needsCode) return null;
   return getStore().getUser(info.userId);
 }
 
 export async function requireUser(): Promise<User> {
-  const user = await currentUser();
+  const info = await session();
+  if (!info) redirect("/login");
+  if (info.needsCode) redirect("/tweestaps");
+  const user = await getStore().getUser(info.userId);
   if (!user) redirect("/login");
   return user;
 }
@@ -107,23 +117,18 @@ export async function requireStudent(): Promise<User> {
   return user;
 }
 
-/** The owner sees every student's data, so with Supabase a second factor is required. */
 export async function requireOwner(): Promise<User> {
-  const info = await session();
-  if (!info) redirect("/login");
-  const user = await getStore().getUser(info.userId);
-  if (!user) redirect("/login");
+  const user = await requireUser();
   if (user.role !== "owner") redirect("/dashboard");
-  if (isSupabaseMode() && info.aal !== "aal2") redirect("/tweestaps");
   return user;
 }
 
-/** For the MFA page itself: signed in, but the second factor may still be missing. */
+/** For the MFA and password pages: signed in, but a linked app may still wait for its code. */
 export async function currentSession() {
   const info = await session();
   if (!info) return null;
   const user = await getStore().getUser(info.userId);
-  return user ? { user, aal: info.aal } : null;
+  return user ? { user, aal: info.aal, needsCode: info.needsCode } : null;
 }
 
 export const homeFor = (user: User) => (user.role === "owner" ? "/beheer" : "/dashboard");

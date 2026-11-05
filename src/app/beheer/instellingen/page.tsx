@@ -1,17 +1,39 @@
+import Link from "next/link";
 import { saveSettings } from "@/app/actions/content";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { getStore } from "@/lib/data";
+import { getStore, isSupabaseMode } from "@/lib/data";
+import { authClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Instellingen" };
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await getStore().getSettings();
+  let mfaLinked: boolean | null = null;
+  if (isSupabaseMode()) {
+    const { data } = await (await authClient()).auth.mfa.listFactors();
+    mfaLinked = Boolean(data?.totp.some((f) => f.status === "verified"));
+  }
   return (
     <div className="max-w-2xl">
       <p className="eyebrow">Beheer</p>
       <h1 className="mt-1 mb-8 text-4xl">Instellingen</h1>
       <Notice searchParams={searchParams} />
+      {mfaLinked !== null && (
+        <section className="card mb-6 p-6">
+          <h2 className="text-2xl">Tweestapsverificatie</h2>
+          {mfaLinked ? (
+            <p className="mt-2 text-sm text-muted">Aan. Bij elke nieuwe login vragen we de code uit je authenticator app.</p>
+          ) : (
+            <>
+              <p className="mt-2 text-sm text-muted">
+                Uit. Aanbevolen voor het beheeraccount, omdat dit account de gegevens van alle cursisten ziet.
+              </p>
+              <Link href="/tweestaps?next=/beheer/instellingen" className="btn-secondary mt-4">Authenticator app koppelen</Link>
+            </>
+          )}
+        </section>
+      )}
       <form action={saveSettings} className="space-y-6">
         <section className="card space-y-4 p-6">
           <h2 className="text-2xl">Dashboard</h2>

@@ -6,6 +6,10 @@ services:
     region: frankfurt
     plan: starter
     healthCheckPath: /login
+    # Deploy on every push to main.
+    autoDeployTrigger: commit
+    # Runs in the new image before it goes live; a failed migration stops the deploy.
+    preDeployCommand: node scripts/migrate.mjs
     envVars:
       - key: DATA_BACKEND
         value: supabase
@@ -18,4 +22,7 @@ services:
       - key: SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Supabase "Session pooler" connection string, only used by the migrations.
+      - key: DATABASE_URL
         sync: false

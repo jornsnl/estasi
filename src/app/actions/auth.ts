@@ -45,7 +45,10 @@ export async function login(formData: FormData) {
 
   if (!user) {
     // A Supabase account without a row in users (for example made by hand) gets no access.
-    if (userId && isSupabaseMode()) await endSession();
+    if (userId && isSupabaseMode()) {
+      console.warn(`[inloggen] ${email}: account bestaat in Supabase Auth maar niet in public.users (id ${userId})`);
+      await endSession();
+    }
     hit(emailKey, LOGIN_PER_EMAIL);
     hit(ipKey, LOGIN_PER_IP);
     back("/login", "Onbekend e-mailadres of onjuist wachtwoord.");
