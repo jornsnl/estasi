@@ -8,7 +8,7 @@ import { nextLesson, studentOverview } from "@/lib/academy";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
 import { remainingDays } from "@/lib/domain/access";
-import { COURSE_STATUS_LABELS } from "@/lib/domain/progress";
+import { COURSE_STATUS_LABELS, isUnfinished } from "@/lib/domain/progress";
 import { formatDate } from "@/lib/util/format";
 
 export const metadata = { title: "Dashboard" };
@@ -33,7 +33,7 @@ export default async function Dashboard() {
         <section className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
           <div className="card p-6 sm:p-8">
             <div className="flex flex-wrap items-center gap-2">
-              {o.status && <Badge tone={o.status === "in_progress" ? "gold" : "success"}>{COURSE_STATUS_LABELS[o.status]}</Badge>}
+              {o.status && <Badge tone={o.status === "in_progress" ? "gold" : isUnfinished(o.status) ? "neutral" : "success"}>{COURSE_STATUS_LABELS[o.status]}</Badge>}
             </div>
             {current && (
               <>

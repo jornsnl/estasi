@@ -1,3 +1,4 @@
+import { plural } from "@/lib/domain/labels";
 import Link from "next/link";
 import { createLesson, createModule, deleteLesson, deleteModule, moveLesson, moveModule, updateModule } from "@/app/actions/content";
 import { MoveButtons } from "@/components/MoveButtons";
@@ -63,7 +64,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
                     <Link href={`/beheer/inhoud/les/${lesson.id}`} className="flex-1 hover:text-bordeaux">
                       <span className="font-medium">{j + 1}. {lesson.title}</span>
                       <span className="ml-2 text-sm text-muted">
-                        {lesson.blocks.length} blokken · {lesson.blocks.filter(isAnswerable).length} vragen
+                        {plural(lesson.blocks.length, "blok", "blokken")} · {plural(lesson.blocks.filter(isAnswerable).length, "vraag", "vragen")}
                       </span>
                     </Link>
                     <div className="flex items-center gap-1">

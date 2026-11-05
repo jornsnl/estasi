@@ -74,6 +74,17 @@ describe("moduleontgrendeling", () => {
     expect(courseStatus(enrollment, 100)).toBe("awaiting_confirmation");
     expect(courseStatus({ onlineCompletedAt: "x", practicalStatus: "none" } as never, 100)).toBe("online_completed");
   });
+
+  it("verlopen of ingetrokken toegang zonder afronding staat niet meer op bezig", () => {
+    const enrollment = { onlineCompletedAt: null, practicalStatus: "none" } as never;
+    expect(courseStatus(enrollment, 40, "active")).toBe("in_progress");
+    expect(courseStatus(enrollment, 40, "paused")).toBe("in_progress");
+    expect(courseStatus(enrollment, 40, "expired")).toBe("expired");
+    expect(courseStatus(enrollment, 40, "revoked")).toBe("stopped");
+    // Alles af maar daarna verlopen: de opleider moet nog bevestigen.
+    expect(courseStatus(enrollment, 100, "expired")).toBe("awaiting_confirmation");
+    expect(courseStatus({ onlineCompletedAt: "x", practicalStatus: "none" } as never, 100, "expired")).toBe("online_completed");
+  });
 });
 
 describe("feedback", () => {

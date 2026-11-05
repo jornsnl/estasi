@@ -140,7 +140,8 @@ export async function changeAccess(formData: FormData) {
   const owner = await requireOwner();
   const store = getStore();
   const enrollment = await loadEnrollment(formData);
-  const path = studentPath(enrollment.userId);
+  // The overview has its own "Verlengen" button and wants to come back to the list.
+  const path = str(formData, "returnTo") === "overzicht" ? "/beheer" : studentPath(enrollment.userId);
   const op = str(formData, "op");
 
   try {
@@ -183,7 +184,8 @@ export async function changeAccess(formData: FormData) {
     }
     await store.updateEnrollment(enrollment.id, patch);
     await audit(owner, log, "", enrollment.userId);
-    done(path, log);
+    const who = path === "/beheer" ? (await store.getUser(enrollment.userId))?.name : null;
+    done(path, who ? `${who}: ${log.charAt(0).toLowerCase()}${log.slice(1)}` : log);
   } catch (err) {
     if (err instanceof Error && !("digest" in err)) done(path, err.message, true);
     throw err;
@@ -195,7 +197,8 @@ export async function changeCompletion(formData: FormData) {
   const owner = await requireOwner();
   const store = getStore();
   const enrollment = await loadEnrollment(formData);
-  const path = studentPath(enrollment.userId);
+  // The overview has its own "Verlengen" button and wants to come back to the list.
+  const path = str(formData, "returnTo") === "overzicht" ? "/beheer" : studentPath(enrollment.userId);
   const op = str(formData, "op");
   const now = new Date().toISOString();
 

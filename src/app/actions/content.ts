@@ -94,23 +94,6 @@ export async function createLesson(formData: FormData) {
   done(`/beheer/inhoud/les/${lesson.id}`, "Les aangemaakt. Voeg nu blokken toe.");
 }
 
-export async function updateLesson(formData: FormData) {
-  await requireOwner();
-  const store = getStore();
-  const lesson = await store.getLesson(str(formData, "id"));
-  if (!lesson) redirect("/beheer/inhoud");
-  const moduleId = str(formData, "moduleId") || lesson.moduleId;
-  const moved = moduleId !== lesson.moduleId;
-  await store.saveLesson({
-    ...lesson,
-    title: str(formData, "title", 200) || lesson.title,
-    summary: str(formData, "summary", 500),
-    moduleId,
-    position: moved ? (await store.listLessons(moduleId)).length + 1 : lesson.position,
-  });
-  done(`/beheer/inhoud/les/${lesson.id}`, "Les opgeslagen.");
-}
-
 export async function moveLesson(formData: FormData) {
   await requireOwner();
   const store = getStore();
@@ -156,109 +139,108 @@ function emptyBlock(type: BlockType): Block {
 
 const BLOCK_TYPES: BlockType[] = ["video", "text", "download", "question", "choice", "upload"];
 
-export async function addBlock(formData: FormData) {
-  await requireOwner();
-  const store = getStore();
-  const lesson = await store.getLesson(str(formData, "lessonId"));
-  if (!lesson) redirect("/beheer/inhoud");
-  const type = str(formData, "type") as BlockType;
-  if (!BLOCK_TYPES.includes(type)) done(`/beheer/inhoud/les/${lesson.id}`, "Onbekend bloktype.", true);
-  const block = emptyBlock(type);
-  if (block.type === "question") block.kind = (str(formData, "kind") as QuestionKind) || "open";
-  await store.saveLesson({ ...lesson, blocks: [...lesson.blocks, block] });
-  redirect(`/beheer/inhoud/les/${lesson.id}?melding=${encodeURIComponent("Blok toegevoegd.")}#blok-${block.id}`);
+/** Reads one block's fields from the lesson editor form (field names start with "b.<blockId>."). */
+async function readBlock(current: Block, formData: FormData, ownerId: string): Promise<Block> {
+  const f = (name: string, max = 500) => str(formData, `b.${current.id}.${name}`, max);
+  const checked = (name: string) => formData.get(`b.${current.id}.${name}`) === "on";
+  switch (current.type) {
+    case "video":
+      return { ...current, url: f("url", 1000), caption: f("caption", 300) };
+    case "text":
+      return { ...current, markdown: f("markdown", 50_000) };
+    case "download": {
+      const file = await storeUpload(formData.get(`b.${current.id}.file`), { belongsTo: null, uploadedBy: ownerId });
+      return {
+        ...current,
+        label: f("label", 200),
+        description: f("description", 500),
+        url: f("url", 1000),
+        file: checked("removeFile") ? null : (file ?? current.file),
+      };
+    }
+    case "question": {
+      const kind = f("kind");
+      return {
+        ...current,
+        kind: (["open", "reflection", "practice"].includes(kind) ? kind : "open") as QuestionKind,
+        prompt: f("prompt", 2000),
+        helpText: f("helpText", 1000),
+        required: checked("required"),
+        feedback: checked("feedback"),
+      };
+    }
+    case "choice":
+      return {
+        ...current,
+        prompt: f("prompt", 2000),
+        helpText: f("helpText", 1000),
+        options: f("options", 5000)
+          .split("\n")
+          .map((o) => o.trim())
+          .filter(Boolean),
+        required: checked("required"),
+        feedback: checked("feedback"),
+      };
+    case "upload":
+      return { ...current, prompt: f("prompt", 2000), helpText: f("helpText", 1000), required: checked("required"), feedback: checked("feedback") };
+  }
 }
 
-export async function updateBlock(formData: FormData) {
-  await requireOwner();
+/**
+ * The whole lesson editor is one form. Every button submits all fields, so
+ * saving, adding, moving or deleting a block never throws away edits made
+ * elsewhere on the page. The pressed button says what else to do ("intent").
+ */
+export async function saveLessonEditor(formData: FormData) {
+  const owner = await requireOwner();
   const store = getStore();
-  const lesson = await store.getLesson(str(formData, "lessonId"));
+  const lesson = await store.getLesson(str(formData, "id"));
   if (!lesson) redirect("/beheer/inhoud");
   const path = `/beheer/inhoud/les/${lesson.id}`;
-  const blockId = str(formData, "blockId");
-  const current = lesson.blocks.find((b) => b.id === blockId);
-  if (!current) done(path, "Blok niet gevonden.", true);
 
-  const required = formData.get("required") === "on";
-  const feedback = formData.get("feedback") === "on";
-  let updated: Block;
+  // 1. Everything typed on the page. Blocks without fields in the form are left as they are.
+  let blocks: Block[];
   try {
-    switch (current.type) {
-      case "video":
-        updated = { ...current, url: str(formData, "url", 1000), caption: str(formData, "caption", 300) };
-        break;
-      case "text":
-        updated = { ...current, markdown: str(formData, "markdown", 50_000) };
-        break;
-      case "download": {
-        const owner = await requireOwner();
-        const file = await storeUpload(formData.get("file"), { belongsTo: null, uploadedBy: owner.id });
-        updated = {
-          ...current,
-          label: str(formData, "label", 200),
-          description: str(formData, "description", 500),
-          url: str(formData, "url", 1000),
-          file: formData.get("removeFile") === "on" ? null : (file ?? current.file),
-        };
-        break;
-      }
-      case "question":
-        updated = {
-          ...current,
-          kind: (["open", "reflection", "practice"].includes(str(formData, "kind")) ? str(formData, "kind") : "open") as QuestionKind,
-          prompt: str(formData, "prompt", 2000),
-          helpText: str(formData, "helpText", 1000),
-          required,
-          feedback,
-        };
-        break;
-      case "choice":
-        updated = {
-          ...current,
-          prompt: str(formData, "prompt", 2000),
-          helpText: str(formData, "helpText", 1000),
-          options: str(formData, "options", 5000)
-            .split("\n")
-            .map((o) => o.trim())
-            .filter(Boolean),
-          required,
-          feedback,
-        };
-        break;
-      case "upload":
-        updated = { ...current, prompt: str(formData, "prompt", 2000), helpText: str(formData, "helpText", 1000), required, feedback };
-        break;
-    }
+    blocks = await Promise.all(
+      lesson.blocks.map((b) => (formData.has(`b.${b.id}.present`) ? readBlock(b, formData, owner.id) : b)),
+    );
   } catch (err) {
-    if (err instanceof UploadError) done(path, err.message, true);
+    if (err instanceof UploadError) done(path, `${err.message} Je wijzigingen zijn niet opgeslagen.`, true);
     throw err;
   }
-  await store.saveLesson({ ...lesson, blocks: lesson.blocks.map((b) => (b.id === blockId ? updated : b)) });
-  redirect(`${path}?melding=${encodeURIComponent("Blok opgeslagen.")}#blok-${blockId}`);
-}
+  const moduleId = str(formData, "moduleId") || lesson.moduleId;
+  const moved = moduleId !== lesson.moduleId;
 
-export async function moveBlock(formData: FormData) {
-  await requireOwner();
-  const store = getStore();
-  const lesson = await store.getLesson(str(formData, "lessonId"));
-  if (!lesson) redirect("/beheer/inhoud");
-  const blockId = str(formData, "blockId");
-  const blocks = [...lesson.blocks];
-  const i = blocks.findIndex((b) => b.id === blockId);
-  const j = str(formData, "direction") === "up" ? i - 1 : i + 1;
-  if (i !== -1 && j >= 0 && j < blocks.length) [blocks[i], blocks[j]] = [blocks[j], blocks[i]];
-  await store.saveLesson({ ...lesson, blocks });
-  redirect(`/beheer/inhoud/les/${lesson.id}#blok-${blockId}`);
-}
+  // 2. What the pressed button asks for.
+  const [action, arg, extra] = str(formData, "intent").split(":");
+  let message = "Les opgeslagen.";
+  let anchor = "";
+  if (action === "add" && BLOCK_TYPES.includes(arg as BlockType)) {
+    const block = emptyBlock(arg as BlockType);
+    if (block.type === "question" && ["open", "reflection", "practice"].includes(extra)) block.kind = extra as QuestionKind;
+    blocks.push(block);
+    message = "Les opgeslagen en blok toegevoegd.";
+    anchor = `#blok-${block.id}`;
+  } else if (action === "move") {
+    const i = blocks.findIndex((b) => b.id === arg);
+    const j = extra === "up" ? i - 1 : i + 1;
+    if (i !== -1 && j >= 0 && j < blocks.length) [blocks[i], blocks[j]] = [blocks[j], blocks[i]];
+    message = "Les opgeslagen en blok verplaatst.";
+    anchor = `#blok-${arg}`;
+  } else if (action === "delete") {
+    blocks = blocks.filter((b) => b.id !== arg);
+    message = "Les opgeslagen en blok verwijderd. Eerder gegeven antwoorden blijven bewaard.";
+  }
 
-export async function deleteBlock(formData: FormData) {
-  await requireOwner();
-  const store = getStore();
-  const lesson = await store.getLesson(str(formData, "lessonId"));
-  if (!lesson) redirect("/beheer/inhoud");
-  const blockId = str(formData, "blockId");
-  await store.saveLesson({ ...lesson, blocks: lesson.blocks.filter((b) => b.id !== blockId) });
-  done(`/beheer/inhoud/les/${lesson.id}`, "Blok verwijderd. Eerder gegeven antwoorden blijven bewaard.");
+  await store.saveLesson({
+    ...lesson,
+    title: str(formData, "title", 200) || lesson.title,
+    summary: str(formData, "summary", 500),
+    moduleId,
+    position: moved ? (await store.listLessons(moduleId)).length + 1 : lesson.position,
+    blocks,
+  });
+  redirect(`${path}?melding=${encodeURIComponent(message)}${anchor}`);
 }
 
 // Settings
