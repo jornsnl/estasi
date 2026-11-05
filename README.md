@@ -2,6 +2,8 @@
 
 Online leeromgeving van Estasi Weddings voor toekomstige weddingplanners. Gebouwd op basis van het functioneel bouwplan (versie 1.0, 25 oktober 2026). Dit is de **fase 1** basis: cursus volgen, vragen direct op de lespagina beantwoorden, voortgang en moduleontgrendeling, beheer van inhoud, toegang, feedback en certificaat.
 
+> In de map [`wedding-space/`](wedding-space/README.md) staat **Your Wedding Space**, het portaal per bruidspaar. Dat is een aparte app met een eigen database en een eigen Render service.
+
 ## Lokaal draaien (zonder database)
 
 ```bash
