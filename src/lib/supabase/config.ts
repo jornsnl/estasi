@@ -6,13 +6,37 @@ function required(name: string): string {
   return value;
 }
 
-export const supabaseUrl = () => required("SUPABASE_URL");
+/**
+ * The project URL, e.g. https://abcdefghijklmnop.supabase.co. Forgives the
+ * usual copy-paste slips (spaces, quotes, a trailing slash, /rest/v1) and
+ * explains what is wrong otherwise.
+ */
+export function normaliseSupabaseUrl(raw: string | undefined): { url: string } | { error: string } {
+  const value = (raw ?? "").trim().replace(/^["']|["']$/g, "").trim();
+  if (!value) return { error: "SUPABASE_URL ontbreekt." };
+  if (/^postgres(ql)?:\/\//i.test(value)) {
+    return { error: "SUPABASE_URL bevat een database connection string. Dat hoort in DATABASE_URL; SUPABASE_URL is https://<project-ref>.supabase.co (Project Settings, Data API)." };
+  }
+  const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  try {
+    const url = new URL(withScheme);
+    return { url: `${url.protocol}//${url.host}` };
+  } catch {
+    return { error: `SUPABASE_URL "${value.slice(0, 60)}" is geen geldige URL. Verwacht: https://<project-ref>.supabase.co` };
+  }
+}
+
+export function supabaseUrl(): string {
+  const result = normaliseSupabaseUrl(process.env.SUPABASE_URL);
+  if ("error" in result) throw new Error(result.error);
+  return result.url;
+}
 
 /** Publishable (anon) key: used for sign in, sessions and password reset. */
-export const supabaseAnonKey = () => required("SUPABASE_ANON_KEY");
+export const supabaseAnonKey = () => required("SUPABASE_ANON_KEY").trim().replace(/^["']|["']$/g, "");
 
 /** Secret (service role) key: server only, never sent to the browser. */
-export const supabaseServiceKey = () => required("SUPABASE_SERVICE_ROLE_KEY");
+export const supabaseServiceKey = () => required("SUPABASE_SERVICE_ROLE_KEY").trim().replace(/^["']|["']$/g, "");
 
 export const appUrl = () => (process.env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
 

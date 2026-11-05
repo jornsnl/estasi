@@ -1,5 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { supabaseAnonKey, supabaseUrl } from "@/lib/supabase/config";
+
+let warned = false;
 
 /**
  * Supabase mode only: refreshes the short lived access token before the page
@@ -9,8 +12,20 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   if (process.env.DATA_BACKEND !== "supabase") return NextResponse.next();
 
+  // A wrong setting must not crash every request: log it once and let the page explain.
+  let url: string;
+  let key: string;
+  try {
+    url = supabaseUrl();
+    key = supabaseAnonKey();
+  } catch (err) {
+    if (!warned) console.error(`[middleware] ${(err as Error).message}`);
+    warned = true;
+    return NextResponse.next();
+  }
+
   let response = NextResponse.next({ request });
-  const supabase = createServerClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
+  const supabase = createServerClient(url, key, {
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (list) => {
@@ -21,7 +36,11 @@ export async function middleware(request: NextRequest) {
     },
   });
   // Validates the token and refreshes it when it is about to expire.
-  await supabase.auth.getClaims();
+  try {
+    await supabase.auth.getClaims();
+  } catch (err) {
+    console.error(`[middleware] sessie verversen mislukt: ${(err as Error).message}`);
+  }
   return response;
 }
 
