@@ -17,9 +17,13 @@ export default async function PortalLayout({ children, params }: { children: Rea
   const items = [
     { href: base, label: "Overzicht", exact: true },
     { href: `${base}/pakket`, label: "Jullie Pakket" },
+    { href: `${base}/draaiboek`, label: "Draaiboek" },
     ...(couple.suppliers_enabled ? [{ href: `${base}/leveranciers`, label: "Leveranciers" }] : []),
-    { href: `${base}/afspraken`, label: "Afspraken & deadlines" },
-    { href: `${base}/kosten`, label: "Kostenoverzicht" },
+    { href: `${base}/afspraken`, label: "Afspraken" },
+    { href: `${base}/gasten`, label: "Gasten & RSVP" },
+    { href: `${base}/styling`, label: "Styling" },
+    { href: `${base}/opdrachten`, label: "Opdrachten" },
+    { href: `${base}/kosten`, label: "Kosten" },
     ...(isAdmin ? [{ href: `${base}/gegevens`, label: "Gegevens & delen" }] : []),
   ];
   return (

@@ -29,12 +29,12 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
 
   const tiles = [
     { label: "Jullie Pakket", href: `${base}/pakket` },
-    { label: "Draaiboek", href: null },
+    { label: "Draaiboek", href: `${base}/draaiboek` },
     ...(couple.suppliers_enabled ? [{ label: "Jullie leveranciers", href: `${base}/leveranciers` }] : []),
     { label: "Afspraken & deadlines", href: `${base}/afspraken` },
-    { label: "Gastenlijst & RSVP", href: null },
-    { label: "Stylingplan & Moodboard", href: null },
-    { label: "Opdrachten", href: null },
+    { label: "Gastenlijst & RSVP", href: `${base}/gasten` },
+    { label: "Stylingplan & Moodboard", href: `${base}/styling` },
+    { label: "Opdrachten", href: `${base}/opdrachten` },
     { label: "Kostenoverzicht", href: `${base}/kosten` },
   ];
 
@@ -188,6 +188,10 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
           <details className="group">
             <summary className="btn cursor-pointer list-none bg-cream text-ink hover:bg-white">Contact</summary>
             <div className="mt-3 rounded-xl bg-white p-5 text-sm text-ink">
+              {settings.contact_photo_file_id && (
+                // eslint-disable-next-line @next/next/no-img-element -- photo behind a login check
+                <img src="/api/ws-foto" alt={`Pasfoto van ${settings.contact_name}`} width={96} height={96} className="mb-3 h-24 w-24 rounded-full object-cover" />
+              )}
               <p className="font-serif text-base font-semibold">{settings.contact_name}</p>
               <p className="text-muted">{settings.business_name}</p>
               <dl className="mt-3 space-y-1">

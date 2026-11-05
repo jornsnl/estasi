@@ -21,6 +21,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
         { href: "/beheer/bruidsparen/takenbord", label: "Mijn takenbord" },
         { href: "/beheer/bruidsparen/agenda", label: "Mijn agenda" },
         { href: "/beheer/bruidsparen/pakketten", label: "Pakketten" },
+        { href: "/beheer/bruidsparen/opdrachten", label: "Opdrachten" },
         { href: "/beheer/bruidsparen/instellingen", label: "Instellingen portaal" },
       ]}
       footer={

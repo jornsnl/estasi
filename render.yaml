@@ -39,3 +39,6 @@ services:
         value: "Sabine van Estasi Weddings <sabine@estasiweddings.nl>"
       - key: ADMIN_NOTIFY_EMAIL
         value: sabine@estasiweddings.nl
+      # Optional: AI summaries in Your Wedding Space.
+      - key: ANTHROPIC_API_KEY
+        sync: false

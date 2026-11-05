@@ -91,8 +91,36 @@ export async function createCouple(input: NewCouple, createdBy: string): Promise
         db,
       );
     }
+    await query(
+      `insert into runsheet_tabs (couple_id, title, kind, position) values
+         ($1, 'Dagplanning', 'schedule', 1), ($1, 'Opstelling', 'list', 2), ($1, 'Meeneemlijst', 'list', 3), ($1, 'Overig', 'list', 4)`,
+      [coupleId],
+      db,
+    );
+    const templates = await query<{ id: string }>("select id from assignment_templates where not archived order by position", [], db);
+    for (const t of templates) await copyAssignmentTemplate(coupleId, t.id, db);
     return coupleId;
   });
+}
+
+/** Copies one of Sabine's assignment templates into a couple's portal. */
+export async function copyAssignmentTemplate(coupleId: string, templateId: string, db?: Parameters<typeof query>[2]) {
+  const assignment = await one<{ id: string }>(
+    `insert into assignments (couple_id, template_id, title, intro, styling_source, position)
+     select $1, t.id, t.title, t.intro, t.styling_source,
+            (select coalesce(max(position), 0) + 1 from assignments where couple_id = $1)
+       from assignment_templates t where t.id = $2 returning id`,
+    [coupleId, templateId],
+    db,
+  );
+  if (!assignment) return null;
+  await query(
+    `insert into assignment_questions (assignment_id, prompt, help, position)
+     select $1, prompt, help, position from assignment_template_questions where template_id = $2`,
+    [assignment.id, templateId],
+    db,
+  );
+  return assignment.id;
 }
 
 export interface ShareResult {

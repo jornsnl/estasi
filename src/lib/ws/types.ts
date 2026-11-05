@@ -43,6 +43,9 @@ export interface Couple {
   status: "concept" | "active" | "archived";
   activated_at: Date | null;
   created_at: Date;
+  guests_day: number | null;
+  guests_day_kids: number | null;
+  guests_evening: number | null;
 }
 
 export interface Settings {
@@ -57,6 +60,7 @@ export interface Settings {
   meeting_guides: string[];
   detail_guide: string;
   evaluation_guide: string;
+  contact_photo_file_id: string | null;
 }
 
 export interface Task {

@@ -2,7 +2,7 @@
 
 Online leeromgeving van Estasi Weddings voor toekomstige weddingplanners. Gebouwd op basis van het functioneel bouwplan (versie 1.0, 25 oktober 2026). Dit is de **fase 1** basis: cursus volgen, vragen direct op de lespagina beantwoorden, voortgang en moduleontgrendeling, beheer van inhoud, toegang, feedback en certificaat.
 
-> In de map [`wedding-space/`](wedding-space/README.md) staat **Your Wedding Space**, het portaal per bruidspaar. Dat is een aparte app met een eigen database en een eigen Render service.
+> Deze app bevat ook **Your Wedding Space**, het portaal per bruidspaar (zie verderop). Sabine beheert beide vanuit hetzelfde beheer.
 
 ## Lokaal draaien (zonder database)
 
@@ -107,7 +107,10 @@ Er staat een `Dockerfile` (werkt op beide) en een `render.yaml` blueprint. Zet i
 | `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `SUPABASE_ANON_KEY` | publishable key (`sb_publishable_...`) of de oude anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | secret key (`sb_secret_...`) of de oude service_role key, geheim |
-| `DATABASE_URL` | voor de migraties: in Supabase de knop **Connect**, dan **Session pooler** (poort 5432), met het databasewachtwoord ingevuld. Geheim |
+| `DATABASE_URL` | migraties én Your Wedding Space: in Supabase de knop **Connect**, dan **Session pooler** (poort 5432, niet de transaction pooler), met het databasewachtwoord ingevuld. Geheim |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | e-mail van Your Wedding Space (uitnodigingen, vragen, RSVP). Kan dezelfde SMTP zijn als in Supabase Auth |
+| `ADMIN_NOTIFY_EMAIL` | waar meldingen voor Sabine heen gaan |
+| `ANTHROPIC_API_KEY` | optioneel: AI-samenvattingen en concept-stylingplan |
 
 En in Render bij Settings (met de blueprint staat dit er al in):
 * **Auto-Deploy**: *On Commit*, dan gaat elke push naar `main` live
@@ -116,6 +119,33 @@ En in Render bij Settings (met de blueprint staat dit er al in):
 Het migratiescript voert alleen de nieuwe bestanden uit `supabase/migrations` uit, op volgorde. Wat al gedaan is staat in de tabel `public.schema_migrations`; migraties die eerder met de hand zijn uitgevoerd worden herkend. Elke migratie loopt in één transactie: mislukt hij, dan wordt alles teruggedraaid, stopt de deploy en blijft de vorige versie draaien. Een nieuwe migratie is dus gewoon een nieuw bestand, bijvoorbeeld `0003_iets.sql`.
 
 Er is geen schijf en geen `SESSION_SECRET` nodig. Wil je een demo draaien met `DATA_BACKEND=local`, dan is `SESSION_SECRET` (minimaal 32 tekens) verplicht en heb je een persistente schijf nodig met `DATA_DIR` erop.
+
+## Your Wedding Space (portaal per bruidspaar)
+
+De opvolger van Sabine's Notion-template, op basis van haar document *Reverse engineering: Your Wedding Space* en de schets. Het zit in deze app: één login, één beheer, dezelfde database (eigen schema `wedding_space`, zodat tabellen nooit botsen met de Academy).
+
+**Sabine (beheer, onder "Your Wedding Space" in het menu)**
+* Bruidsparen: aanmaken als concept (gegevens, trouwdatum, pakket, aantal meetings). Het portaal staat meteen klaar met starttaken, meetings, draaiboek-tabbladen en opdrachten, maar het bruidspaar ziet niets totdat Sabine na de betaling op "Maak beschikbaar en deel" klikt. Elke partner krijgt dan een Academy-account met de rol `couple` en een uitnodiging
+* Mijn takenbord (alle taken in de kolom "Sabine") en Mijn agenda (afspraken en deadlines van alle bruidsparen)
+* Pakketten met prijs, richtaantal meetings en starttaken; standaardopdrachten; leverancierscategorieën, contactblok, teksten en haar pasfoto
+
+**Het portaal (`/k/...`, eigen huisstijl: Playfair Display, goud `#A89650`, bordeaux `#6B1E2E`)**
+* Hoofdpagina: cover met countdown, welkom, tegels, takenbord (Bruidspaar, Sabine, Bruid, Bruidegom) met geschiedenis, vragenblok (antwoord per mail) met geschiedenis, contactkaart met pasfoto
+* Jullie Pakket: meetings met samenvatting (tekst of bestand), Detailbespreking, optioneel Evaluatie
+* Draaiboek: tabbladen (Dagplanning met Tijd, Wie, Wat, Meer info, Waar, Waar bij regen; plus lijsten), verwachte gasten bovenaan, tabblad Leveranciers vult zich vanuit Jullie leveranciers, compacte printversie
+* Jullie leveranciers: alle categorieën, status, contact, notities en documenten
+* Afspraken & deadlines, Kostenoverzicht
+* Gastenlijst & RSVP: per groep een formulier met eigen link en QR-code (kleur en achtergrond instelbaar, download als png of svg), vragenlijst per bruiloft aan te passen (deel van de dag, dieet, dresscode, eigen vragen), bevestigings- of afmeldmail met eigen tekst, melding aan Sabine en het bruidspaar. Ieder persoon een eigen regel in de gastenlijst; wie samen aanmeldt blijft gekoppeld
+* Opdrachten: vragen met notitievelden, tussentijds opslaan, insturen; zichtbaar vanaf een datum; AI-samenvatting na insturen (Sabine kan hem aanpassen)
+* Stylingplan & Moodboard: AI-concept uit de opdracht Thema & Moodboard, door Sabine verfijnd met kleurenpalet en pas zichtbaar na publiceren; moodboard-afbeeldingen
+
+**Nog niet**: offertes met digitaal ondertekenen, Sabine's aanraders (fotokaarten per categorie), de dagelijkse e-mailsamenvatting van activiteit (de activiteit wordt al vastgelegd).
+
+**Beveiliging**: elke pagina, actie en elk bestand van een bruidspaar loopt via `requireCouple` (`src/lib/ws/access.ts`): een bruidspaar ziet alleen het eigen, gedeelde portaal. Bestanden staan in de database (max. 10 MB). RSVP-formulieren zijn openbaar via een moeilijk te raden link, met een limiet per IP en een honeypot. De tabellen hebben row level security aan en geen rechten voor de publieke Supabase API.
+
+**AI**: met `ANTHROPIC_API_KEY` worden opdrachten samengevat en kan Sabine een concept-stylingplan laten maken (model Claude Opus 5.5; een samenvatting kost een paar cent). Zonder sleutel schrijft Sabine die zelf.
+
+**Lokaal**: Your Wedding Space heeft een Postgres-database nodig. Zet `DATABASE_URL` naar een lokale database, draai `node scripts/migrate.mjs` en start de app. Op een lege lokale database heeft migratie 0001 de Supabase-schema's `auth` en `storage` nodig; voor alleen Wedding Space kun je die als lege stubs aanmaken (zie de testopzet in de commitgeschiedenis) of tegen een Supabase-branch werken.
 
 ## Voorstel fase 1: betalen en toegang
 

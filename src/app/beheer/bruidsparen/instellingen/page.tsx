@@ -1,4 +1,7 @@
 import { archiveCategory, saveCategory, saveSettings } from "@/app/actions/ws-admin";
+import { uploadContactPhoto } from "@/app/actions/ws-fase2";
+import { IMAGE_ACCEPT } from "@/lib/ws/files";
+import { aiConfigured } from "@/lib/ws/ai";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { query } from "@/lib/ws/db";
@@ -25,6 +28,27 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           E-mail staat nog niet aan (SMTP ontbreekt). Uitnodigingen toon ik je als link om zelf door te sturen; meldingen over vragen komen nog niet aan.
         </p>
       )}
+
+      {!aiConfigured() && (
+        <p className="rounded-xl border border-gold/50 bg-white p-4 text-sm">
+          AI staat nog niet aan (ANTHROPIC_API_KEY ontbreekt). Samenvattingen van opdrachten en het concept-stylingplan schrijf je dan zelf.
+        </p>
+      )}
+
+      <form action={uploadContactPhoto} className="card flex flex-wrap items-center gap-4 p-6">
+        {s.contact_photo_file_id ? (
+          // eslint-disable-next-line @next/next/no-img-element -- photo behind a login check
+          <img src="/api/ws-foto" alt="Pasfoto" width={80} height={80} className="h-20 w-20 rounded-full object-cover" />
+        ) : (
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-cream text-xs text-muted">Geen foto</div>
+        )}
+        <div className="flex-1 space-y-2">
+          <h2 className="text-xl">Pasfoto in de contactkaart</h2>
+          <input type="file" name="photo" accept={IMAGE_ACCEPT} aria-label="Pasfoto" className="text-sm" />
+          {s.contact_photo_file_id && <label className="flex items-center gap-2 text-sm text-muted"><input type="checkbox" name="remove" /> Foto verwijderen</label>}
+        </div>
+        <SubmitButton className="btn-secondary" pendingText="Uploaden…">Opslaan</SubmitButton>
+      </form>
 
       <form action={saveSettings} className="card space-y-5 p-6">
         <h2 className="text-xl">Contactblok</h2>

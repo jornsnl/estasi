@@ -55,6 +55,9 @@
   .btn-primary {
     @apply btn bg-bordeaux text-white hover:bg-[#5d262d];
   }
+  .btn-gold {
+    @apply btn bg-gold text-white hover:brightness-95;
+  }
   .btn-secondary {
     @apply btn border border-line bg-white text-ink hover:border-gold hover:bg-cream;
   }
