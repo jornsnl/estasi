@@ -40,7 +40,7 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
       <h1 className="text-3xl">{isInvite ? "Account activeren" : "Nieuw wachtwoord"}</h1>
       <p className="mt-1 mb-6 text-sm text-muted">
         {isInvite
-          ? "Welkom bij de Wedding Plan Academy. Ga verder om een wachtwoord te kiezen."
+          ? "Welkom bij Estasi Weddings. Ga verder om een wachtwoord te kiezen."
           : "Ga verder om een nieuw wachtwoord te kiezen."}
       </p>
       <form action={confirmEmailLink}>

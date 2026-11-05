@@ -29,9 +29,12 @@ if (!url) {
 const ca = process.env.DATABASE_CA_CERT?.replace(/\\n/g, "\n");
 // Drop sslmode from the URL: the ssl option below decides how the certificate is checked.
 const connectionString = url.replace(/([?&])sslmode=[^&]*&?/, "$1").replace(/[?&]$/, "");
+const host = new URL(connectionString).hostname;
+const local = host === "localhost" || host === "127.0.0.1";
 const client = new pg.Client({
   connectionString,
-  ssl: ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: false },
+  // A local database (development) has no TLS; anything remote does.
+  ssl: local ? false : ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: false },
   application_name: "academy-migrate",
 });
 

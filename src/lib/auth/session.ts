@@ -113,13 +113,13 @@ export async function requireUser(): Promise<User> {
 
 export async function requireStudent(): Promise<User> {
   const user = await requireUser();
-  if (user.role !== "student") redirect("/beheer");
+  if (user.role !== "student") redirect(homeFor(user));
   return user;
 }
 
 export async function requireOwner(): Promise<User> {
   const user = await requireUser();
-  if (user.role !== "owner") redirect("/dashboard");
+  if (user.role !== "owner") redirect(homeFor(user));
   return user;
 }
 
@@ -131,4 +131,5 @@ export async function currentSession() {
   return user ? { user, aal: info.aal, needsCode: info.needsCode } : null;
 }
 
-export const homeFor = (user: User) => (user.role === "owner" ? "/beheer" : "/dashboard");
+export const homeFor = (user: Pick<User, "role">) =>
+  user.role === "owner" ? "/beheer" : user.role === "couple" ? "/k" : "/dashboard";

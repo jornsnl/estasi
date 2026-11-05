@@ -1,7 +1,8 @@
 // Domain model of the Academy. These shapes are shared by every storage
 // backend (local JSON file now, Supabase later), so keep them plain data.
 
-export type Role = "student" | "owner";
+/** "couple": a bridal couple with access to their Your Wedding Space only. */
+export type Role = "student" | "owner" | "couple";
 
 export interface User {
   id: string;

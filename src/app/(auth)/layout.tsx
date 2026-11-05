@@ -7,7 +7,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <Logo />
       </div>
       <div className="card w-full max-w-md p-8 shadow-sm">{children}</div>
-      <p className="mt-6 text-xs text-muted">Beveiligde leeromgeving van Estasi Weddings</p>
+      <p className="mt-6 text-xs text-muted">Beveiligde omgeving van Estasi Weddings</p>
     </div>
   );
 }

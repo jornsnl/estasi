@@ -16,7 +16,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <h1 className="text-3xl">Welkom terug</h1>
-      <p className="mt-1 mb-6 text-sm text-muted">Log in om verder te gaan met je opleiding.</p>
+      <p className="mt-1 mb-6 text-sm text-muted">Log in voor de Academy of jullie Wedding Space.</p>
       <Notice searchParams={searchParams} />
       <form action={login} className="space-y-4">
         <div>
