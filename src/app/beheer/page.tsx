@@ -1,11 +1,14 @@
 import Link from "next/link";
+import { changeAccess } from "@/app/actions/admin";
 import { Badge } from "@/components/Badge";
 import { Notice } from "@/components/Notice";
 import { ProgressBar } from "@/components/ProgressBar";
+import { SubmitButton } from "@/components/SubmitButton";
 import { studentOverview } from "@/lib/academy";
 import { getStore } from "@/lib/data";
 import { ACCESS_LABELS } from "@/lib/domain/access";
-import { COURSE_STATUS_LABELS } from "@/lib/domain/progress";
+import { PACKAGE_LABELS } from "@/lib/domain/labels";
+import { COURSE_STATUS_LABELS, isUnfinished } from "@/lib/domain/progress";
 import { formatDate, formatDateTime } from "@/lib/util/format";
 
 export const metadata = { title: "Cursisten" };
@@ -60,18 +63,34 @@ export default async function OwnerHome({ searchParams }: { searchParams: Promis
                     <p className="text-xs text-muted">{o.user.email}</p>
                   </td>
                   <td className="px-4 py-3">
-                    {o.enrollment ? (o.enrollment.package === "A" ? "A · Online" : "B · Praktijk") : "–"}
+                    {o.enrollment ? `${o.enrollment.package} · ${PACKAGE_LABELS[o.enrollment.package]}` : "–"}
                     <p className="text-xs text-muted">{formatDate(o.enrollment?.purchasedAt)}</p>
                   </td>
                   <td className="px-4 py-3">
                     <Badge tone={ACCESS_TONE[o.access]}>{o.access === "none" ? "Geen" : ACCESS_LABELS[o.access]}</Badge>
                     <p className="mt-1 text-xs text-muted">t/m {formatDate(o.enrollment?.endsAt)}</p>
+                    {o.access === "expired" && (
+                      <form action={changeAccess} className="mt-2 flex items-center gap-1">
+                        <input type="hidden" name="userId" value={o.user.id} />
+                        <input type="hidden" name="op" value="extend" />
+                        <input type="hidden" name="returnTo" value="overzicht" />
+                        <label className="sr-only" htmlFor={`months-${o.user.id}`}>Aantal maanden</label>
+                        <select id={`months-${o.user.id}`} name="months" defaultValue="3" className="input w-auto px-2 py-1 text-xs">
+                          {[1, 3, 6, 12].map((m) => (
+                            <option key={m} value={m}>{m} mnd</option>
+                          ))}
+                        </select>
+                        <SubmitButton className="btn-secondary px-2 py-1 text-xs" pendingText="…">Verlengen</SubmitButton>
+                      </form>
+                    )}
                   </td>
                   <td className="w-40 px-4 py-3">
                     <ProgressBar percent={o.percent} />
                     <p className="mt-1 text-xs text-muted">{o.percent}%</p>
                   </td>
-                  <td className="px-4 py-3">{o.status ? COURSE_STATUS_LABELS[o.status] : "–"}</td>
+                  <td className="px-4 py-3">
+                    {o.status ? (isUnfinished(o.status) ? <Badge tone="bordeaux">{COURSE_STATUS_LABELS[o.status]}</Badge> : COURSE_STATUS_LABELS[o.status]) : "–"}
+                  </td>
                   <td className="px-4 py-3">{o.openFeedback > 0 ? <Badge tone="bordeaux">{o.openFeedback} open</Badge> : <span className="text-muted">–</span>}</td>
                   <td className="px-4 py-3 text-muted">{o.user.lastActiveAt ? formatDateTime(o.user.lastActiveAt) : "Nog niet"}</td>
                 </tr>

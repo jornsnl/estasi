@@ -1,5 +1,6 @@
 "use server";
 
+import { plural } from "@/lib/domain/labels";
 import { redirect } from "next/navigation";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore, type Answer, type AnswerableBlock } from "@/lib/data";
@@ -53,7 +54,7 @@ export async function saveLesson(formData: FormData) {
 
   const missing = missingRequired(lesson, [...existing.values()]);
   if (missing.length > 0) {
-    next(lessonId, "fout", `Je antwoorden zijn opgeslagen. Beantwoord nog ${missing.length} verplichte vraag/vragen om de les af te ronden.`);
+    next(lessonId, "fout", `Je antwoorden zijn opgeslagen. Beantwoord nog ${plural(missing.length, "verplichte vraag", "verplichte vragen")} om de les af te ronden.`);
   }
   if (!completions.some((c) => c.lessonId === lessonId)) {
     await store.setCompletion({ userId: user.id, lessonId, completedAt: now });

@@ -9,6 +9,7 @@ import { studentOverview } from "@/lib/academy";
 import { getStore, isSupabaseMode, type Answer, type AnswerableBlock, type Feedback } from "@/lib/data";
 import { ACCESS_LABELS, remainingDays } from "@/lib/domain/access";
 import { isActivated } from "@/lib/domain/account";
+import { PACKAGE_LABELS } from "@/lib/domain/labels";
 import { appUrl } from "@/lib/supabase/config";
 import { COURSE_STATUS_LABELS, feedbackState, isAnswerable, isAnswered } from "@/lib/domain/progress";
 import { ACCEPT_ATTR } from "@/lib/uploads";
@@ -50,7 +51,7 @@ export default async function StudentDetail({
         <Link href="/beheer" className="text-sm text-muted hover:text-bordeaux">← Alle cursisten</Link>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <h1 className="text-4xl">{user.name}</h1>
-          {e && <Badge tone="gold">Pakket {e.package}</Badge>}
+          {e && <Badge tone="gold">Pakket {e.package} · {PACKAGE_LABELS[e.package]}</Badge>}
           {o.access !== "none" && <Badge tone={o.access === "active" ? "success" : "bordeaux"}>{ACCESS_LABELS[o.access]}</Badge>}
           {o.status && <Badge>{COURSE_STATUS_LABELS[o.status]}</Badge>}
         </div>

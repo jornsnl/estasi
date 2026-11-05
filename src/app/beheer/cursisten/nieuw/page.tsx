@@ -1,3 +1,4 @@
+import { PACKAGE_LABELS } from "@/lib/domain/labels";
 import { createStudent } from "@/app/actions/admin";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -50,14 +51,14 @@ export default async function NewStudentPage({ searchParams }: { searchParams: P
             <label className="card flex cursor-pointer gap-3 p-4 has-[:checked]:border-bordeaux has-[:checked]:bg-bordeaux-soft/40">
               <input type="radio" name="package" value="A" defaultChecked className="mt-1 accent-[#722F37]" />
               <span>
-                <span className="block font-medium">A · Online</span>
+                <span className="block font-medium">A · {PACKAGE_LABELS.A}</span>
                 <span className="text-sm text-muted">Online lessen, begeleiding en online certificaat.</span>
               </span>
             </label>
             <label className={`card flex gap-3 p-4 ${settings.practicalSpotsAvailable ? "cursor-pointer has-[:checked]:border-bordeaux has-[:checked]:bg-bordeaux-soft/40" : "opacity-60"}`}>
               <input type="radio" name="package" value="B" disabled={!settings.practicalSpotsAvailable} className="mt-1 accent-[#722F37]" />
               <span>
-                <span className="block font-medium">B · Online + praktijk</span>
+                <span className="block font-medium">B · {PACKAGE_LABELS.B}</span>
                 <span className="text-sm text-muted">
                   {settings.practicalSpotsAvailable ? "Inclusief meeloopdag tijdens een echte bruiloft." : "Geen praktijkplekken beschikbaar (zie Instellingen)."}
                 </span>

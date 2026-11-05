@@ -35,13 +35,14 @@ export async function studentOverview(user: User): Promise<StudentOverview> {
   ]);
   const progress = moduleProgress(modules, lessons, completions);
   const percent = overallPercent(progress);
+  const access = enrollment ? accessStatus(enrollment) : "none";
   return {
     user,
     enrollment,
-    access: enrollment ? accessStatus(enrollment) : "none",
+    access,
     progress,
     percent,
-    status: enrollment ? courseStatus(enrollment, percent) : null,
+    status: enrollment && access !== "none" ? courseStatus(enrollment, percent, access) : null,
     openFeedback: openFeedbackCount(lessons, answers, feedback),
   };
 }

@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/AppShell";
+import { PACKAGE_LABELS } from "@/lib/domain/labels";
 import { touchActivity } from "@/lib/academy";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
@@ -13,7 +14,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
   return (
     <AppShell
       userName={user.name}
-      subtitle={enrollment ? `Pakket ${enrollment.package === "A" ? "Online" : "Online + praktijk"}` : "Cursist"}
+      subtitle={enrollment ? `Pakket ${PACKAGE_LABELS[enrollment.package]}` : "Cursist"}
       items={[
         { href: "/dashboard", label: "Dashboard" },
         { href: "/opleiding", label: "Mijn opleiding" },

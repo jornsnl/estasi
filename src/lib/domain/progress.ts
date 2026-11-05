@@ -90,21 +90,35 @@ export type CourseStatus =
   | "in_progress"
   | "awaiting_confirmation"
   | "online_completed"
-  | "practical_completed";
+  | "practical_completed"
+  | "expired"
+  | "stopped";
 
 export const COURSE_STATUS_LABELS: Record<CourseStatus, string> = {
   in_progress: "Bezig",
   awaiting_confirmation: "Wacht op bevestiging",
   online_completed: "Online afgerond",
   practical_completed: "Praktijkervaring afgerond",
+  expired: "Verlopen, niet afgerond",
+  stopped: "Gestopt, niet afgerond",
 };
 
-export function courseStatus(enrollment: Enrollment, percent: number): CourseStatus {
+/** Statuses where the student is no longer working on the course without having finished it. */
+export const isUnfinished = (status: CourseStatus | null) => status === "expired" || status === "stopped";
+
+export function courseStatus(
+  enrollment: Enrollment,
+  percent: number,
+  access: "active" | "paused" | "expired" | "revoked" = "active",
+): CourseStatus {
   if (enrollment.onlineCompletedAt && enrollment.practicalStatus === "completed") {
     return "practical_completed";
   }
   if (enrollment.onlineCompletedAt) return "online_completed";
+  // Everything done: the owner still has to confirm, even when access has run out since.
   if (percent >= 100) return "awaiting_confirmation";
+  if (access === "expired") return "expired";
+  if (access === "revoked") return "stopped";
   return "in_progress";
 }
 
