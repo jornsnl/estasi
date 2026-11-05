@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Inter } from "next/font/google";
+import { Cormorant_Garamond, Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
+// Playfair Display is the heading font of Your Wedding Space (its own house style, see .ws-theme).
+const playfair = Playfair_Display({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-playfair", display: "swap" });
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -18,7 +20,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="nl" className={`${inter.variable} ${cormorant.variable}`}>
+    <html lang="nl" className={`${inter.variable} ${cormorant.variable} ${playfair.variable}`}>
       <body>{children}</body>
     </html>
   );

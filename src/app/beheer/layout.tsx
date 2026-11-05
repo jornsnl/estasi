@@ -11,11 +11,17 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
       userName={user.name}
       subtitle="Opleider"
       items={[
-        { href: "/beheer", label: "Cursisten", exact: true },
+        { href: "/beheer", label: "Cursisten", exact: true, section: "Academy" },
         { href: "/beheer/cursisten/nieuw", label: "Cursist toevoegen" },
         { href: "/beheer/inhoud", label: "Lesinhoud" },
         { href: "/beheer/instellingen", label: "Instellingen" },
         { href: "/beheer/logboek", label: "Logboek" },
+        { href: "/beheer/bruidsparen", label: "Bruidsparen", exact: true, section: "Your Wedding Space" },
+        { href: "/beheer/bruidsparen/nieuw", label: "Nieuw bruidspaar" },
+        { href: "/beheer/bruidsparen/takenbord", label: "Mijn takenbord" },
+        { href: "/beheer/bruidsparen/agenda", label: "Mijn agenda" },
+        { href: "/beheer/bruidsparen/pakketten", label: "Pakketten" },
+        { href: "/beheer/bruidsparen/instellingen", label: "Instellingen portaal" },
       ]}
       footer={
         isLocalMode() ? (

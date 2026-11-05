@@ -10,10 +10,6 @@ services:
     autoDeployTrigger: commit
     # Runs in the new image before it goes live; a failed migration stops the deploy.
     preDeployCommand: node scripts/migrate.mjs
-    # Your Wedding Space lives in wedding-space/ and deploys on its own.
-    buildFilter:
-      ignoredPaths:
-        - wedding-space/**
     envVars:
       - key: DATA_BACKEND
         value: supabase
@@ -27,27 +23,10 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      # Supabase "Session pooler" connection string, only used by the migrations.
+      # Supabase "Session pooler" connection string: migrations and Your Wedding Space.
       - key: DATABASE_URL
         sync: false
-
-  # Your Wedding Space: the portal per couple, its own app and database.
-  - type: web
-    name: your-wedding-space
-    runtime: docker
-    region: frankfurt
-    plan: starter
-    rootDir: wedding-space
-    dockerContext: .
-    dockerfilePath: ./Dockerfile
-    healthCheckPath: /login
-    autoDeployTrigger: commit
-    preDeployCommand: node scripts/migrate.mjs
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: APP_URL
-        sync: false
+      # E-mail for Your Wedding Space (invitations, questions and answers).
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
