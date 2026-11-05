@@ -7,18 +7,15 @@ services:
     plan: starter
     healthCheckPath: /login
     envVars:
-      - key: SESSION_SECRET
-        generateValue: true
       - key: DATA_BACKEND
-        value: local
-      - key: DATA_DIR
-        value: /var/data
+        value: supabase
       - key: APP_URL
         sync: false
       - key: CONTACT_EMAIL
         value: academy@estasiweddings.nl
-    # Only needed while DATA_BACKEND=local: keeps .data across deploys.
-    disk:
-      name: academy-data
-      mountPath: /var/data
-      sizeGB: 1
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

@@ -128,6 +128,7 @@ function user(id: string, name: string, email: string, role: User["role"], passw
     passwordHash: hashPassword(password),
     setupToken: null,
     setupTokenExpiresAt: null,
+    activatedAt: ago(200),
     createdAt: ago(200),
     lastActiveAt: lastActiveDaysAgo === null ? null : ago(lastActiveDaysAgo),
   };

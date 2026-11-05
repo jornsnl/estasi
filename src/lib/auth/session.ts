@@ -2,7 +2,17 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getStore, type User } from "@/lib/data";
+import { getStore, isSupabaseMode, type User } from "@/lib/data";
+import { authClient } from "@/lib/supabase/server";
+
+/**
+ * Who is logged in. Two backends:
+ * - local: a signed cookie with the user id (development and demos)
+ * - supabase: Supabase Auth sessions (short access token plus refresh
+ *   token in cookies, refreshed by src/middleware.ts), MFA for the owner
+ */
+
+// Local mode ------------------------------------------------------------------
 
 const COOKIE = "academy_session";
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 14;
@@ -40,7 +50,8 @@ function decode(token: string | undefined): string | null {
   }
 }
 
-export async function startSession(userId: string) {
+/** Local mode only; Supabase sets its own session cookies on sign in. */
+export async function startLocalSession(userId: string) {
   (await cookies()).set(COOKIE, encode(userId), {
     httpOnly: true,
     sameSite: "lax",
@@ -50,14 +61,38 @@ export async function startSession(userId: string) {
   });
 }
 
+// Both modes ------------------------------------------------------------------
+
+interface SessionInfo {
+  userId: string;
+  /** "aal2" once the second factor was checked in this session (Supabase only). */
+  aal: "aal1" | "aal2";
+}
+
+async function session(): Promise<SessionInfo | null> {
+  if (!isSupabaseMode()) {
+    const userId = decode((await cookies()).get(COOKIE)?.value);
+    return userId ? { userId, aal: "aal1" } : null;
+  }
+  // getClaims verifies the access token's signature; never trust the cookie as is.
+  const { data, error } = await (await authClient()).auth.getClaims();
+  if (error || !data?.claims?.sub) return null;
+  return { userId: data.claims.sub, aal: data.claims.aal === "aal2" ? "aal2" : "aal1" };
+}
+
 export async function endSession() {
-  (await cookies()).delete(COOKIE);
+  if (isSupabaseMode()) {
+    // Revokes the refresh token at Supabase, so a copied cookie stops working.
+    await (await authClient()).auth.signOut({ scope: "local" });
+  } else {
+    (await cookies()).delete(COOKIE);
+  }
 }
 
 export async function currentUser(): Promise<User | null> {
-  const userId = decode((await cookies()).get(COOKIE)?.value);
-  if (!userId) return null;
-  return getStore().getUser(userId);
+  const info = await session();
+  if (!info) return null;
+  return getStore().getUser(info.userId);
 }
 
 export async function requireUser(): Promise<User> {
@@ -72,8 +107,23 @@ export async function requireStudent(): Promise<User> {
   return user;
 }
 
+/** The owner sees every student's data, so with Supabase a second factor is required. */
 export async function requireOwner(): Promise<User> {
-  const user = await requireUser();
+  const info = await session();
+  if (!info) redirect("/login");
+  const user = await getStore().getUser(info.userId);
+  if (!user) redirect("/login");
   if (user.role !== "owner") redirect("/dashboard");
+  if (isSupabaseMode() && info.aal !== "aal2") redirect("/tweestaps");
   return user;
 }
+
+/** For the MFA page itself: signed in, but the second factor may still be missing. */
+export async function currentSession() {
+  const info = await session();
+  if (!info) return null;
+  const user = await getStore().getUser(info.userId);
+  return user ? { user, aal: info.aal } : null;
+}
+
+export const homeFor = (user: User) => (user.role === "owner" ? "/beheer" : "/dashboard");
