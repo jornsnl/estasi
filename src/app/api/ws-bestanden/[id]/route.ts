@@ -22,7 +22,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   return fileResponse(file);
 }
 
-/** Files without a couple that every couple may open: the fixed documents of "Jullie pakket". */
+/** Files without a couple that every couple may open: fixed documents and Sabine's recommendations. */
 async function isSharedDocument(fileId: string) {
-  return Boolean(await one("select 1 from documents where file_id = $1 and couple_id is null", [fileId]));
+  return Boolean(
+    await one(
+      `select 1 where exists (select 1 from documents where file_id = $1 and couple_id is null)
+                   or exists (select 1 from recommendations where (photo_file_id = $1 or brochure_file_id = $1) and not archived)`,
+      [fileId],
+    ),
+  );
 }

@@ -120,11 +120,14 @@ export interface SupplierCategory {
   archived: boolean;
 }
 
+export type SupplierStatus = "tbd" | "favorite" | "talking" | "booked" | "not_needed";
+
 export interface CoupleSupplier {
-  id: string | null;
+  id: string;
   category_id: string;
   category_name: string;
-  status: "open" | "talking" | "booked";
+  status: SupplierStatus;
+  recommendation_id: string | null;
   name: string;
   contact_person: string;
   phone: string;
@@ -153,4 +156,19 @@ export interface BudgetItem {
   payment_due: string | null;
   paid: boolean;
   position: number;
+}
+
+export interface Recommendation {
+  id: string;
+  category_id: string;
+  name: string;
+  profession: string;
+  phone: string;
+  email: string;
+  website: string;
+  photo_file_id: string | null;
+  brochure_file_id: string | null;
+  experience: string;
+  position: number;
+  archived: boolean;
 }

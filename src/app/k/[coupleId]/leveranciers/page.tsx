@@ -1,11 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { addCoupleCategory } from "@/app/actions/ws-suppliers";
+import { Notice } from "@/components/Notice";
+import { SubmitButton } from "@/components/SubmitButton";
+import { SupplierTable } from "@/components/ws/SupplierTable";
 import { requirePlanning } from "@/lib/ws/access";
-import { SUPPLIER_STATUS, suppliersFor } from "@/lib/ws/suppliers";
+import { suppliersFor } from "@/lib/ws/suppliers";
 
 export const metadata = { title: "Jullie leveranciers" };
 
-export default async function SuppliersPage({ params }: { params: Promise<{ coupleId: string }> }) {
+export default async function SuppliersPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ coupleId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { coupleId } = await params;
   const { couple } = await requirePlanning(coupleId);
   if (!couple.suppliers_enabled) notFound();
@@ -16,32 +26,36 @@ export default async function SuppliersPage({ params }: { params: Promise<{ coup
       <header>
         <p className="eyebrow">Onderdeel</p>
         <h1 className="mt-1 text-3xl">Jullie leveranciers</h1>
-        <p className="mt-1 text-sm text-muted">Klik op een categorie voor contactgegevens, notities en documenten zoals offertes.</p>
+        <p className="mt-1 text-sm text-muted">
+          Vul per categorie in wie het wordt; alles wordt meteen opgeslagen. Twijfel je nog? Kijk bij{" "}
+          <Link href={`/k/${couple.id}/leveranciers/aanraders`} className="text-bordeaux underline">de aanraders van Estasi</Link>.
+        </p>
       </header>
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[520px] text-sm">
-          <thead className="table-head"><tr><th className="px-4 py-2.5">Categorie</th><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5">Leverancier</th></tr></thead>
-          <tbody>
-            {rows.map((s) => (
-              <tr key={s.category_id} className="border-t border-line hover:bg-cream/50">
-                <td className="px-4 py-3">
-                  <Link href={`/k/${couple.id}/leveranciers/${s.category_id}`} className="font-medium hover:text-bordeaux">{s.category_name}</Link>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${s.status === "booked" ? "bg-success-soft text-success" : s.status === "talking" ? "bg-[#f3eedb] text-gold-ink" : "bg-cream text-muted"}`}>
-                    {SUPPLIER_STATUS[s.status]}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-muted">
-                  {s.name || "–"}
-                  {s.documents > 0 && <span className="ml-2 text-xs">· {s.documents} document{s.documents === 1 ? "" : "en"}</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-xs text-muted">Sabine&apos;s aanraders per categorie volgen binnenkort.</p>
+      <Notice searchParams={searchParams} />
+      <SupplierTable
+        coupleId={couple.id}
+        rows={rows.map((r) => ({
+          id: r.id,
+          category_id: r.category_id,
+          category_name: r.category_name,
+          category_own: r.category_couple_id !== null,
+          status: r.status,
+          name: r.name,
+          contact_person: r.contact_person,
+          phone: r.phone,
+          email: r.email,
+          notes: r.notes,
+          documents: r.documents,
+        }))}
+      />
+      <form action={addCoupleCategory} className="card flex flex-wrap items-end gap-2 p-4">
+        <input type="hidden" name="coupleId" value={couple.id} />
+        <div className="min-w-48 flex-1">
+          <label className="label" htmlFor="newCategory">Eigen categorie toevoegen</label>
+          <input id="newCategory" name="name" required maxLength={80} placeholder="Bijvoorbeeld: Fotobooth" className="input" />
+        </div>
+        <SubmitButton className="btn-secondary">Toevoegen</SubmitButton>
+      </form>
     </div>
   );
 }

@@ -222,65 +222,7 @@ export async function deleteMeeting(formData: FormData) {
   done(portal(ctx.couple.id, "/pakket"), "Verwijderd.");
 }
 
-// Suppliers -----------------------------------------------------------------------------------
-
-/**
- * Sabine fills in the supplier itself; the couple may only add notes and
- * documents (decision in h9.13 of the document).
- */
-export async function saveSupplier(formData: FormData) {
-  const ctx = await ctxFrom(formData);
-  const categoryId = str(formData, "categoryId", 40);
-  const back = portal(ctx.couple.id, `/leveranciers/${categoryId}`);
-  if (!ctx.couple.suppliers_enabled || !isUuid(categoryId)) done(portal(ctx.couple.id, "/leveranciers"), "Niet gevonden.", true);
-  const category = await one("select 1 from supplier_categories where id = $1 and not archived", [categoryId]);
-  if (!category) done(portal(ctx.couple.id, "/leveranciers"), "Niet gevonden.", true);
-
-  try {
-    await tx(async (db) => {
-      const row = await one<{ id: string }>(
-        `insert into couple_suppliers (couple_id, category_id) values ($1, $2)
-         on conflict (couple_id, category_id) do update set updated_at = now() returning id`,
-        [ctx.couple.id, categoryId],
-        db,
-      );
-      if (ctx.isAdmin) {
-        const status = ["open", "talking", "booked"].includes(str(formData, "status")) ? str(formData, "status") : "open";
-        await query(
-          `update couple_suppliers set status = $2, name = $3, contact_person = $4, phone = $5, email = $6, website = $7, address = $8, notes = $9
-            where id = $1`,
-          [row!.id, status, str(formData, "name", 200), str(formData, "contactPerson", 200), str(formData, "phone", 60),
-           str(formData, "email", 200), str(formData, "website", 300), str(formData, "address", 300), str(formData, "notes", 5000)],
-          db,
-        );
-      } else {
-        await query("update couple_suppliers set notes = $2 where id = $1", [row!.id, str(formData, "notes", 5000)], db);
-      }
-      const file = await storeUpload(formData.get("document"), { coupleId: ctx.couple.id, accountId: ctx.account.id }, db);
-      if (file) await query("insert into supplier_documents (supplier_id, file_id) values ($1, $2)", [row!.id, file.id], db);
-    });
-  } catch (err) {
-    if (err instanceof UploadError) done(back, err.message, true);
-    throw err;
-  }
-  await note(ctx, "Leverancier bijgewerkt");
-  done(back, "Opgeslagen.");
-}
-
-export async function deleteSupplierDocument(formData: FormData) {
-  const ctx = await ctxFrom(formData);
-  const id = str(formData, "documentId", 40);
-  const categoryId = str(formData, "categoryId", 40);
-  if (isUuid(id)) {
-    // The file goes with it; the join makes sure it belongs to this couple.
-    await deleteFiles(
-      `delete from files where id = (select d.file_id from supplier_documents d join couple_suppliers s on s.id = d.supplier_id
-                                      where d.id = $1 and s.couple_id = $2)`,
-      [id, ctx.couple.id],
-    );
-  }
-  done(portal(ctx.couple.id, `/leveranciers/${categoryId}`), "Document verwijderd.");
-}
+// Suppliers: see ws-suppliers.ts.
 
 // Budget -----------------------------------------------------------------------------------------
 

@@ -13,7 +13,7 @@ import type { SupplierCategory } from "@/lib/ws/types";
 export const metadata = { title: "Instellingen" };
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const [s, categories] = await Promise.all([getSettings(), query<SupplierCategory>("select * from supplier_categories order by archived, position, name")]);
+  const [s, categories] = await Promise.all([getSettings(), query<SupplierCategory>("select * from supplier_categories where couple_id is null order by archived, position, name")]);
   const field = (name: string, label: string, value: string, type = "text") => (
     <div><label className="label" htmlFor={name}>{label}</label><input id={name} name={name} type={type} defaultValue={value} className="input" /></div>
   );
