@@ -13,6 +13,7 @@ import { requireStudent } from "@/lib/auth/session";
 import { getStore, type Answer, type Block, type Feedback } from "@/lib/data";
 import { hasLessonAccess } from "@/lib/domain/access";
 import { canOpenLesson, isAnswerable, moduleProgress } from "@/lib/domain/progress";
+import { LIMITS } from "@/lib/domain/input";
 import { ACCEPT_ATTR } from "@/lib/uploads";
 import { formatBytes, formatDateTime } from "@/lib/util/format";
 
@@ -157,6 +158,7 @@ function BlockView({ block, answer, feedback }: { block: Block; answer: Answer |
             name={`a_${block.id}`}
             defaultValue={answer?.text ?? ""}
             rows={6}
+            maxLength={LIMITS.answer}
             className="input min-h-36 leading-relaxed"
             placeholder="Typ hier je antwoord…"
           />

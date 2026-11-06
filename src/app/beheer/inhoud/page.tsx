@@ -5,6 +5,7 @@ import { MoveButtons } from "@/components/MoveButtons";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { getStore } from "@/lib/data";
+import { LIMITS } from "@/lib/domain/input";
 import { isAnswerable } from "@/lib/domain/progress";
 
 export const metadata = { title: "Lesinhoud" };
@@ -40,8 +41,8 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
                     </summary>
                     <form action={updateModule} className="mt-3 space-y-3">
                       <input type="hidden" name="id" value={module.id} />
-                      <input name="title" defaultValue={module.title} required className="input" aria-label="Titel" />
-                      <textarea name="description" defaultValue={module.description} rows={2} className="input" aria-label="Omschrijving" />
+                      <input name="title" defaultValue={module.title} required maxLength={LIMITS.moduleTitle} className="input" aria-label="Titel" />
+                      <textarea name="description" defaultValue={module.description} rows={2} maxLength={LIMITS.moduleDescription} className="input" aria-label="Omschrijving" />
                       <SubmitButton className="btn-secondary">Opslaan</SubmitButton>
                     </form>
                   </details>
@@ -83,7 +84,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
 
               <form action={createLesson} className="mt-3 flex flex-wrap gap-2">
                 <input type="hidden" name="moduleId" value={module.id} />
-                <input name="title" required placeholder="Titel nieuwe les" className="input max-w-sm flex-1" aria-label="Titel nieuwe les" />
+                <input name="title" required maxLength={LIMITS.lessonTitle} placeholder="Titel nieuwe les" className="input max-w-sm flex-1" aria-label="Titel nieuwe les" />
                 <SubmitButton className="btn-secondary">Les toevoegen</SubmitButton>
               </form>
             </li>
@@ -94,8 +95,8 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
       <section className="card p-6">
         <h2 className="text-2xl">Nieuwe module</h2>
         <form action={createModule} className="mt-3 space-y-3">
-          <input name="title" required placeholder="Titel" className="input" aria-label="Titel" />
-          <textarea name="description" rows={2} placeholder="Korte omschrijving" className="input" aria-label="Omschrijving" />
+          <input name="title" required maxLength={LIMITS.moduleTitle} placeholder="Titel" className="input" aria-label="Titel" />
+          <textarea name="description" rows={2} maxLength={LIMITS.moduleDescription} placeholder="Korte omschrijving" className="input" aria-label="Omschrijving" />
           <SubmitButton>Module toevoegen</SubmitButton>
         </form>
       </section>
