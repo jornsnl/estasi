@@ -1,7 +1,7 @@
 import { deleteBudgetItem, saveBudgetItem } from "@/app/actions/ws-portal";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { requireCouple } from "@/lib/ws/access";
+import { requirePlanning } from "@/lib/ws/access";
 import { query } from "@/lib/ws/db";
 import { budgetTotals } from "@/lib/ws/budget";
 import { formatDate, formatMoney } from "@/lib/ws/format";
@@ -38,7 +38,7 @@ export default async function BudgetPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId } = await params;
-  const { couple } = await requireCouple(coupleId);
+  const { couple } = await requirePlanning(coupleId);
   const items = await query<BudgetItem>("select * from budget_items where couple_id = $1 order by position, created_at", [couple.id]);
   const totals = budgetTotals(items);
 

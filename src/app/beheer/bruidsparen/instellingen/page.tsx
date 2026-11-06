@@ -63,10 +63,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           {field("termsUrl", "Link naar algemene voorwaarden", s.terms_url, "url")}
         </div>
         <h2 className="pt-2 text-xl">Teksten</h2>
-        <div>
-          <label className="label" htmlFor="defaultWelcome">Standaard welkomsttekst voor nieuwe bruidsparen</label>
-          <textarea id="defaultWelcome" name="defaultWelcome" rows={3} defaultValue={s.default_welcome} className="input" />
-        </div>
+        <input type="hidden" name="defaultWelcome" value={s.default_welcome} />
         <div>
           <label className="label" htmlFor="meetingGuides">Richtlijn per meeting (Meeting 1, 2, 3, ...)</label>
           <textarea id="meetingGuides" name="meetingGuides" rows={8} defaultValue={(s.meeting_guides ?? []).join("\n\n")} className="input" />

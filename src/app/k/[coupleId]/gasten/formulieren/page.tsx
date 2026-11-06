@@ -2,7 +2,7 @@ import Link from "next/link";
 import { saveRsvpForm, saveRsvpQuestion } from "@/app/actions/ws-fase2";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { requireCouple } from "@/lib/ws/access";
+import { requirePlanning } from "@/lib/ws/access";
 import { query } from "@/lib/ws/db";
 import { appUrl } from "@/lib/ws/mail";
 import type { RsvpForm, RsvpQuestion } from "@/lib/ws/rsvp";
@@ -43,7 +43,7 @@ export default async function RsvpForms({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId } = await params;
-  const { couple, isAdmin } = await requireCouple(coupleId);
+  const { couple, isAdmin } = await requirePlanning(coupleId);
   const [forms, questions] = await Promise.all([
     query<RsvpForm>("select * from rsvp_forms where couple_id = $1 order by position", [couple.id]),
     query<RsvpQuestion>("select q.* from rsvp_questions q join rsvp_forms f on f.id = q.form_id where f.couple_id = $1 order by q.position", [couple.id]),

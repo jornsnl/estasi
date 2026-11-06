@@ -26,3 +26,17 @@ export function timeKey(value: string): number {
 export function extractColors(text: string): string[] {
   return [...new Set((text.match(/#[0-9a-fA-F]{6}\b/g) ?? []).map((c) => c.toLowerCase()))].slice(0, 8);
 }
+
+export type PackageKind = "wp" | "cm" | "od";
+
+/** Without WP or CM (only the opening dance) the couple sees a short menu. */
+export function sectionsFor(kinds: PackageKind[], isAdmin: boolean) {
+  const planningPackage = kinds.length === 0 || kinds.includes("wp") || kinds.includes("cm");
+  return {
+    planning: isAdmin || planningPackage,
+    dance: isAdmin || kinds.includes("od"),
+    /** What the couple itself would see; Sabine uses it to see what applies. */
+    planningPackage,
+    danceOnly: !planningPackage,
+  };
+}

@@ -14,8 +14,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     [id],
   );
   // Same answer for "missing" and "someone else's", so ids reveal nothing.
-  if (!file || (account.role !== "owner" && (!file.couple_id || file.couple_id !== (await coupleIdOf(account.id))))) {
-    return new Response("Niet gevonden", { status: 404 });
+  if (!file) return new Response("Niet gevonden", { status: 404 });
+  if (account.role !== "owner") {
+    const own = file.couple_id ? file.couple_id === (await coupleIdOf(account.id)) : await isSharedDocument(id);
+    if (!own) return new Response("Niet gevonden", { status: 404 });
   }
   return fileResponse(file);
+}
+
+/** Files without a couple that every couple may open: the fixed documents of "Jullie pakket". */
+async function isSharedDocument(fileId: string) {
+  return Boolean(await one("select 1 from documents where file_id = $1 and couple_id is null", [fileId]));
 }

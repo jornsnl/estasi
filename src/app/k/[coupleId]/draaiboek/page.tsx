@@ -3,7 +3,7 @@ import { saveGuestCounts, saveRunsheet, saveRunsheetTab } from "@/app/actions/ws
 import { DirtyGuard } from "@/components/DirtyGuard";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { requireCouple } from "@/lib/ws/access";
+import { requirePlanning } from "@/lib/ws/access";
 import { rowsFor, sortSchedule, supplierContacts, tabsFor } from "@/lib/ws/runsheet";
 import { SUPPLIER_STATUS } from "@/lib/ws/suppliers";
 
@@ -32,7 +32,7 @@ export default async function RunSheet({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId } = await params;
-  const { couple, isAdmin } = await requireCouple(coupleId);
+  const { couple, isAdmin } = await requirePlanning(coupleId);
   const base = `/k/${couple.id}/draaiboek`;
   const [tabs, rows, suppliers] = await Promise.all([tabsFor(couple.id), rowsFor(couple.id), supplierContacts(couple.id)]);
   const wanted = (await searchParams).tab;

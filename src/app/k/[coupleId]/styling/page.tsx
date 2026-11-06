@@ -2,7 +2,7 @@ import Link from "next/link";
 import { saveStylingPlan, stylingImage } from "@/app/actions/ws-fase2";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { requireCouple } from "@/lib/ws/access";
+import { requirePlanning } from "@/lib/ws/access";
 import { aiConfigured } from "@/lib/ws/ai";
 import { one, query } from "@/lib/ws/db";
 import { FileUpload } from "@/components/ws/FileUpload";
@@ -28,7 +28,7 @@ export default async function Styling({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId } = await params;
-  const { couple, isAdmin } = await requireCouple(coupleId);
+  const { couple, isAdmin } = await requirePlanning(coupleId);
   const [plan, images, source] = await Promise.all([
     one<Plan>("select * from styling_plans where couple_id = $1", [couple.id]),
     query<{ id: string; file_id: string; caption: string }>("select id, file_id, caption from styling_images where couple_id = $1 order by created_at", [couple.id]),

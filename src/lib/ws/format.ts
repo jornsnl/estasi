@@ -63,3 +63,7 @@ export function coupleName(c: Pick<Couple, "partner1_first" | "partner2_first">)
 }
 
 export const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+/** The welcome on every couple's overview: the same for everyone, not editable. */
+export const WELCOME_TEXT =
+  "Welkom in Your Wedding Space. Hier vinden jullie alles met betrekking tot jullie bruiloft overzichtelijk op één plek, zodat er voor jullie maar één ding overblijft: genieten.";

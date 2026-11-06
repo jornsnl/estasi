@@ -15,15 +15,46 @@ export interface CoupleListRow extends Couple {
 
 export async function listCouples(includeArchived = false): Promise<CoupleListRow[]> {
   return query<CoupleListRow>(
-    `select c.*, p.name as package_name,
+    `select c.*,
+            (select string_agg(p.name || case when p.variant <> '' then ' (' || p.variant || ')' else '' end, ' + ' order by p.position)
+               from couple_packages cp join packages p on p.id = cp.package_id where cp.couple_id = c.id) as package_name,
             (select count(*)::int from questions q where q.couple_id = c.id and q.answered_at is null) as open_questions,
             (select count(*)::int from tasks t where t.couple_id = c.id and t.lane = 'sabine' and t.done_at is null) as open_sabine_tasks,
             (select max(at) from activity x where x.couple_id = c.id) as last_activity
-       from couples c left join packages p on p.id = c.package_id
+       from couples c
       where $1 or c.status <> 'archived'
       order by c.wedding_date nulls last, c.created_at`,
     [includeArchived],
   );
+}
+
+/** The packages of a couple, in catalogue order. */
+export async function couplePackages(coupleId: string, db?: Parameters<typeof query>[2]): Promise<Package[]> {
+  return query<Package>(
+    "select p.* from couple_packages cp join packages p on p.id = cp.package_id where cp.couple_id = $1 order by p.position, p.name",
+    [coupleId],
+    db,
+  );
+}
+
+/** Adds packages to a couple: their starting tasks come along (not twice). */
+export async function addPackages(coupleId: string, packageIds: string[], createdBy: string, db?: Parameters<typeof query>[2]) {
+  for (const packageId of packageIds) {
+    const added = await one<{ package_id: string }>(
+      "insert into couple_packages (couple_id, package_id) values ($1, $2) on conflict do nothing returning package_id",
+      [coupleId, packageId],
+      db,
+    );
+    if (!added) continue;
+    await query(
+      `insert into tasks (couple_id, lane, title, position, created_by)
+       select $1, pt.lane, pt.title, pt.position, $3 from package_tasks pt
+        where pt.package_id = $2
+          and not exists (select 1 from tasks t where t.couple_id = $1 and t.lane = pt.lane and lower(t.title) = lower(pt.title))`,
+      [coupleId, packageId, createdBy],
+      db,
+    );
+  }
 }
 
 export interface NewCouple {
@@ -39,7 +70,7 @@ export interface NewCouple {
   wedding_date: string | null;
   wedding_date_confirmed: boolean;
   location: string;
-  package_id: string | null;
+  package_ids: string[];
   meetings: number;
 }
 
@@ -51,7 +82,9 @@ export interface NewCouple {
 export async function createCouple(input: NewCouple, createdBy: string): Promise<string> {
   const settings = await getSettings();
   return tx(async (db) => {
-    const pkg = input.package_id ? await one<Package>("select * from packages where id = $1", [input.package_id], db) : null;
+    const packages = input.package_ids.length
+      ? await query<Package>("select * from packages where id = any($1::uuid[])", [input.package_ids], db)
+      : [];
     const couple = await one<{ id: string }>(
       `insert into couples (partner1_first, partner1_last, partner1_email, partner1_phone,
                             partner2_first, partner2_last, partner2_email, partner2_phone,
@@ -61,20 +94,17 @@ export async function createCouple(input: NewCouple, createdBy: string): Promise
         input.partner1_first, input.partner1_last, input.partner1_email, input.partner1_phone,
         input.partner2_first, input.partner2_last, input.partner2_email, input.partner2_phone,
         input.address, input.wedding_date, input.wedding_date_confirmed, input.location,
-        pkg?.id ?? null, pkg?.suppliers_enabled ?? true, settings.default_welcome,
+        packages[0]?.id ?? null, packages.length === 0 || packages.some((p) => p.suppliers_enabled), settings.default_welcome,
       ],
       db,
     );
     const coupleId = couple!.id;
-
-    if (pkg) {
-      await query(
-        `insert into tasks (couple_id, lane, title, position, created_by)
-         select $1, lane, title, position, $3 from package_tasks where package_id = $2`,
-        [coupleId, pkg.id, createdBy],
-        db,
-      );
-    }
+    await addPackages(coupleId, packages.map((p) => p.id), createdBy, db);
+    await query(
+      "insert into guest_groups (couple_id, name, kind, position) values ($1, 'Daggasten', 'day', 1), ($1, 'Avondgasten', 'evening', 2)",
+      [coupleId],
+      db,
+    );
 
     const guides = Array.isArray(settings.meeting_guides) ? settings.meeting_guides : [];
     for (let n = 1; n <= input.meetings; n++) {

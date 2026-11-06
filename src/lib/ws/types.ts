@@ -12,6 +12,7 @@ export interface Package {
   description: string;
   position: number;
   archived: boolean;
+  kind: "wp" | "cm" | "od";
 }
 
 export interface PackageTask {
@@ -84,6 +85,7 @@ export interface Question {
   asked_by_name: string;
   answer: string | null;
   answered_at: Date | null;
+  read_at: Date | null;
 }
 
 export interface Appointment {

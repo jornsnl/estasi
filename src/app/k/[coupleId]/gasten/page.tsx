@@ -2,7 +2,7 @@ import Link from "next/link";
 import { saveGuest } from "@/app/actions/ws-fase2";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { requireCouple } from "@/lib/ws/access";
+import { requirePlanning } from "@/lib/ws/access";
 import { query } from "@/lib/ws/db";
 import { formatDateTime } from "@/lib/ws/format";
 
@@ -61,7 +61,7 @@ export default async function GuestList({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId } = await params;
-  const { couple } = await requireCouple(coupleId);
+  const { couple } = await requirePlanning(coupleId);
   const guests = await query<Guest>(
     `select g.*, f.name as form_name from guests g left join rsvp_forms f on f.id = g.form_id
       where g.couple_id = $1 order by g.created_at, g.id`,

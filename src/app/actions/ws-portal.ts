@@ -95,14 +95,31 @@ export async function answerQuestion(formData: FormData) {
     [id, ctx.couple.id, answer, ctx.account.id],
   );
   if (!q) done(back, "Vraag niet gevonden.", true);
-  const recipients = (await coupleMembers(ctx.couple.id)).map((a) => a.email);
+  // Both partners, also when one of them has no account yet. The answer itself is not in the mail.
+  const recipients = [
+    ...new Set(
+      [...(await coupleMembers(ctx.couple.id)).map((a) => a.email), ctx.couple.partner1_email, ctx.couple.partner2_email]
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ];
   const sent = await sendMail({
     to: recipients,
     replyTo: ctx.account.email,
-    subject: "Sabine heeft jullie vraag beantwoord",
-    text: `Jullie vroegen:\n${q.body}\n\nAntwoord van Sabine:\n${answer}\n\nTerugkijken kan altijd onder Vragenblok, Geschiedenis: ${appUrl()}${portal(ctx.couple.id, "/geschiedenis?soort=vragen")}`,
+    subject: "Er staat een antwoord voor jullie klaar",
+    text: `Hoi ${coupleName(ctx.couple)},\n\nSabine heeft jullie vraag in Your Wedding Space beantwoord. Log in om het antwoord te lezen:\n${appUrl()}${portal(ctx.couple.id, "#vragenblok")}`,
   });
-  done(back, sent ? "Antwoord opgeslagen en gemaild naar het bruidspaar." : "Antwoord opgeslagen. (Er is geen e-mail verstuurd: SMTP staat niet ingesteld.)");
+  done(back, sent ? "Antwoord opgeslagen. Het bruidspaar krijgt een melding per e-mail." : "Antwoord opgeslagen. (Er is geen e-mail verstuurd: SMTP staat niet ingesteld.)");
+}
+
+/** The couple opened an answer: from now on it is in the history. Sabine opening it changes nothing. */
+export async function markQuestionRead(coupleId: string, questionId: string): Promise<void> {
+  const ctx = await requireCouple(coupleId);
+  if (ctx.isAdmin || !isUuid(questionId)) return;
+  await query(
+    "update questions set read_at = now(), read_by = $3 where id = $1 and couple_id = $2 and answered_at is not null and read_at is null",
+    [questionId, ctx.couple.id, ctx.account.id],
+  );
 }
 
 // Appointments and deadlines ---------------------------------------------------------------

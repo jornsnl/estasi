@@ -2,10 +2,11 @@ import Link from "next/link";
 import { addTask, answerQuestion, askQuestion, deleteTask, toggleTask } from "@/app/actions/ws-portal";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
+import { AnswerReveal } from "@/components/ws/AnswerReveal";
 import { requireCouple } from "@/lib/ws/access";
 import { query } from "@/lib/ws/db";
 import { getSettings } from "@/lib/ws/settings";
-import { countdownLabel, coupleName, formatDate, formatDateTime, LANE_LABELS, LANES } from "@/lib/ws/format";
+import { countdownLabel, coupleName, formatDate, formatDateTime, LANE_LABELS, LANES, plural, WELCOME_TEXT } from "@/lib/ws/format";
 import type { Question, Task } from "@/lib/ws/types";
 
 export const metadata = { title: "Overzicht" };
@@ -14,13 +15,13 @@ type Search = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function CoupleHome({ params, searchParams }: { params: Promise<{ coupleId: string }>; searchParams: Search }) {
   const { coupleId } = await params;
-  const { couple, isAdmin } = await requireCouple(coupleId);
+  const { couple, isAdmin, planning, dance } = await requireCouple(coupleId);
   const base = `/k/${couple.id}`;
   const [tasks, questions, settings] = await Promise.all([
     query<Task>("select * from tasks where couple_id = $1 and done_at is null order by position, created_at", [couple.id]),
     query<Question>(
       `select q.* from questions q
-        where q.couple_id = $1 and q.answered_at is null order by q.asked_at`,
+        where q.couple_id = $1 and (q.answered_at is null or q.read_at is null) order by q.asked_at`,
       [couple.id],
     ),
     getSettings(),
@@ -28,15 +29,27 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
   const countdown = countdownLabel(couple.wedding_date);
 
   const tiles = [
-    { label: "Jullie Pakket", href: `${base}/pakket` },
-    { label: "Draaiboek", href: `${base}/draaiboek` },
-    ...(couple.suppliers_enabled ? [{ label: "Jullie leveranciers", href: `${base}/leveranciers` }] : []),
+    ...(planning
+      ? [
+          { label: "Jullie pakket", href: `${base}/pakket` },
+          { label: "Draaiboek", href: `${base}/draaiboek` },
+          ...(couple.suppliers_enabled ? [{ label: "Jullie leveranciers", href: `${base}/leveranciers` }] : []),
+        ]
+      : []),
     { label: "Afspraken & deadlines", href: `${base}/afspraken` },
-    { label: "Gastenlijst & RSVP", href: `${base}/gasten` },
-    { label: "Stylingplan & Moodboard", href: `${base}/styling` },
-    { label: "Opdrachten", href: `${base}/opdrachten` },
-    { label: "Kostenoverzicht", href: `${base}/kosten` },
+    ...(planning
+      ? [
+          { label: "Gastenlijst & RSVP", href: `${base}/gasten` },
+          { label: "Eten & allergieën", href: `${base}/eten` },
+          { label: "Stylingplan & Moodboard", href: `${base}/styling` },
+          { label: "Opdrachten", href: `${base}/opdrachten` },
+          { label: "Kostenoverzicht", href: `${base}/kosten` },
+        ]
+      : []),
+    ...(dance ? [{ label: "De openingsdans", href: `${base}/openingsdans` }] : []),
+    { label: "Facturen & Offertes", href: `${base}/facturen` },
   ];
+  const newAnswers = questions.filter((q) => q.answered_at && !q.read_at).length;
 
   return (
     <div className="space-y-10">
@@ -69,7 +82,7 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
         )}
       </section>
 
-      {couple.welcome_text && <p className="max-w-3xl text-[15px] leading-7 whitespace-pre-line text-muted">{couple.welcome_text}</p>}
+      <p className="max-w-3xl text-[15px] leading-7 text-muted">{WELCOME_TEXT}</p>
 
       {/* Tiles */}
       <section>
@@ -146,15 +159,33 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
       <section id="vragenblok" className="scroll-mt-6">
         <div className="mb-3 flex items-baseline gap-4">
           <h2 className="section-title">Vragenblok</h2>
+          {newAnswers > 0 && (
+            <span className="rounded-full bg-bordeaux px-2.5 py-0.5 text-xs font-medium text-white">
+              {isAdmin ? plural(newAnswers, "antwoord nog niet gelezen", "antwoorden nog niet gelezen") : plural(newAnswers, "nieuw antwoord", "nieuwe antwoorden")}
+            </span>
+          )}
           <Link href={`${base}/geschiedenis?soort=vragen`} className="text-sm text-bordeaux hover:underline">Geschiedenis</Link>
         </div>
         <div className="card space-y-4 p-5">
-          {questions.length === 0 && <p className="text-sm text-muted">Geen openstaande vragen.</p>}
+          {questions.length === 0 && <p className="text-sm text-muted">Geen openstaande vragen. Gelezen antwoorden staan onder Geschiedenis.</p>}
           {questions.map((q) => (
             <div key={q.id} className="rounded-xl bg-cream p-4">
               <p className="text-sm whitespace-pre-line">{q.body}</p>
               <p className="mt-1 text-xs text-muted">{q.asked_by_name || "Onbekend"} · {formatDateTime(q.asked_at)}</p>
-              {isAdmin ? (
+              {q.answered_at ? (
+                <>
+                  <span className="mt-2 inline-block rounded-full bg-success-soft px-2.5 py-0.5 text-xs text-success">
+                    Beantwoord{isAdmin ? ", nog niet gelezen door het bruidspaar" : ""}
+                  </span>
+                  <AnswerReveal
+                    coupleId={couple.id}
+                    questionId={q.id}
+                    answer={q.answer ?? ""}
+                    answeredAt={`Beantwoord ${formatDateTime(q.answered_at)}`}
+                    markRead={!isAdmin}
+                  />
+                </>
+              ) : isAdmin ? (
                 <details className="mt-3">
                   <summary className="cursor-pointer text-sm font-medium text-bordeaux">Beantwoorden</summary>
                   <form action={answerQuestion} className="mt-2 space-y-2">

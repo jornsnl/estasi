@@ -1,10 +1,12 @@
 import { cookies } from "next/headers";
-import { resendInvite, setCoupleStatus, shareCouple, updateCouple, uploadCover } from "@/app/actions/ws-admin";
+import { resendInvite, setCouplePackages, setCoupleStatus, shareCouple, updateCouple, uploadCover } from "@/app/actions/ws-admin";
 import { CoupleFields } from "@/components/ws/CoupleFields";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireCoupleAdmin } from "@/lib/ws/access";
-import { coupleMembers } from "@/lib/ws/couples";
+import { coupleMembers, couplePackages } from "@/lib/ws/couples";
+import { query } from "@/lib/ws/db";
+import type { Package } from "@/lib/ws/types";
 import { FileUpload } from "@/components/ws/FileUpload";
 import { directUploads } from "@/lib/ws/files";
 import { formatDateTime } from "@/lib/ws/format";
@@ -22,6 +24,12 @@ export default async function CoupleSettings({
   const { coupleId } = await params;
   const { couple } = await requireCoupleAdmin(coupleId);
   const accounts = await coupleMembers(couple.id);
+  const [allPackages, chosen] = await Promise.all([
+    query<Package>("select * from packages where not archived order by position, name"),
+    couplePackages(couple.id),
+  ]);
+  const chosenIds = new Set(chosen.map((p) => p.id));
+  const packageList = [...allPackages, ...chosen.filter((p) => !allPackages.some((a) => a.id === p.id))];
   let links: { email: string; link: string }[] = [];
   try {
     links = JSON.parse((await cookies()).get("ws_links")?.value ?? "[]");
@@ -97,13 +105,24 @@ export default async function CoupleSettings({
         )}
       </section>
 
+      <form id="pakketten" action={setCouplePackages} className="card space-y-3 p-5">
+        <input type="hidden" name="coupleId" value={couple.id} />
+        <h2 className="text-xl">Pakketten</h2>
+        <p className="text-sm text-muted">Meerdere pakketten kan. Het menu van het bruidspaar past zich automatisch aan; starttaken van een nieuw pakket komen erbij. Het bruidspaar ziet de pakketten, maar kan ze niet wijzigen.</p>
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {packageList.map((p) => (
+            <label key={p.id} className="flex items-start gap-2 text-sm">
+              <input type="checkbox" name="packageIds" value={p.id} defaultChecked={chosenIds.has(p.id)} className="mt-1 accent-[#6B1E2E]" />
+              <span>{p.name}{p.variant ? ` (${p.variant})` : ""}{p.archived ? " (gearchiveerd)" : ""}</span>
+            </label>
+          ))}
+        </div>
+        <SubmitButton className="btn-secondary" pendingText="Opslaan…">Pakketten opslaan</SubmitButton>
+      </form>
+
       <form action={updateCouple} className="card space-y-6 p-6">
         <input type="hidden" name="coupleId" value={couple.id} />
         <CoupleFields couple={couple} />
-        <div>
-          <label className="label" htmlFor="welcomeText">Welkomsttekst op de hoofdpagina</label>
-          <textarea id="welcomeText" name="welcomeText" rows={4} defaultValue={couple.welcome_text} className="input" />
-        </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="suppliersEnabled" defaultChecked={couple.suppliers_enabled} className="accent-[#6B1E2E]" /> Onderdeel &quot;Jullie leveranciers&quot; tonen
         </label>

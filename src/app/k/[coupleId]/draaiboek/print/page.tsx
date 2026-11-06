@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PrintButton } from "@/components/PrintButton";
-import { requireCouple } from "@/lib/ws/access";
+import { requirePlanning } from "@/lib/ws/access";
 import { coupleName, formatDate } from "@/lib/ws/format";
 import { rowsFor, sortSchedule, supplierContacts, tabsFor } from "@/lib/ws/runsheet";
 
@@ -9,7 +9,7 @@ export const metadata = { title: "Draaiboek (print)" };
 /** Compact print version: every tab as a tight table, no spreadsheet export. */
 export default async function RunSheetPrint({ params }: { params: Promise<{ coupleId: string }> }) {
   const { coupleId } = await params;
-  const { couple } = await requireCouple(coupleId);
+  const { couple } = await requirePlanning(coupleId);
   const [tabs, rows, suppliers] = await Promise.all([tabsFor(couple.id), rowsFor(couple.id), supplierContacts(couple.id)]);
   const guests = [
     couple.guests_day !== null ? `${couple.guests_day} overdag${couple.guests_day_kids ? ` (${couple.guests_day_kids} kinderen)` : ""}` : null,

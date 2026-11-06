@@ -2,7 +2,7 @@ import Link from "next/link";
 import { manageAssignment } from "@/app/actions/ws-fase2";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { requireCouple } from "@/lib/ws/access";
+import { requirePlanning } from "@/lib/ws/access";
 import { assignmentsFor } from "@/lib/ws/assignments";
 import { query } from "@/lib/ws/db";
 import { formatDate } from "@/lib/ws/format";
@@ -17,7 +17,7 @@ export default async function Assignments({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId } = await params;
-  const { couple, isAdmin } = await requireCouple(coupleId);
+  const { couple, isAdmin } = await requirePlanning(coupleId);
   const [assignments, templates] = await Promise.all([
     assignmentsFor(couple.id, isAdmin),
     isAdmin ? query<{ id: string; title: string }>("select id, title from assignment_templates where not archived order by position") : [],

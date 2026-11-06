@@ -4,7 +4,7 @@ import { manageAssignment, saveAnswers } from "@/app/actions/ws-fase2";
 import { DirtyGuard } from "@/components/DirtyGuard";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { requireCouple } from "@/lib/ws/access";
+import { requirePlanning } from "@/lib/ws/access";
 import { aiConfigured } from "@/lib/ws/ai";
 import { assignmentsFor, questionsFor } from "@/lib/ws/assignments";
 import { formatDateTime } from "@/lib/ws/format";
@@ -19,7 +19,7 @@ export default async function AssignmentPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId, assignmentId } = await params;
-  const { couple, isAdmin } = await requireCouple(coupleId);
+  const { couple, isAdmin } = await requirePlanning(coupleId);
   const assignment = (await assignmentsFor(couple.id, isAdmin)).find((a) => a.id === assignmentId);
   if (!assignment) notFound();
   const questions = await questionsFor(assignment.id);

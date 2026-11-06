@@ -25,20 +25,23 @@ export default async function NewCouple({ searchParams }: { searchParams: Promis
         <fieldset className="grid gap-3 sm:grid-cols-3">
           <legend className="mb-2 font-serif text-lg font-semibold">Pakket</legend>
           <div className="sm:col-span-2">
-            <label className="label" htmlFor="packageId">Gekozen pakket</label>
-            <select id="packageId" name="packageId" className="input" defaultValue="">
-              <option value="">Nog geen pakket</option>
+            <p className="label">Gekozen pakketten (meerdere mogelijk, bijvoorbeeld Weddingplanner + Openingsdans)</p>
+            <div className="space-y-1.5">
               {packages.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}{p.variant ? ` (${p.variant})` : ""} · {p.meetings} meeting{p.meetings === 1 ? "" : "s"}{p.price_cents ? ` · ${formatMoney(p.price_cents)}` : ""}
-                </option>
+                <label key={p.id} className="flex items-start gap-2 text-sm">
+                  <input type="checkbox" name="packageIds" value={p.id} className="mt-1 accent-[#6B1E2E]" />
+                  <span>
+                    {p.name}{p.variant ? ` (${p.variant})` : ""}
+                    <span className="text-muted"> · {p.meetings} meeting{p.meetings === 1 ? "" : "s"}{p.price_cents ? ` · ${formatMoney(p.price_cents)}` : ""}</span>
+                  </span>
+                </label>
               ))}
-            </select>
+            </div>
           </div>
           <div>
             <label className="label" htmlFor="meetings">Aantal meetings</label>
             <input id="meetings" name="meetings" type="number" min={0} max={20} placeholder="Zoals het pakket" className="input" />
-            <p className="hint">Leeg laten = het aantal van het pakket.</p>
+            <p className="hint">Leeg laten = het aantal van het pakket (bij meerdere pakketten het hoogste).</p>
           </div>
         </fieldset>
         <SubmitButton className="btn-primary" pendingText="Aanmaken…">Portaal aanmaken</SubmitButton>

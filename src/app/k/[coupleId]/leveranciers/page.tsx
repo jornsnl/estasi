@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireCouple } from "@/lib/ws/access";
+import { requirePlanning } from "@/lib/ws/access";
 import { SUPPLIER_STATUS, suppliersFor } from "@/lib/ws/suppliers";
 
 export const metadata = { title: "Jullie leveranciers" };
 
 export default async function SuppliersPage({ params }: { params: Promise<{ coupleId: string }> }) {
   const { coupleId } = await params;
-  const { couple } = await requireCouple(coupleId);
+  const { couple } = await requirePlanning(coupleId);
   if (!couple.suppliers_enabled) notFound();
   const rows = await suppliersFor(couple.id);
 

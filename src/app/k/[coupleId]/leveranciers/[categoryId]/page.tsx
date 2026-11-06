@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { deleteSupplierDocument, saveSupplier } from "@/app/actions/ws-portal";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { requireCouple } from "@/lib/ws/access";
+import { requirePlanning } from "@/lib/ws/access";
 import { query } from "@/lib/ws/db";
 import { FileUpload } from "@/components/ws/FileUpload";
 import { directUploads } from "@/lib/ws/files";
@@ -20,7 +20,7 @@ export default async function SupplierDetail({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId, categoryId } = await params;
-  const { couple, isAdmin } = await requireCouple(coupleId);
+  const { couple, isAdmin } = await requirePlanning(coupleId);
   if (!couple.suppliers_enabled) notFound();
   const supplier = (await suppliersFor(couple.id)).find((s) => s.category_id === categoryId);
   if (!supplier) notFound();

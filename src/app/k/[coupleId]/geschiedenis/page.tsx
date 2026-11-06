@@ -30,7 +30,7 @@ export default async function History({
   const questions = showQuestions
     ? await query<Question>(
         `select q.* from questions q
-          where q.couple_id = $1 and q.answered_at is not null order by q.answered_at desc`,
+          where q.couple_id = $1 and q.answered_at is not null and q.read_at is not null order by q.answered_at desc`,
         [couple.id],
       )
     : [];
@@ -77,7 +77,7 @@ export default async function History({
               <p className="whitespace-pre-line">{q.body}</p>
               <p className="mt-1 text-xs text-muted">{q.asked_by_name || "Onbekend"} · {formatDateTime(q.asked_at)}</p>
               <div className="mt-3 rounded-xl bg-cream p-4">
-                <p className="eyebrow mb-1">Antwoord van Sabine · {formatDateTime(q.answered_at)}</p>
+                <p className="eyebrow mb-1">Antwoord van Sabine · {formatDateTime(q.answered_at)} · gelezen {formatDateTime(q.read_at)}</p>
                 <p className="whitespace-pre-line">{q.answer}</p>
               </div>
             </article>

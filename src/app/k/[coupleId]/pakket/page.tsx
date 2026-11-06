@@ -1,14 +1,16 @@
 import { addMeeting, deleteMeeting, saveMeeting } from "@/app/actions/ws-portal";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { requireCouple } from "@/lib/ws/access";
-import { one, query } from "@/lib/ws/db";
+import { requirePlanning } from "@/lib/ws/access";
+import { query } from "@/lib/ws/db";
+import { couplePackages } from "@/lib/ws/couples";
+import { DocumentsSection } from "@/components/ws/DocumentsSection";
 import { FileUpload } from "@/components/ws/FileUpload";
 import { directUploads } from "@/lib/ws/files";
 import { formatDate, formatMoney } from "@/lib/ws/format";
-import type { Meeting, Package } from "@/lib/ws/types";
+import type { Meeting } from "@/lib/ws/types";
 
-export const metadata = { title: "Jullie Pakket" };
+export const metadata = { title: "Jullie pakket" };
 
 const STATUS_LABEL = { to_plan: "Nog in te plannen", planned: "Gepland", done: "Geweest", skipped: "Vervalt" } as const;
 const STATUS_TONE = { to_plan: "bg-cream text-muted", planned: "bg-[#f3eedb] text-gold-ink", done: "bg-success-soft text-success", skipped: "bg-cream text-muted" } as const;
@@ -21,9 +23,9 @@ export default async function PackagePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId } = await params;
-  const { couple, isAdmin } = await requireCouple(coupleId);
-  const [pkg, meetings] = await Promise.all([
-    couple.package_id ? one<Package>("select * from packages where id = $1", [couple.package_id]) : null,
+  const { couple, isAdmin } = await requirePlanning(coupleId);
+  const [packages, meetings] = await Promise.all([
+    couplePackages(couple.id),
     query<Meeting>(
       `select m.*, f.name as summary_file_name from meetings m left join files f on f.id = m.summary_file_id
         where m.couple_id = $1 order by m.position`,
@@ -36,13 +38,15 @@ export default async function PackagePage({
     <div className="space-y-6">
       <header>
         <p className="eyebrow">Onderdeel</p>
-        <h1 className="mt-1 text-3xl">Jullie Pakket</h1>
-        {pkg && (
-          <p className="mt-1 text-gold-ink">
-            {pkg.name}{pkg.variant ? ` · ${pkg.variant}` : ""}{isAdmin && pkg.price_cents > 0 ? ` · ${formatMoney(pkg.price_cents)} (catalogusprijs)` : ""}
-          </p>
-        )}
-        {pkg?.description && <p className="mt-3 max-w-3xl text-sm whitespace-pre-line text-muted">{pkg.description}</p>}
+        <h1 className="mt-1 text-3xl">Jullie pakket</h1>
+        {packages.map((pkg) => (
+          <div key={pkg.id} className="mt-2">
+            <p className="text-gold-ink">
+              {pkg.name}{pkg.variant ? ` · ${pkg.variant}` : ""}{isAdmin && pkg.price_cents > 0 ? ` · ${formatMoney(pkg.price_cents)} (catalogusprijs)` : ""}
+            </p>
+            {pkg.description && <p className="mt-1 max-w-3xl text-sm whitespace-pre-line text-muted">{pkg.description}</p>}
+          </div>
+        ))}
       </header>
       <Notice searchParams={searchParams} />
 
@@ -143,6 +147,11 @@ export default async function PackagePage({
           )}
         </div>
       )}
+
+      <section id="documenten" className="scroll-mt-6">
+        <h2 className="section-title mb-3">Extra documenten</h2>
+        <DocumentsSection coupleId={couple.id} section="package" isAdmin={isAdmin} empty="Nog geen documenten." />
+      </section>
     </div>
   );
 }
