@@ -8,8 +8,10 @@ import { requireOwner } from "@/lib/auth/session";
 import { deleteAccount, inviteAccount, resendAccess } from "@/lib/auth/supabase-auth";
 import { getStore, isSupabaseMode, type Enrollment, type PackageType, type PracticalStatus } from "@/lib/data";
 import { accessStatus, addMonths, ACCESS_MONTHS, pause, resume } from "@/lib/domain/access";
+import { LIMITS } from "@/lib/domain/input";
+import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
 import { storeUpload, UploadError } from "@/lib/uploads";
-import { formatDate } from "@/lib/util/format";
+import { formatDate, fromDateInput } from "@/lib/util/format";
 import { newId } from "@/lib/util/id";
 
 const SETUP_DAYS = 7;
@@ -24,12 +26,14 @@ const studentPath = (userId: string) => `/beheer/cursisten/${userId}`;
 export async function createStudent(formData: FormData) {
   const owner = await requireOwner();
   const store = getStore();
-  const name = str(formData, "name", 120);
-  const email = str(formData, "email", 200).toLowerCase();
+  const name = str(formData, "name", LIMITS.name);
+  const email = str(formData, "email", LIMITS.email).toLowerCase();
   const pkg = (str(formData, "package") === "B" ? "B" : "A") as PackageType;
   const purchasedInput = str(formData, "purchasedAt");
-  const purchasedAt = purchasedInput ? new Date(`${purchasedInput}T12:00:00Z`).toISOString() : new Date().toISOString();
+  // Midday in Amsterdam, so the day is the same in every time zone the date is shown in.
+  const purchasedAt = purchasedInput ? fromDateInput(purchasedInput, "12:00") : new Date().toISOString();
 
+  if (!purchasedAt) done("/beheer/cursisten/nieuw", "Kies een geldige aankoopdatum.", true);
   if (!name || !/^\S+@\S+\.\S+$/.test(email)) done("/beheer/cursisten/nieuw", "Vul een naam en een geldig e-mailadres in.", true);
   if (await store.getUserByEmail(email)) done("/beheer/cursisten/nieuw", "Er bestaat al een account met dit e-mailadres.", true);
   if (pkg === "B" && !(await store.getSettings()).practicalSpotsAvailable) {
@@ -61,9 +65,9 @@ export async function createStudent(formData: FormData) {
     });
     await store.saveProfile({
       userId,
-      phone: str(formData, "phone", 40),
-      city: str(formData, "city", 120),
-      companyName: str(formData, "companyName", 160),
+      phone: str(formData, "phone", LIMITS.phone),
+      city: str(formData, "city", LIMITS.city),
+      companyName: str(formData, "companyName", LIMITS.companyName),
       photoFileId: null,
       instagram: "",
       website: "",
@@ -84,14 +88,14 @@ export async function createStudent(formData: FormData) {
       certificateReleasedAt: null,
       certificateCode: null,
       practicalStatus: "none",
-      ownerNotes: str(formData, "ownerNotes", 3000),
+      ownerNotes: str(formData, "ownerNotes", LIMITS.ownerNotes),
     });
   } catch (err) {
     // Do not leave a half made account behind (the users row cascades away with it).
     if (supabase) await deleteAccount(userId).catch(() => undefined);
     throw err;
   }
-  await audit(owner, "Cursist aangemaakt", `Pakket ${pkg}, aankoopdatum ${formatDate(purchasedAt)}`, userId);
+  await audit(owner, "Cursist aangemaakt", `Pakket ${pkg} · ${PACKAGE_LABELS[pkg]}, aankoopdatum ${formatDate(purchasedAt)}`, userId);
   done(
     studentPath(userId),
     supabase
@@ -153,13 +157,14 @@ export async function changeAccess(formData: FormData) {
         // Extending expired access counts from today, otherwise from the current end date.
         const base = accessStatus(enrollment) === "expired" ? new Date().toISOString() : enrollment.endsAt;
         patch = { endsAt: addMonths(base, months) };
-        log = `Toegang verlengd met ${months} maand(en) tot ${formatDate(patch.endsAt)}`;
+        log = `Toegang verlengd met ${plural(months, "maand", "maanden")} tot ${formatDate(patch.endsAt)}`;
         break;
       }
       case "setEnd": {
-        const date = str(formData, "endsAt");
-        if (!date) throw new Error("Kies een datum.");
-        patch = { endsAt: new Date(`${date}T23:59:00Z`).toISOString() };
+        // Access runs through the chosen day, Amsterdam time (23:59 UTC would show as the next day).
+        const endsAt = fromDateInput(str(formData, "endsAt"), "23:59");
+        if (!endsAt) throw new Error("Kies een geldige datum.");
+        patch = { endsAt };
         log = `Einddatum gewijzigd van ${formatDate(enrollment.endsAt)} naar ${formatDate(patch.endsAt)}`;
         break;
       }
@@ -197,8 +202,7 @@ export async function changeCompletion(formData: FormData) {
   const owner = await requireOwner();
   const store = getStore();
   const enrollment = await loadEnrollment(formData);
-  // The overview has its own "Verlengen" button and wants to come back to the list.
-  const path = str(formData, "returnTo") === "overzicht" ? "/beheer" : studentPath(enrollment.userId);
+  const path = studentPath(enrollment.userId);
   const op = str(formData, "op");
   const now = new Date().toISOString();
 
@@ -238,10 +242,10 @@ export async function changeCompletion(formData: FormData) {
         done(path, "Er zijn geen praktijkplekken beschikbaar. Zet ze eerst open bij Instellingen.", true);
       }
       patch = { package: "B" };
-      log = "Upgrade naar pakket B (online + praktijk)";
+      log = `Upgrade naar pakket B · ${PACKAGE_LABELS.B}`;
       break;
     case "notes":
-      patch = { ownerNotes: str(formData, "ownerNotes", 5000) };
+      patch = { ownerNotes: str(formData, "ownerNotes", LIMITS.ownerNotes) };
       log = "Notities bijgewerkt";
       break;
     default:
@@ -258,15 +262,17 @@ export async function giveFeedback(formData: FormData) {
   const answer = await store.getAnswer(str(formData, "answerId"));
   if (!answer) redirect("/beheer");
   const path = `${studentPath(answer.userId)}?les=${answer.lessonId}`;
-  const text = str(formData, "text", 10_000);
+  const text = str(formData, "text", LIMITS.feedback);
   if (!text) done(path, "Schrijf eerst je feedback.", true);
 
+  // A rejected attachment must not throw away the feedback that was written.
   let attachment = null;
+  let attachmentError: string | null = null;
   try {
     attachment = await storeUpload(formData.get("attachment"), { belongsTo: answer.userId, uploadedBy: owner.id });
   } catch (err) {
-    if (err instanceof UploadError) done(path, err.message, true);
-    throw err;
+    if (!(err instanceof UploadError)) throw err;
+    attachmentError = err.message;
   }
   await store.createFeedback({
     id: newId(),
@@ -279,5 +285,49 @@ export async function giveFeedback(formData: FormData) {
     createdAt: new Date().toISOString(),
   });
   await audit(owner, "Feedback gegeven", "", answer.userId);
+  if (attachmentError) done(path, `Feedback opgeslagen, maar zonder bijlage: ${attachmentError} Geef de bijlage eventueel als extra feedback.`, true);
   done(path, "Feedback opgeslagen. De cursist ziet deze bij de opdracht.");
+}
+
+/** Contact details of a student, as entered when the account was made. */
+export async function updateStudentDetails(formData: FormData) {
+  const owner = await requireOwner();
+  const store = getStore();
+  const userId = str(formData, "userId");
+  const user = await store.getUser(userId);
+  if (!user || user.role !== "student") done("/beheer", "Cursist niet gevonden.", true);
+  const path = studentPath(userId);
+
+  const name = str(formData, "name", LIMITS.name);
+  if (!name) done(path, "Vul een naam in.", true);
+  if (name !== user.name) await store.updateUser(userId, { name });
+
+  const current = await store.getProfile(userId);
+  await store.saveProfile({
+    userId,
+    photoFileId: null,
+    instagram: "",
+    website: "",
+    intro: "",
+    goals: "",
+    ...current,
+    phone: str(formData, "phone", LIMITS.phone),
+    city: str(formData, "city", LIMITS.city),
+    companyName: str(formData, "companyName", LIMITS.companyName),
+    updatedAt: new Date().toISOString(),
+  });
+
+  const enrollment = await store.getEnrollmentForUser(userId);
+  const purchasedInput = str(formData, "purchasedAt");
+  if (enrollment && purchasedInput) {
+    const purchasedAt = fromDateInput(purchasedInput, "12:00");
+    if (!purchasedAt) done(path, "Kies een geldige aankoopdatum.", true);
+    // Only the recorded date changes; the end date has its own field.
+    if (formatDate(purchasedAt) !== formatDate(enrollment.purchasedAt)) {
+      await store.updateEnrollment(enrollment.id, { purchasedAt });
+      await audit(owner, `Aankoopdatum gewijzigd van ${formatDate(enrollment.purchasedAt)} naar ${formatDate(purchasedAt)}`, "", userId);
+    }
+  }
+  await audit(owner, "Gegevens bijgewerkt", "", userId);
+  done(path, "Gegevens opgeslagen.");
 }

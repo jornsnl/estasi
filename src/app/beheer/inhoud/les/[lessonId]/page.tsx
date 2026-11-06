@@ -9,6 +9,7 @@ import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { VideoEmbed } from "@/components/VideoEmbed";
 import { getStore, type Block } from "@/lib/data";
+import { LIMITS } from "@/lib/domain/input";
 import { ACCEPT_ATTR } from "@/lib/uploads";
 import { formatBytes } from "@/lib/util/format";
 
@@ -64,16 +65,18 @@ export default async function LessonEditor({
       <form id={FORM_ID} action={saveLessonEditor} className="space-y-8">
         {/* First submit button in the form: pressing Enter in a field saves, it never moves or deletes a block. */}
         <button type="submit" name="intent" value="save" tabIndex={-1} aria-hidden="true" className="absolute h-0 w-0 overflow-hidden opacity-0" />
-        <input type="hidden" name="id" value={lesson.id} />
+        {/* Never name a field "id" in a form that has an id: form.id would then be that field, and
+            React drops the pressed button (intent) from the submitted data. */}
+        <input type="hidden" name="lessonId" value={lesson.id} />
 
         <section className="card space-y-4 p-6">
           <div>
             <label htmlFor="title" className="label">Titel</label>
-            <input id="title" name="title" defaultValue={lesson.title} required className="input" />
+            <input id="title" name="title" defaultValue={lesson.title} required maxLength={LIMITS.lessonTitle} className="input" />
           </div>
           <div>
             <label htmlFor="summary" className="label">Korte omschrijving</label>
-            <input id="summary" name="summary" defaultValue={lesson.summary} className="input" />
+            <input id="summary" name="summary" defaultValue={lesson.summary} maxLength={LIMITS.lessonSummary} className="input" />
           </div>
           <div>
             <label htmlFor="moduleId" className="label">Module</label>
@@ -147,11 +150,11 @@ function BlockFields({ block }: { block: Block }) {
     <>
       <div>
         <label className="label" htmlFor={id("prompt")}>Vraag of opdracht</label>
-        <textarea id={id("prompt")} name={n("prompt")} rows={2} defaultValue={block.prompt} className="input" />
+        <textarea id={id("prompt")} name={n("prompt")} rows={2} defaultValue={block.prompt} maxLength={LIMITS.prompt} className="input" />
       </div>
       <div>
         <label className="label" htmlFor={id("help")}>Toelichting (optioneel)</label>
-        <input id={id("help")} name={n("helpText")} defaultValue={block.helpText} className="input" />
+        <input id={id("help")} name={n("helpText")} defaultValue={block.helpText} maxLength={LIMITS.helpText} className="input" />
       </div>
     </>
   );
@@ -162,18 +165,18 @@ function BlockFields({ block }: { block: Block }) {
         <>
           <div>
             <label className="label" htmlFor={id("url")}>Videolink (Vimeo, YouTube of mp4)</label>
-            <input id={id("url")} name={n("url")} type="url" defaultValue={block.url} className="input" placeholder="https://vimeo.com/…" />
+            <input id={id("url")} name={n("url")} inputMode="url" autoComplete="off" defaultValue={block.url} maxLength={LIMITS.url} className="input" placeholder="https://vimeo.com/…" />
           </div>
           <div>
             <label className="label" htmlFor={id("cap")}>Onderschrift (optioneel)</label>
-            <input id={id("cap")} name={n("caption")} defaultValue={block.caption} className="input" />
+            <input id={id("cap")} name={n("caption")} defaultValue={block.caption} maxLength={LIMITS.caption} className="input" />
           </div>
           {block.url && <VideoEmbed url={block.url} title={block.caption || "Voorbeeld"} />}
         </>
       )}
       {block.type === "text" && (
         <>
-          <MarkdownEditor name={n("markdown")} defaultValue={block.markdown} label="Tekst" />
+          <MarkdownEditor name={n("markdown")} defaultValue={block.markdown} label="Tekst" maxLength={LIMITS.markdown} />
           <p className="hint">Gebruik de knoppen voor opmaak. Een lege regel begint een nieuwe alinea.</p>
           {block.markdown && (
             <details>
@@ -190,16 +193,16 @@ function BlockFields({ block }: { block: Block }) {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor={id("lbl")}>Titel</label>
-              <input id={id("lbl")} name={n("label")} defaultValue={block.label} className="input" />
+              <input id={id("lbl")} name={n("label")} defaultValue={block.label} maxLength={LIMITS.downloadLabel} className="input" />
             </div>
             <div>
               <label className="label" htmlFor={id("desc")}>Omschrijving</label>
-              <input id={id("desc")} name={n("description")} defaultValue={block.description} className="input" />
+              <input id={id("desc")} name={n("description")} defaultValue={block.description} maxLength={LIMITS.downloadDescription} className="input" />
             </div>
           </div>
           <div>
             <label className="label" htmlFor={id("url")}>Externe link (of upload hieronder een bestand)</label>
-            <input id={id("url")} name={n("url")} type="url" defaultValue={block.url} className="input" />
+            <input id={id("url")} name={n("url")} inputMode="url" autoComplete="off" defaultValue={block.url} maxLength={LIMITS.url} className="input" />
           </div>
           {block.file ? (
             <p className="text-sm">
@@ -231,7 +234,7 @@ function BlockFields({ block }: { block: Block }) {
           {promptFields}
           <div>
             <label className="label" htmlFor={id("opt")}>Antwoordopties (één per regel)</label>
-            <textarea id={id("opt")} name={n("options")} rows={4} defaultValue={block.options.join("\n")} className="input" />
+            <textarea id={id("opt")} name={n("options")} rows={4} defaultValue={block.options.join("\n")} maxLength={LIMITS.options} className="input" />
             <p className="hint">Er is geen goed of fout antwoord; de keuze wordt alleen bewaard.</p>
           </div>
           {flags}

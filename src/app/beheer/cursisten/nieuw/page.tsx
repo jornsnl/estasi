@@ -1,3 +1,4 @@
+import { LIMITS } from "@/lib/domain/input";
 import { PACKAGE_LABELS } from "@/lib/domain/labels";
 import { createStudent } from "@/app/actions/admin";
 import { Notice } from "@/components/Notice";
@@ -22,23 +23,23 @@ export default async function NewStudentPage({ searchParams }: { searchParams: P
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="name" className="label">Naam</label>
-            <input id="name" name="name" required className="input" />
+            <input id="name" name="name" required maxLength={LIMITS.name} className="input" />
           </div>
           <div>
             <label htmlFor="email" className="label">E-mailadres</label>
-            <input id="email" name="email" type="email" required className="input" />
+            <input id="email" name="email" type="email" required maxLength={LIMITS.email} className="input" />
           </div>
           <div>
             <label htmlFor="phone" className="label">Telefoon</label>
-            <input id="phone" name="phone" type="tel" className="input" />
+            <input id="phone" name="phone" type="tel" maxLength={LIMITS.phone} className="input" />
           </div>
           <div>
             <label htmlFor="city" className="label">Woonplaats</label>
-            <input id="city" name="city" className="input" />
+            <input id="city" name="city" maxLength={LIMITS.city} className="input" />
           </div>
           <div>
             <label htmlFor="companyName" className="label">Bedrijfsnaam (optioneel)</label>
-            <input id="companyName" name="companyName" className="input" />
+            <input id="companyName" name="companyName" maxLength={LIMITS.companyName} className="input" />
           </div>
           <div>
             <label htmlFor="purchasedAt" className="label">Aankoopdatum</label>
@@ -68,7 +69,7 @@ export default async function NewStudentPage({ searchParams }: { searchParams: P
         </fieldset>
         <div>
           <label htmlFor="ownerNotes" className="label">Interne notitie (optioneel)</label>
-          <textarea id="ownerNotes" name="ownerNotes" rows={3} className="input" placeholder="Bijvoorbeeld factuurnummer of betaalreferentie" />
+          <textarea id="ownerNotes" name="ownerNotes" rows={3} maxLength={LIMITS.ownerNotes} className="input" placeholder="Bijvoorbeeld factuurnummer of betaalreferentie" />
         </div>
         <SubmitButton pendingText="Aanmaken…">Cursist aanmaken</SubmitButton>
       </form>

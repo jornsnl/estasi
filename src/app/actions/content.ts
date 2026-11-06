@@ -4,10 +4,13 @@ import { redirect } from "next/navigation";
 import { audit } from "@/lib/academy";
 import { requireOwner } from "@/lib/auth/session";
 import { getStore, type Block, type BlockType, type QuestionKind } from "@/lib/data";
+import { LIMITS, normaliseUrl } from "@/lib/domain/input";
 import { storeUpload, UploadError } from "@/lib/uploads";
 import { newId } from "@/lib/util/id";
 
 const str = (formData: FormData, name: string, max = 500) => String(formData.get(name) ?? "").trim().slice(0, max);
+/** Markdown keeps its leading spaces (indented lists); only trailing blank lines go. */
+const text = (formData: FormData, name: string, max: number) => String(formData.get(name) ?? "").replace(/\s+$/, "").slice(0, max);
 
 function done(path: string, message: string, isError = false): never {
   redirect(`${path}${path.includes("?") ? "&" : "?"}${isError ? "fout" : "melding"}=${encodeURIComponent(message)}`);
@@ -27,13 +30,13 @@ function reorder<T extends { id: string; position: number }>(items: T[], id: str
 export async function createModule(formData: FormData) {
   const owner = await requireOwner();
   const store = getStore();
-  const title = str(formData, "title", 200);
+  const title = str(formData, "title", LIMITS.moduleTitle);
   if (!title) done("/beheer/inhoud", "Geef de module een titel.", true);
   const modules = await store.listModules();
   await store.saveModule({
     id: newId(),
     title,
-    description: str(formData, "description", 1000),
+    description: str(formData, "description", LIMITS.moduleDescription),
     position: modules.length + 1,
   });
   await audit(owner, "Module toegevoegd", title);
@@ -47,10 +50,10 @@ export async function updateModule(formData: FormData) {
   if (!existing) done("/beheer/inhoud", "Module niet gevonden.", true);
   await store.saveModule({
     ...existing,
-    title: str(formData, "title", 200) || existing.title,
-    description: str(formData, "description", 1000),
+    title: str(formData, "title", LIMITS.moduleTitle) || existing.title,
+    description: str(formData, "description", LIMITS.moduleDescription),
   });
-  done("/beheer/inhoud", "Module opgeslagen.");
+  done(`/beheer/inhoud#${existing.id}`, "Module opgeslagen.");
 }
 
 export async function moveModule(formData: FormData) {
@@ -79,7 +82,7 @@ export async function createLesson(formData: FormData) {
   const owner = await requireOwner();
   const store = getStore();
   const moduleId = str(formData, "moduleId");
-  const title = str(formData, "title", 200);
+  const title = str(formData, "title", LIMITS.lessonTitle);
   if (!title) done("/beheer/inhoud", "Geef de les een titel.", true);
   const lessons = await store.listLessons(moduleId);
   const lesson = await store.saveLesson({
@@ -139,32 +142,42 @@ function emptyBlock(type: BlockType): Block {
 
 const BLOCK_TYPES: BlockType[] = ["video", "text", "download", "question", "choice", "upload"];
 
-/** Reads one block's fields from the lesson editor form (field names start with "b.<blockId>."). */
-async function readBlock(current: Block, formData: FormData, ownerId: string): Promise<Block> {
-  const f = (name: string, max = 500) => str(formData, `b.${current.id}.${name}`, max);
+/**
+ * Reads one block's fields from the lesson editor form (field names start
+ * with "b.<blockId>."). A rejected upload does not stop the rest: the block
+ * keeps its current file and the problem is reported in uploadErrors.
+ */
+async function readBlock(current: Block, formData: FormData, ownerId: string, uploadErrors: string[]): Promise<Block> {
+  const f = (name: string, max: number) => str(formData, `b.${current.id}.${name}`, max);
   const checked = (name: string) => formData.get(`b.${current.id}.${name}`) === "on";
   switch (current.type) {
     case "video":
-      return { ...current, url: f("url", 1000), caption: f("caption", 300) };
+      return { ...current, url: normaliseUrl(f("url", LIMITS.url)), caption: f("caption", LIMITS.caption) };
     case "text":
-      return { ...current, markdown: f("markdown", 50_000) };
+      return { ...current, markdown: text(formData, `b.${current.id}.markdown`, LIMITS.markdown) };
     case "download": {
-      const file = await storeUpload(formData.get(`b.${current.id}.file`), { belongsTo: null, uploadedBy: ownerId });
+      let file = null;
+      try {
+        file = await storeUpload(formData.get(`b.${current.id}.file`), { belongsTo: null, uploadedBy: ownerId });
+      } catch (err) {
+        if (!(err instanceof UploadError)) throw err;
+        uploadErrors.push(err.message);
+      }
       return {
         ...current,
-        label: f("label", 200),
-        description: f("description", 500),
-        url: f("url", 1000),
-        file: checked("removeFile") ? null : (file ?? current.file),
+        label: f("label", LIMITS.downloadLabel),
+        description: f("description", LIMITS.downloadDescription),
+        url: normaliseUrl(f("url", LIMITS.url)),
+        file: file ?? (checked("removeFile") ? null : current.file),
       };
     }
     case "question": {
-      const kind = f("kind");
+      const kind = f("kind", 20);
       return {
         ...current,
         kind: (["open", "reflection", "practice"].includes(kind) ? kind : "open") as QuestionKind,
-        prompt: f("prompt", 2000),
-        helpText: f("helpText", 1000),
+        prompt: f("prompt", LIMITS.prompt),
+        helpText: f("helpText", LIMITS.helpText),
         required: checked("required"),
         feedback: checked("feedback"),
       };
@@ -172,9 +185,9 @@ async function readBlock(current: Block, formData: FormData, ownerId: string): P
     case "choice":
       return {
         ...current,
-        prompt: f("prompt", 2000),
-        helpText: f("helpText", 1000),
-        options: f("options", 5000)
+        prompt: f("prompt", LIMITS.prompt),
+        helpText: f("helpText", LIMITS.helpText),
+        options: f("options", LIMITS.options)
           .split("\n")
           .map((o) => o.trim())
           .filter(Boolean),
@@ -182,7 +195,13 @@ async function readBlock(current: Block, formData: FormData, ownerId: string): P
         feedback: checked("feedback"),
       };
     case "upload":
-      return { ...current, prompt: f("prompt", 2000), helpText: f("helpText", 1000), required: checked("required"), feedback: checked("feedback") };
+      return {
+        ...current,
+        prompt: f("prompt", LIMITS.prompt),
+        helpText: f("helpText", LIMITS.helpText),
+        required: checked("required"),
+        feedback: checked("feedback"),
+      };
   }
 }
 
@@ -194,21 +213,18 @@ async function readBlock(current: Block, formData: FormData, ownerId: string): P
 export async function saveLessonEditor(formData: FormData) {
   const owner = await requireOwner();
   const store = getStore();
-  const lesson = await store.getLesson(str(formData, "id"));
+  const lesson = await store.getLesson(str(formData, "lessonId"));
   if (!lesson) redirect("/beheer/inhoud");
   const path = `/beheer/inhoud/les/${lesson.id}`;
 
   // 1. Everything typed on the page. Blocks without fields in the form are left as they are.
-  let blocks: Block[];
-  try {
-    blocks = await Promise.all(
-      lesson.blocks.map((b) => (formData.has(`b.${b.id}.present`) ? readBlock(b, formData, owner.id) : b)),
-    );
-  } catch (err) {
-    if (err instanceof UploadError) done(path, `${err.message} Je wijzigingen zijn niet opgeslagen.`, true);
-    throw err;
+  const uploadErrors: string[] = [];
+  let blocks: Block[] = [];
+  for (const b of lesson.blocks) {
+    blocks.push(formData.has(`b.${b.id}.present`) ? await readBlock(b, formData, owner.id, uploadErrors) : b);
   }
-  const moduleId = str(formData, "moduleId") || lesson.moduleId;
+  const requestedModule = str(formData, "moduleId");
+  const moduleId = requestedModule && (await store.getModule(requestedModule)) ? requestedModule : lesson.moduleId;
   const moved = moduleId !== lesson.moduleId;
 
   // 2. What the pressed button asks for.
@@ -234,12 +250,19 @@ export async function saveLessonEditor(formData: FormData) {
 
   await store.saveLesson({
     ...lesson,
-    title: str(formData, "title", 200) || lesson.title,
-    summary: str(formData, "summary", 500),
+    title: str(formData, "title", LIMITS.lessonTitle) || lesson.title,
+    summary: str(formData, "summary", LIMITS.lessonSummary),
     moduleId,
     position: moved ? (await store.listLessons(moduleId)).length + 1 : lesson.position,
     blocks,
   });
+  // Close the gap the lesson left in its old module.
+  if (moved) for (const l of reorder(await store.listLessons(lesson.moduleId), "", "")) await store.saveLesson(l);
+
+  if (uploadErrors.length > 0) {
+    const error = `Je wijzigingen zijn opgeslagen, maar een bestand is niet geüpload: ${uploadErrors.join(" ")}`;
+    redirect(`${path}?fout=${encodeURIComponent(error)}${anchor}`);
+  }
   redirect(`${path}?melding=${encodeURIComponent(message)}${anchor}`);
 }
 
@@ -251,12 +274,12 @@ export async function saveSettings(formData: FormData) {
   const before = await store.getSettings();
   const practicalSpotsAvailable = formData.get("practicalSpotsAvailable") === "on";
   await store.saveSettings({
-    welcomeVideoUrl: str(formData, "welcomeVideoUrl", 1000),
-    welcomeText: str(formData, "welcomeText", 2000),
-    contactEmail: str(formData, "contactEmail", 200) || before.contactEmail,
+    welcomeVideoUrl: normaliseUrl(str(formData, "welcomeVideoUrl", LIMITS.url)),
+    welcomeText: str(formData, "welcomeText", LIMITS.welcomeText),
+    contactEmail: str(formData, "contactEmail", LIMITS.contactEmail) || before.contactEmail,
     practicalSpotsAvailable,
-    practicalSpotsNote: str(formData, "practicalSpotsNote", 1000),
-    answersPrivacyNotice: str(formData, "answersPrivacyNotice", 2000) || before.answersPrivacyNotice,
+    practicalSpotsNote: str(formData, "practicalSpotsNote", LIMITS.practicalSpotsNote),
+    answersPrivacyNotice: str(formData, "answersPrivacyNotice", LIMITS.privacyNotice) || before.answersPrivacyNotice,
   });
   if (before.practicalSpotsAvailable !== practicalSpotsAvailable) {
     await audit(owner, practicalSpotsAvailable ? "Praktijkplekken opengezet" : "Praktijkplekken gesloten");
