@@ -5,7 +5,8 @@ import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireCouple } from "@/lib/ws/access";
 import { query } from "@/lib/ws/db";
-import { DOCUMENT_ACCEPT } from "@/lib/ws/files";
+import { FileUpload } from "@/components/ws/FileUpload";
+import { directUploads } from "@/lib/ws/files";
 import { SUPPLIER_STATUS, suppliersFor } from "@/lib/ws/suppliers";
 import { formatDateTime } from "@/lib/ws/format";
 
@@ -81,7 +82,7 @@ export default async function SupplierDetail({
         </div>
         <div className="text-sm">
           <label className="label" htmlFor="document">Document toevoegen (offerte, contract)</label>
-          <input id="document" type="file" name="document" accept={DOCUMENT_ACCEPT} />
+          <FileUpload id="document" name="document" coupleId={couple.id} kind="document" direct={directUploads()} />
         </div>
         <SubmitButton className="btn-primary" pendingText="Opslaan…">Opslaan</SubmitButton>
       </form>

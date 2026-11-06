@@ -1,6 +1,7 @@
 import { archiveCategory, saveCategory, saveSettings } from "@/app/actions/ws-admin";
 import { uploadContactPhoto } from "@/app/actions/ws-fase2";
-import { IMAGE_ACCEPT } from "@/lib/ws/files";
+import { FileUpload } from "@/components/ws/FileUpload";
+import { directUploads } from "@/lib/ws/files";
 import { aiConfigured } from "@/lib/ws/ai";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -44,7 +45,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         )}
         <div className="flex-1 space-y-2">
           <h2 className="text-xl">Pasfoto in de contactkaart</h2>
-          <input type="file" name="photo" accept={IMAGE_ACCEPT} aria-label="Pasfoto" className="text-sm" />
+          <FileUpload name="photo" coupleId={null} kind="image" direct={directUploads()} label="Pasfoto uploaden" />
           {s.contact_photo_file_id && <label className="flex items-center gap-2 text-sm text-muted"><input type="checkbox" name="remove" /> Foto verwijderen</label>}
         </div>
         <SubmitButton className="btn-secondary" pendingText="Uploaden…">Opslaan</SubmitButton>

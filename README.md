@@ -118,6 +118,18 @@ En in Render bij Settings (met de blueprint staat dit er al in):
 
 Het migratiescript voert alleen de nieuwe bestanden uit `supabase/migrations` uit, op volgorde. Wat al gedaan is staat in de tabel `public.schema_migrations`; migraties die eerder met de hand zijn uitgevoerd worden herkend. Elke migratie loopt in één transactie: mislukt hij, dan wordt alles teruggedraaid, stopt de deploy en blijft de vorige versie draaien. Een nieuwe migratie is dus gewoon een nieuw bestand, bijvoorbeeld `0003_iets.sql`.
 
+### Uploads van Your Wedding Space
+
+Bestanden van Your Wedding Space (coverfoto, moodboard, documenten, samenvattingen) gaan rechtstreeks van de browser naar de privé bucket `wedding-space` in Supabase Storage, niet via Render:
+
+1. Het uploadveld (`src/components/ws/FileUpload.tsx`) controleert type en grootte en maakt foto's eerst kleiner (maximaal 2400 px, JPG).
+2. De server action `requestUpload` controleert wie het vraagt en geeft een eenmalige upload-link. In `files` komt een regel met status `pending`.
+3. De browser stuurt het bestand naar die link en zet alleen het id in het formulier.
+4. De actie die het formulier ontvangt controleert of het bestand echt is aangekomen en zet de status op `ready`. Uploads die nooit gekoppeld zijn, worden na een dag opgeruimd.
+5. Bekijken gaat via `/api/ws-bestanden/[id]`: eerst de toegangscontrole, daarna een link naar Storage die tien minuten geldig is.
+
+Grenzen (Supabase Free: 50 MB per bestand, 1 GB in totaal): foto's tot 15 MB (na verkleinen meestal een paar honderd kB), documenten tot 25 MB, audio tot 45 MB. Boven 900 MB in totaal weigert de app nieuwe uploads (`WS_STORAGE_BUDGET_BYTES`). De bucket maakt migratie `0005` aan. Oudere bestanden die nog in de database staan blijven gewoon werken. Zonder Supabase (lokaal), of met `WS_DIRECT_UPLOADS=off`, gaat het bestand zoals vroeger met het formulier mee (maximaal 10 MB).
+
 Er is geen schijf en geen `SESSION_SECRET` nodig. Wil je een demo draaien met `DATA_BACKEND=local`, dan is `SESSION_SECRET` (minimaal 32 tekens) verplicht en heb je een persistente schijf nodig met `DATA_DIR` erop.
 
 ## Your Wedding Space (portaal per bruidspaar)

@@ -5,7 +5,8 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { requireCouple } from "@/lib/ws/access";
 import { aiConfigured } from "@/lib/ws/ai";
 import { one, query } from "@/lib/ws/db";
-import { IMAGE_ACCEPT } from "@/lib/ws/files";
+import { FileUpload } from "@/components/ws/FileUpload";
+import { directUploads } from "@/lib/ws/files";
 import { formatDateTime } from "@/lib/ws/format";
 
 export const metadata = { title: "Stylingplan & Moodboard" };
@@ -86,11 +87,13 @@ export default async function Styling({
             </figure>
           ))}
         </div>
-        <form action={stylingImage} className="mt-3 flex flex-wrap items-center gap-2">
+        <form action={stylingImage} className="mt-3 space-y-2">
           <input type="hidden" name="coupleId" value={couple.id} />
-          <input type="file" name="image" accept={IMAGE_ACCEPT} required aria-label="Afbeelding" className="text-sm" />
-          <input name="caption" placeholder="Onderschrift (optioneel)" aria-label="Onderschrift" className="input w-56 py-1.5" />
-          <SubmitButton className="btn-secondary py-1.5" pendingText="Uploaden…">Toevoegen</SubmitButton>
+          <FileUpload name="image" coupleId={couple.id} kind="image" direct={directUploads()} multiple required label="Foto's uploaden" />
+          <div className="flex flex-wrap items-center gap-2">
+            <input name="caption" placeholder="Onderschrift (optioneel)" aria-label="Onderschrift" className="input w-56 py-1.5" />
+            <SubmitButton className="btn-primary py-1.5" pendingText="Toevoegen…">Toevoegen aan moodboard</SubmitButton>
+          </div>
         </form>
       </section>
 

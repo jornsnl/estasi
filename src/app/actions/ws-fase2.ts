@@ -7,7 +7,7 @@ import { requireCouple, requireCoupleAdmin, type CoupleContext } from "@/lib/ws/
 import { aiConfigured, draftStylingPlan, extractColors, summariseAssignment } from "@/lib/ws/ai";
 import { copyAssignmentTemplate, logActivity } from "@/lib/ws/couples";
 import { isUuid, one, query, tx } from "@/lib/ws/db";
-import { storeUpload, UploadError } from "@/lib/ws/files";
+import { deleteFiles, storeUpload, storeUploads, UploadError } from "@/lib/ws/files";
 import { coupleName } from "@/lib/ws/format";
 import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
 import { dateField, done, str } from "@/lib/ws/redirect";
@@ -362,22 +362,27 @@ export async function stylingImage(formData: FormData) {
   const back = portal(ctx.couple.id, "/styling");
   const imageId = id(formData, "imageId");
   if (imageId) {
-    await query(
+    await deleteFiles(
       "delete from files where id = (select file_id from styling_images where id = $1 and couple_id = $2)",
       [imageId, ctx.couple.id],
     );
     done(back, "Afbeelding verwijderd.");
   }
+  let count = 0;
   try {
-    const file = await storeUpload(formData.get("image"), { coupleId: ctx.couple.id, accountId: ctx.account.id, images: true });
-    if (!file) done(back, "Kies eerst een afbeelding.", true);
-    await query("insert into styling_images (couple_id, file_id, caption) values ($1, $2, $3)", [ctx.couple.id, file.id, str(formData, "caption", 200)]);
+    // Several photos at once; the caption goes with each of them.
+    const files = await storeUploads(formData.getAll("image"), { coupleId: ctx.couple.id, accountId: ctx.account.id, images: true });
+    if (files.length === 0) done(back, "Kies eerst een afbeelding.", true);
+    for (const file of files) {
+      await query("insert into styling_images (couple_id, file_id, caption) values ($1, $2, $3)", [ctx.couple.id, file.id, str(formData, "caption", 200)]);
+    }
+    count = files.length;
   } catch (err) {
     if (err instanceof UploadError) done(back, err.message, true);
     throw err;
   }
-  await note(ctx, "Afbeelding aan het moodboard toegevoegd");
-  done(back, "Afbeelding toegevoegd aan het moodboard.");
+  await note(ctx, count === 1 ? "Afbeelding aan het moodboard toegevoegd" : `${count} afbeeldingen aan het moodboard toegevoegd`);
+  done(back, count === 1 ? "Afbeelding toegevoegd aan het moodboard." : `${count} afbeeldingen toegevoegd aan het moodboard.`);
 }
 
 // Sabine's templates and photo -------------------------------------------------------------------------
@@ -429,14 +434,14 @@ export async function uploadContactPhoto(formData: FormData) {
   const current = await one<{ contact_photo_file_id: string | null }>("select contact_photo_file_id from settings");
   if (formData.get("remove") === "on") {
     await query("update settings set contact_photo_file_id = null");
-    if (current?.contact_photo_file_id) await query("delete from files where id = $1 and couple_id is null", [current.contact_photo_file_id]);
+    if (current?.contact_photo_file_id) await deleteFiles("delete from files where id = $1 and couple_id is null", [current.contact_photo_file_id]);
     done(back, "Pasfoto verwijderd.");
   }
   try {
     const file = await storeUpload(formData.get("photo"), { coupleId: null, accountId: owner.id, images: true });
     if (!file) done(back, "Kies eerst een foto.", true);
     await query("update settings set contact_photo_file_id = $1", [file.id]);
-    if (current?.contact_photo_file_id) await query("delete from files where id = $1 and couple_id is null", [current.contact_photo_file_id]);
+    if (current?.contact_photo_file_id) await deleteFiles("delete from files where id = $1 and couple_id is null", [current.contact_photo_file_id]);
   } catch (err) {
     if (err instanceof UploadError) done(back, err.message, true);
     throw err;

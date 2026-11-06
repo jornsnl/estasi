@@ -3,7 +3,7 @@
 import { isUuid, one, query, tx } from "@/lib/ws/db";
 import { requireCouple, requireCoupleAdmin, type CoupleContext } from "@/lib/ws/access";
 import { coupleMembers, logActivity } from "@/lib/ws/couples";
-import { storeUpload, UploadError } from "@/lib/ws/files";
+import { deleteFiles, storeUpload, UploadError } from "@/lib/ws/files";
 import { coupleName, formatDate, LANES, parseMoney } from "@/lib/ws/format";
 import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
 import { dateField, done, str } from "@/lib/ws/redirect";
@@ -141,9 +141,12 @@ export async function saveMeeting(formData: FormData) {
   const back = portal(ctx.couple.id, `/pakket#m-${id}`);
   if (!isUuid(id)) done(back, "Meeting niet gevonden.", true);
   const status = ["to_plan", "planned", "done", "skipped"].includes(str(formData, "status")) ? str(formData, "status") : "to_plan";
+  const previous = await one<{ summary_file_id: string | null }>("select summary_file_id from meetings where id = $1 and couple_id = $2", [id, ctx.couple.id]);
+  let replaced = false;
   try {
     await tx(async (db) => {
       const file = await storeUpload(formData.get("summaryFile"), { coupleId: ctx.couple.id, accountId: ctx.account.id }, db);
+      replaced = Boolean(file) || formData.get("removeFile") === "on";
       const updated = await one(
         `update meetings set title = coalesce(nullif($3, ''), title), guide = $4, planned_on = $5, summary = $6, status = $7,
                 summary_file_id = case when $8 then null when $9::uuid is not null then $9::uuid else summary_file_id end
@@ -157,6 +160,10 @@ export async function saveMeeting(formData: FormData) {
   } catch (err) {
     if (err instanceof UploadError) done(back, err.message, true);
     throw err;
+  }
+  // The old summary file is not linked to anything any more.
+  if (replaced && previous?.summary_file_id) {
+    await deleteFiles("delete from files where id = $1 and couple_id = $2", [previous.summary_file_id, ctx.couple.id]);
   }
   done(back, "Meeting opgeslagen.");
 }
@@ -249,7 +256,7 @@ export async function deleteSupplierDocument(formData: FormData) {
   const categoryId = str(formData, "categoryId", 40);
   if (isUuid(id)) {
     // The file goes with it; the join makes sure it belongs to this couple.
-    await query(
+    await deleteFiles(
       `delete from files where id = (select d.file_id from supplier_documents d join couple_suppliers s on s.id = d.supplier_id
                                       where d.id = $1 and s.couple_id = $2)`,
       [id, ctx.couple.id],

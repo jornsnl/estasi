@@ -5,7 +5,8 @@ import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireCoupleAdmin } from "@/lib/ws/access";
 import { coupleMembers } from "@/lib/ws/couples";
-import { IMAGE_ACCEPT } from "@/lib/ws/files";
+import { FileUpload } from "@/components/ws/FileUpload";
+import { directUploads } from "@/lib/ws/files";
 import { formatDateTime } from "@/lib/ws/format";
 import { mailConfigured } from "@/lib/ws/mail";
 
@@ -113,7 +114,7 @@ export default async function CoupleSettings({
         <input type="hidden" name="coupleId" value={couple.id} />
         <h2 className="text-xl">Coverfoto</h2>
         <p className="text-sm text-muted">Bovenaan de hoofdpagina, achter de namen. Liggend formaat werkt het best (jpg, png of webp, maximaal 10 MB).</p>
-        <input type="file" name="cover" accept={IMAGE_ACCEPT} className="text-sm" aria-label="Coverfoto" />
+        <FileUpload name="cover" coupleId={couple.id} kind="image" direct={directUploads()} label="Coverfoto uploaden" />
         {couple.cover_file_id && (
           <label className="flex items-center gap-2 text-sm text-muted"><input type="checkbox" name="removeCover" /> Huidige coverfoto verwijderen</label>
         )}

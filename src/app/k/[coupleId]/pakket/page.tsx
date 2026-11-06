@@ -3,7 +3,8 @@ import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireCouple } from "@/lib/ws/access";
 import { one, query } from "@/lib/ws/db";
-import { DOCUMENT_ACCEPT } from "@/lib/ws/files";
+import { FileUpload } from "@/components/ws/FileUpload";
+import { directUploads } from "@/lib/ws/files";
 import { formatDate, formatMoney } from "@/lib/ws/format";
 import type { Meeting, Package } from "@/lib/ws/types";
 
@@ -105,7 +106,7 @@ export default async function PackagePage({
                   </div>
                   <div className="text-sm">
                     <label className="label" htmlFor={`f-${m.id}`}>Of upload de samenvatting als bestand</label>
-                    <input id={`f-${m.id}`} type="file" name="summaryFile" accept={DOCUMENT_ACCEPT} />
+                    <FileUpload id={`f-${m.id}`} name="summaryFile" coupleId={couple.id} kind="document" direct={directUploads()} />
                     {m.summary_file_id && (
                       <label className="ml-3 inline-flex items-center gap-1 text-muted">
                         <input type="checkbox" name="removeFile" /> huidig bestand verwijderen

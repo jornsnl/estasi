@@ -8,7 +8,7 @@ import { getStore } from "@/lib/data";
 import { endSessionsOf } from "@/lib/ws/sessions";
 import { loginLink } from "@/lib/ws/logins";
 import { activateCouple, createCouple } from "@/lib/ws/couples";
-import { storeUpload, UploadError } from "@/lib/ws/files";
+import { deleteFiles, storeUpload, UploadError } from "@/lib/ws/files";
 import { coupleName, formatDate, LANES, parseMoney } from "@/lib/ws/format";
 import { sendMail } from "@/lib/ws/mail";
 import { dateField, done, str } from "@/lib/ws/redirect";
@@ -86,14 +86,14 @@ export async function uploadCover(formData: FormData) {
   const back = `/k/${couple.id}/gegevens`;
   if (formData.get("removeCover") === "on") {
     await query("update couples set cover_file_id = null where id = $1", [couple.id]);
-    if (couple.cover_file_id) await query("delete from files where id = $1 and couple_id = $2", [couple.cover_file_id, couple.id]);
+    if (couple.cover_file_id) await deleteFiles("delete from files where id = $1 and couple_id = $2", [couple.cover_file_id, couple.id]);
     done(back, "Coverfoto verwijderd.");
   }
   try {
     const file = await storeUpload(formData.get("cover"), { coupleId: couple.id, accountId: account.id, images: true });
     if (!file) done(back, "Kies eerst een foto.", true);
     await query("update couples set cover_file_id = $2 where id = $1", [couple.id, file.id]);
-    if (couple.cover_file_id) await query("delete from files where id = $1 and couple_id = $2", [couple.cover_file_id, couple.id]);
+    if (couple.cover_file_id) await deleteFiles("delete from files where id = $1 and couple_id = $2", [couple.cover_file_id, couple.id]);
   } catch (err) {
     if (err instanceof UploadError) done(back, err.message, true);
     throw err;
