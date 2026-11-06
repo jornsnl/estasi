@@ -26,7 +26,22 @@ function transporter(): Transporter | null {
 
 export const mailConfigured = () => Boolean(process.env.SMTP_HOST);
 
-export const appUrl = () => (process.env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+/**
+ * The public address of the app, for links in mails and to share. Forgives
+ * the usual slips in APP_URL (quotes, spaces, no https://, a trailing slash):
+ * a link without https:// opens as about:blank#blocked in some browsers.
+ */
+export function appUrl(): string {
+  const raw = (process.env.APP_URL ?? "").trim().replace(/^["']|["']$/g, "").trim();
+  if (!raw) return "http://localhost:3000";
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(withScheme);
+    return `${url.protocol}//${url.host}${url.pathname.replace(/\/+$/, "")}`;
+  } catch {
+    return "http://localhost:3000";
+  }
+}
 
 export const adminNotifyEmail = () => process.env.ADMIN_NOTIFY_EMAIL ?? "";
 

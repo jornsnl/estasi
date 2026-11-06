@@ -1,4 +1,6 @@
 import "server-only";
+import { randomBytes } from "crypto";
+import { defaultTexts } from "./rsvp";
 import { one, query, tx } from "./db";
 import { getStore } from "@/lib/data";
 import { isActivated } from "@/lib/domain/account";
@@ -100,11 +102,23 @@ export async function createCouple(input: NewCouple, createdBy: string): Promise
     );
     const coupleId = couple!.id;
     await addPackages(coupleId, packages.map((p) => p.id), createdBy, db);
-    await query(
-      "insert into guest_groups (couple_id, name, kind, position) values ($1, 'Daggasten', 'day', 1), ($1, 'Avondgasten', 'evening', 2)",
+    // Standard guest groups, each with its own RSVP form and Sabine's standard texts.
+    const groups = await query<{ id: string; name: string; kind: string; position: number }>(
+      "insert into guest_groups (couple_id, name, kind, position) values ($1, 'Daggasten', 'day', 1), ($1, 'Avondgasten', 'evening', 2) returning id, name, kind, position",
       [coupleId],
       db,
     );
+    const texts = defaultTexts(settings);
+    for (const g of groups) {
+      await query(
+        `insert into rsvp_forms (couple_id, group_id, slug, name, intro, ask_part_of_day, ask_diet, confirmation_subject, confirmation_text,
+                                 decline_subject, decline_text, position)
+         values ($1, $2, $3, $4, $5, $6, true, $7, $8, $9, $10, $11)`,
+        [coupleId, g.id, randomBytes(9).toString("base64url"), g.name, texts.intro, g.kind === "day", texts.confirmationSubject,
+         texts.confirmation, texts.declineSubject, texts.decline, g.position],
+        db,
+      );
+    }
 
     const guides = Array.isArray(settings.meeting_guides) ? settings.meeting_guides : [];
     for (let n = 1; n <= input.meetings; n++) {

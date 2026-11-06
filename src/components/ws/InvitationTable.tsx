@@ -1,0 +1,126 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { confirmInvitationResponse, deleteInvitation, updateInvitation } from "@/app/actions/ws-invitations";
+
+export interface InvitationData {
+  id: string;
+  names: string;
+  party_size: number;
+  group_id: string | null;
+  address: string;
+  email: string;
+  send_via: "post" | "mail";
+  sent: boolean;
+  responded: "yes" | "maybe" | "no";
+  match_id: string | null;
+  candidate?: string;
+}
+
+/** The invitation list: every cell can be changed in place and is saved at once. */
+export function InvitationTable({ coupleId, rows, groups }: { coupleId: string; rows: InvitationData[]; groups: { id: string; name: string }[] }) {
+  const [onlyOpen, setOnlyOpen] = useState(false);
+  const [sent, setSent] = useState<Record<string, boolean>>(() => Object.fromEntries(rows.map((r) => [r.id, r.sent])));
+  const [message, setMessage] = useState("");
+  const [, start] = useTransition();
+
+  const save = (id: string, field: Parameters<typeof updateInvitation>[2], value: string | boolean) =>
+    start(async () => {
+      const result = await updateInvitation(coupleId, id, field, value);
+      setMessage(result.ok ? "✓ Opgeslagen" : result.error ?? "Niet opgeslagen");
+    });
+  const onBlur = (id: string, field: Parameters<typeof updateInvitation>[2]) => (e: React.FocusEvent<HTMLInputElement>) => {
+    if (e.target.value !== e.target.defaultValue) {
+      save(id, field, e.target.value);
+      e.target.defaultValue = e.target.value;
+    }
+  };
+
+  const invited = rows.reduce((n, r) => n + r.party_size, 0);
+  const cards = rows.filter((r) => sent[r.id]).length;
+  const responded = rows.filter((r) => r.responded === "yes").length;
+  const shown = onlyOpen ? rows.filter((r) => r.responded !== "yes") : rows;
+  const cell = "input py-1 text-sm";
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="font-medium">
+          {invited} uitgenodigd, {cards} {cards === 1 ? "kaart" : "kaarten"} verstuurd, {responded} gereageerd
+          <span className="ml-2 text-xs font-normal text-muted">({rows.length} {rows.length === 1 ? "huishouden" : "huishoudens"})</span>
+        </p>
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-xs text-muted" aria-live="polite">{message}</span>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} className="accent-[#6B1E2E]" /> Nog niet gereageerd</label>
+        </div>
+      </div>
+      <div className="card overflow-x-auto">
+        <table className="w-full min-w-[980px] text-sm">
+          <thead className="table-head">
+            <tr>
+              <th className="px-3 py-2.5">Namen</th><th className="px-3 py-2.5">Aantal</th><th className="px-3 py-2.5">Gastengroep</th><th className="px-3 py-2.5">Adres</th>
+              <th className="px-3 py-2.5">E-mail</th><th className="px-3 py-2.5">Kaart via</th><th className="px-3 py-2.5">Verstuurd</th><th className="px-3 py-2.5">Gereageerd</th><th />
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((r) => (
+              <tr key={r.id} className="border-t border-line align-top">
+                <td className="px-3 py-2"><input defaultValue={r.names} onBlur={onBlur(r.id, "names")} aria-label="Namen" className={`${cell} min-w-44`} /></td>
+                <td className="px-3 py-2"><input type="number" min={1} max={50} defaultValue={r.party_size} onBlur={onBlur(r.id, "party_size")} aria-label="Aantal personen" className={`${cell} w-16`} /></td>
+                <td className="px-3 py-2">
+                  <select defaultValue={r.group_id ?? ""} onChange={(e) => save(r.id, "group_id", e.target.value)} aria-label="Gastengroep" className={cell}>
+                    <option value="">–</option>
+                    {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                </td>
+                <td className="px-3 py-2"><input defaultValue={r.address} onBlur={onBlur(r.id, "address")} aria-label="Adres" className={`${cell} min-w-52`} /></td>
+                <td className="px-3 py-2"><input type="email" defaultValue={r.email} onBlur={onBlur(r.id, "email")} aria-label="E-mail" className={`${cell} min-w-44`} /></td>
+                <td className="px-3 py-2">
+                  <select defaultValue={r.send_via} onChange={(e) => save(r.id, "send_via", e.target.value)} aria-label="Kaart versturen via" className={cell}>
+                    <option value="post">Post</option>
+                    <option value="mail">Mail</option>
+                  </select>
+                </td>
+                <td className="px-3 py-2 text-center">
+                  <input
+                    type="checkbox"
+                    checked={sent[r.id]}
+                    onChange={(e) => {
+                      setSent((s) => ({ ...s, [r.id]: e.target.checked }));
+                      save(r.id, "sent", e.target.checked);
+                    }}
+                    aria-label="Kaart verstuurd"
+                    className="h-4 w-4 accent-[#6B1E2E]"
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  {r.responded === "yes" && <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs text-success">Ja</span>}
+                  {r.responded === "no" && <span className="text-xs text-muted">Nog niet</span>}
+                  {r.responded === "maybe" && (
+                    <form action={confirmInvitationResponse} className="text-xs">
+                      <input type="hidden" name="coupleId" value={coupleId} />
+                      <input type="hidden" name="invitationId" value={r.id} />
+                      <input type="hidden" name="responseId" value={r.match_id ?? ""} />
+                      <span className="block text-gold-ink">Is dit {r.candidate}?</span>
+                      <button type="submit" className="text-bordeaux underline">Ja, bevestigen</button>
+                    </form>
+                  )}
+                </td>
+                <td className="px-3 py-2">
+                  <form action={deleteInvitation} onSubmit={(e) => { if (!confirm(`${r.names} verwijderen?`)) e.preventDefault(); }}>
+                    <input type="hidden" name="coupleId" value={coupleId} />
+                    <input type="hidden" name="invitationId" value={r.id} />
+                    <button type="submit" className="text-xs text-muted hover:text-bordeaux" aria-label={`${r.names} verwijderen`}>×</button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+            {shown.length === 0 && (
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted">{rows.length ? "Iedereen heeft gereageerd." : "Nog niemand op de lijst. Voeg hieronder iemand toe of importeer een Excel-bestand."}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

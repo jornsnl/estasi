@@ -26,3 +26,51 @@ describe("stylingplan", () => {
     expect(extractColors("Terracotta #C98B6B, saliegroen #7e9c86 en nog eens #c98b6b; geen #12345")).toEqual(["#c98b6b", "#7e9c86"]);
   });
 });
+
+import { fillTemplate, isQuestionVisible } from "@/lib/ws/pure";
+
+describe("RSVP helpers", () => {
+  it("fills placeholders and leaves unknown ones", () => {
+    expect(fillTemplate("Bruiloft van [namen] op [datum], [iets]", { namen: "Estelle & Ramon", datum: "12 juni 2027" })).toBe(
+      "Bruiloft van Estelle & Ramon op 12 juni 2027, [iets]",
+    );
+  });
+
+  it("shows a question only when the other answer matches", () => {
+    const qs = [
+      { id: "a", show_if_question_id: null, show_if_value: "" },
+      { id: "b", show_if_question_id: "a", show_if_value: "Ja" },
+      { id: "c", show_if_question_id: "b", show_if_value: "" },
+      { id: "d", show_if_question_id: "e", show_if_value: "x" },
+      { id: "e", show_if_question_id: "d", show_if_value: "x" },
+    ];
+    expect(isQuestionVisible(qs[1], qs, { a: "ja" })).toBe(true);
+    expect(isQuestionVisible(qs[1], qs, { a: "Nee" })).toBe(false);
+    expect(isQuestionVisible(qs[2], qs, { a: "Nee", b: "iets" })).toBe(false);
+    expect(isQuestionVisible(qs[2], qs, { a: "Ja", b: "iets" })).toBe(true);
+    expect(isQuestionVisible(qs[1], qs, { a: ["Nee", "Ja"] })).toBe(true);
+    expect(isQuestionVisible(qs[3], qs, { d: "x", e: "x" })).toBe(false);
+  });
+});
+
+import { householdNames, matchInvitation } from "@/lib/ws/pure";
+
+describe("Uitnodigingslijst", () => {
+  it("splits households", () => {
+    expect(householdNames("Jan & Els de Vries")).toEqual(["Jan de Vries", "Els de Vries"]);
+    expect(householdNames("Piet Jansen, Anna Smit en Kees")).toEqual(["Piet Jansen", "Anna Smit", "Kees"]);
+    expect(householdNames("Oma Truus")).toEqual(["Oma Truus"]);
+  });
+
+  it("knows who responded", () => {
+    const responses = [
+      { id: "r1", email: "jan@x.nl", people: ["Jan de Vries", "Els de Vries"] },
+      { id: "r2", email: "kim@x.nl", people: ["Kim Bakker"] },
+    ];
+    expect(matchInvitation({ email: "JAN@x.nl", names: "Familie", response_id: null }, responses)).toMatchObject({ state: "yes", responseId: "r1" });
+    expect(matchInvitation({ email: "", names: "Jan & Els de Vries", response_id: null }, responses)).toMatchObject({ state: "yes", responseId: "r1" });
+    expect(matchInvitation({ email: "", names: "Kim van Dijk", response_id: null }, responses)).toMatchObject({ state: "maybe", candidate: "Kim Bakker" });
+    expect(matchInvitation({ email: "", names: "Bert", response_id: null }, responses).state).toBe("no");
+    expect(matchInvitation({ email: "", names: "Bert", response_id: "r2" }, responses).state).toBe("yes");
+  });
+});

@@ -7,15 +7,16 @@ import { coupleMembers } from "@/lib/ws/couples";
 import { one, query, tx } from "@/lib/ws/db";
 import { coupleName, formatDate } from "@/lib/ws/format";
 import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
-import { partyNames, publicForm, RELATIONS, splitName } from "@/lib/ws/rsvp";
+import { fillTemplate, isQuestionVisible, MAX_RELATIONS, publicForm, relationOptions, splitName } from "@/lib/ws/rsvp";
 import { str } from "@/lib/ws/redirect";
 
 const RSVP_PER_IP = { max: 20, windowMs: 15 * 60_000 };
+const ATTENDANCE = { yes: "Aanwezig", partial: "Deel van de dag", no: "Afwezig" } as const;
 
 /**
  * Public RSVP: no login. Every person gets an own row in the guest list
- * (so the total can be counted); people who signed up together share the
- * response and stay linked (h9.4).
+ * (with name, child yes/no and diet where given); people who signed up
+ * together share the response and stay linked.
  */
 export async function submitRsvp(formData: FormData) {
   const slug = str(formData, "slug", 60);
@@ -35,67 +36,116 @@ export async function submitRsvp(formData: FormData) {
   const firstName = str(formData, "firstName", 80);
   const lastName = str(formData, "lastName", 80);
   const email = str(formData, "email", 200).toLowerCase();
-  const attending = ["yes", "no", "partial"].includes(str(formData, "attending")) ? str(formData, "attending") : "";
-  if (!firstName) back("Vul je voornaam in.");
+  const phone = str(formData, "phone", 40);
+  const attending = (["yes", "no", "partial"] as const).find((a) => a === str(formData, "attending"));
+  if (!firstName || !lastName) back("Vul je voor- en achternaam in.");
   if (!/^\S+@\S+\.\S+$/.test(email)) back("Vul een geldig e-mailadres in, dan sturen we je een bevestiging.");
+  if (!phone) back("Vul je telefoonnummer in.");
   if (!attending || (attending === "partial" && !form.ask_part_of_day)) back("Laat weten of je erbij bent.");
-  const relationChoice = str(formData, "relation", 120);
-  const relation = relationChoice === "Anders" ? str(formData, "relationOther", 120) || "Anders" : RELATIONS.includes(relationChoice) ? relationChoice : "";
+
+  const allowed = relationOptions(couple);
+  const chosen = formData.getAll("relation").map(String).filter((r) => allowed.includes(r)).slice(0, MAX_RELATIONS);
+  if (chosen.length === 0) back("Kies je relatie tot het bruidspaar.");
+  const relations = chosen.map((r) => (r === "Anders" ? str(formData, "relationOther", 120) || "Anders" : r));
+  const relation = relations.join(", ");
+
+  const coming = attending !== "no";
   const partialNote = attending === "partial" ? str(formData, "partialNote", 300) : "";
-  const diet = form.ask_diet ? str(formData, "diet", 500) : "";
-  const dresscodeOk = form.dresscode ? (str(formData, "dresscodeOk") === "yes" ? true : str(formData, "dresscodeOk") === "no" ? false : null) : null;
-  const answers = questions.map((q) => ({ question: q.label, answer: str(formData, `q-${q.id}`, 2000) }));
-  const party = attending === "no" ? [] : partyNames(str(formData, "party", 1000));
+  if (attending === "partial" && !partialNote) back("Beschrijf welke tijden je aanwezig bent.");
+  const partyCount = coming ? Math.max(1, Math.min(12, Math.round(Number(str(formData, "partyCount", 3)) || 1))) : 1;
+  const diet = coming && form.ask_diet ? str(formData, "diet", 500) : "";
+  const party = Array.from({ length: partyCount - 1 }, (_, i) => ({
+    name: str(formData, `party_${i}_name`, 120),
+    kid: formData.get(`party_${i}_kid`) === "on",
+    diet: form.ask_diet ? str(formData, `party_${i}_diet`, 500) : "",
+  }));
+  if (party.some((g) => !g.name)) back("Vul de namen van de andere gasten in.");
+  const dresscodeOk = coming && form.ask_dresscode ? (str(formData, "dresscodeOk") === "yes" ? true : str(formData, "dresscodeOk") === "no" ? false : null) : null;
+  if (coming && form.ask_dresscode && dresscodeOk === null) back("Laat weten of de dresscode duidelijk is.");
+
+  // Own questions: only those that are shown, with their own rules.
+  const raw: Record<string, string | string[]> = {};
+  for (const q of questions) raw[q.id] = q.kind === "multi" ? formData.getAll(`q-${q.id}`).map(String) : str(formData, `q-${q.id}`, 4000);
+  const answers: { question: string; answer: string }[] = [];
+  for (const q of questions) {
+    if (!isQuestionVisible(q, questions, raw)) continue;
+    let value = raw[q.id];
+    if (q.kind === "multi") {
+      const list = (value as string[]).filter((v) => q.options.includes(v)).slice(0, q.max_choices ?? q.options.length);
+      value = list.join(", ");
+    } else if (q.kind === "single" && value && !q.options.includes(value as string)) {
+      value = "";
+    } else if (q.kind === "yesno" && value && !["Ja", "Nee"].includes(value as string)) {
+      value = "";
+    } else if (q.kind === "number" && value && !Number.isFinite(Number(value))) {
+      back(`"${q.label}": vul een getal in.`);
+    }
+    if (q.required && !value) back(`Vul "${q.label}" in.`);
+    if (value) answers.push({ question: q.label, answer: value as string });
+  }
 
   await tx(async (db) => {
     const response = await one<{ id: string }>(
-      `insert into rsvp_responses (couple_id, form_id, first_name, last_name, email, phone, relation, attending, partial_note, diet, dresscode_ok, answers)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb) returning id`,
-      [couple.id, form.id, firstName, lastName, email, str(formData, "phone", 40), relation, attending, partialNote, diet, dresscodeOk, JSON.stringify(answers)],
+      `insert into rsvp_responses (couple_id, form_id, first_name, last_name, email, phone, relation, relations, attending, partial_note, diet,
+                                   dresscode_ok, answers, party_count)
+       values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13::jsonb, $14) returning id`,
+      [couple.id, form.id, firstName, lastName, email, phone, relation, JSON.stringify(relations), attending, partialNote, diet, dresscodeOk,
+       JSON.stringify(answers), partyCount],
       db,
     );
-    const primaryName = `${firstName} ${lastName}`.trim();
     await query(
-      `insert into guests (couple_id, response_id, form_id, first_name, last_name, relation, email, phone, diet, attendance, partial_note)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [couple.id, response!.id, form.id, firstName, lastName, relation, email, str(formData, "phone", 40), diet, attending, partialNote],
+      `insert into guests (couple_id, response_id, form_id, group_id, first_name, last_name, relation, email, phone, diet, attendance, partial_note, created_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, clock_timestamp())`,
+      [couple.id, response!.id, form.id, form.group_id, firstName, lastName, relation, email, phone, diet, attending, partialNote],
       db,
     );
-    for (const name of party) {
-      const { first, last } = splitName(name);
+    for (const guest of party) {
+      const { first, last } = splitName(guest.name);
       await query(
-        `insert into guests (couple_id, response_id, form_id, first_name, last_name, relation, attendance, partial_note, notes)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [couple.id, response!.id, form.id, first, last, relation, attending, partialNote, `Aangemeld door ${primaryName}`],
+        `insert into guests (couple_id, response_id, form_id, group_id, first_name, last_name, relation, attendance, partial_note, is_kid, diet, notes, created_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, clock_timestamp())`,
+        [couple.id, response!.id, form.id, form.group_id, first, last, relation, attending, partialNote, guest.kid, guest.diet,
+         `Aangemeld door ${firstName} ${lastName}`],
         db,
       );
     }
   });
 
+  // The mail: Sabine's text with, at the bottom, everything that was filled in.
   const names = coupleName(couple);
-  const yes = attending !== "no";
-  const custom = yes ? form.confirmation_text : form.decline_text;
-  const fallback = yes
-    ? `Wat fijn dat je erbij bent op de bruiloft van ${names}${couple.wedding_date ? ` op ${formatDate(couple.wedding_date)}` : ""}! Je aanmelding is goed ontvangen.`
-    : "Wat fijn dat je het hebt laten weten. Helaas kun je er niet bij zijn, maar bedankt voor het invullen van de vragenlijst.";
-  await sendMail({
-    to: email,
-    subject: yes ? `Je aanmelding voor de bruiloft van ${names}` : `Bedankt voor je bericht, ${firstName}`,
-    text: `Hoi ${firstName},\n\n${custom || fallback}\n\nHartelijke groet,\n${names}`,
-  });
+  const date = couple.wedding_date ? formatDate(couple.wedding_date) : "de trouwdag";
+  const summary = [
+    `Naam: ${firstName} ${lastName}`,
+    `E-mail: ${email}`,
+    `Telefoon: ${phone}`,
+    `Relatie: ${relation}`,
+    `Aanwezigheid: ${ATTENDANCE[attending!]}${partialNote ? ` (${partialNote})` : ""}`,
+    coming ? `Aantal personen: ${partyCount}` : "",
+    diet ? `Dieetwensen en allergieën: ${diet}` : "",
+    ...party.map((g, i) => `Gast ${i + 2}: ${g.name}${g.kid ? " (kind)" : ""}${g.diet ? `, dieet: ${g.diet}` : ""}`),
+    dresscodeOk === null ? "" : `Dresscode duidelijk: ${dresscodeOk ? "ja" : "nee, graag meer informatie"}`,
+    ...answers.map((a) => `${a.question}: ${a.answer}`),
+  ].filter(Boolean).join("\n");
+  const values = {
+    namen: names,
+    datum: date,
+    voornaam: firstName,
+    antwoorden: summary,
+    dresscode: coming && form.ask_dresscode && form.dresscode ? `Dresscode: ${form.dresscode}${form.dresscode_note ? `\n${form.dresscode_note}` : ""}\n\n` : "",
+  };
+  const subject = coming ? form.confirmation_subject || "Bedankt voor je aanmelding voor de bruiloft van [namen]" : form.decline_subject || "Bedankt voor je reactie op de uitnodiging van [namen]";
+  let body = fillTemplate(coming ? form.confirmation_text : form.decline_text, values).trim();
+  if (!body) body = coming ? `Lieve ${firstName},\n\nWat fijn dat je erbij bent! Je aanmelding is goed ontvangen.` : `Lieve ${firstName},\n\nBedankt voor het laten weten.`;
+  // The overview of the answers always comes along, also when the text has no [antwoorden].
+  if (!/\[antwoorden\]/i.test(coming ? form.confirmation_text : form.decline_text)) body += `\n\nWat je hebt ingevuld:\n\n${summary}`;
+  await sendMail({ to: email, subject: fillTemplate(subject, values), text: body });
 
   const members = (await coupleMembers(couple.id)).map((m) => m.email);
-  const summary = [
-    `${firstName} ${lastName}`.trim() + (relation ? ` (${relation})` : ""),
-    `Aanwezig: ${attending === "yes" ? "ja" : attending === "no" ? "nee" : `deel van de dag${partialNote ? `, ${partialNote}` : ""}`}`,
-    party.length ? `Neemt mee: ${party.join(", ")}` : "",
-    diet ? `Dieet/allergieën: ${diet}` : "",
-  ].filter(Boolean).join("\n");
   await sendMail({
     to: [adminNotifyEmail(), ...members].filter(Boolean),
     subject: `Nieuwe RSVP (${form.name}) voor ${names}`,
     text: `${summary}\n\nGastenlijst: ${appUrl()}/k/${couple.id}/gasten`,
   });
 
-  redirect(`${page}?bedankt=${yes ? "1" : "nee"}`);
+  redirect(`${page}?bedankt=${coming ? "1" : "nee"}`);
 }

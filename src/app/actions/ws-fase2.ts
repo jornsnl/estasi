@@ -1,6 +1,5 @@
 "use server";
 
-import { randomBytes } from "crypto";
 import { after } from "next/server";
 import { requireOwner } from "@/lib/auth/session";
 import { requireCouple, requireCoupleAdmin, type CoupleContext } from "@/lib/ws/access";
@@ -108,99 +107,7 @@ export async function saveRunsheetTab(formData: FormData) {
 
 // RSVP forms (Sabine) ----------------------------------------------------------------------------
 
-const HEX = /^#[0-9a-fA-F]{6}$/;
-
-export async function saveRsvpForm(formData: FormData) {
-  const ctx = await adminFrom(formData);
-  const formId = id(formData, "formId");
-  const back = portal(ctx.couple.id, "/gasten/formulieren");
-  if (formData.get("intent") === "delete" && formId) {
-    await query("delete from rsvp_forms where id = $1 and couple_id = $2", [formId, ctx.couple.id]);
-    done(back, "Formulier verwijderd. Aanmeldingen blijven in de gastenlijst.");
-  }
-  const name = str(formData, "name", 80);
-  if (!name) done(back, "Geef het formulier een naam, bijvoorbeeld Daggasten.", true);
-  const color = HEX.test(str(formData, "qrColor", 7)) ? str(formData, "qrColor", 7) : "#2c2c2c";
-  const background = HEX.test(str(formData, "qrBackground", 7)) ? str(formData, "qrBackground", 7) : "#ffffff";
-  const values = [
-    name, str(formData, "intro", 3000), formData.get("askPartOfDay") === "on", formData.get("askDiet") === "on",
-    str(formData, "dresscode", 300), str(formData, "confirmationText", 5000), str(formData, "declineText", 5000),
-    color, background, formData.get("open") === "on",
-  ];
-  if (formId) {
-    await query(
-      `update rsvp_forms set name = $3, intro = $4, ask_part_of_day = $5, ask_diet = $6, dresscode = $7, confirmation_text = $8,
-              decline_text = $9, qr_color = $10, qr_background = $11, open = $12 where id = $1 and couple_id = $2`,
-      [formId, ctx.couple.id, ...values],
-    );
-    done(`${back}#f-${formId}`, "Formulier opgeslagen.");
-  }
-  const slug = randomBytes(9).toString("base64url");
-  const form = await one<{ id: string }>(
-    `insert into rsvp_forms (couple_id, slug, name, intro, ask_part_of_day, ask_diet, dresscode, confirmation_text, decline_text, qr_color, qr_background, open, position)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, (select coalesce(max(position), 0) + 1 from rsvp_forms where couple_id = $1)) returning id`,
-    [ctx.couple.id, slug, ...values],
-  );
-  done(`${back}#f-${form!.id}`, "Formulier aangemaakt. Deel de link of de QR-code.");
-}
-
-export async function saveRsvpQuestion(formData: FormData) {
-  const ctx = await adminFrom(formData);
-  const formId = id(formData, "formId");
-  const back = portal(ctx.couple.id, `/gasten/formulieren#f-${formId}`);
-  if (!formId || !(await one("select 1 from rsvp_forms where id = $1 and couple_id = $2", [formId, ctx.couple.id]))) done(back, "Formulier niet gevonden.", true);
-  const questionId = id(formData, "questionId");
-  if (questionId) {
-    await query("delete from rsvp_questions where id = $1 and form_id = $2", [questionId, formId]);
-    done(back, "Vraag verwijderd.");
-  }
-  const label = str(formData, "label", 300);
-  if (!label) done(back, "Vul de vraag in.", true);
-  await query(
-    "insert into rsvp_questions (form_id, label, kind, position) values ($1, $2, $3, (select coalesce(max(position), 0) + 1 from rsvp_questions where form_id = $1))",
-    [formId, label, str(formData, "kind") === "yesno" ? "yesno" : "text"],
-  );
-  done(back, "Vraag toegevoegd.");
-}
-
-// Guest list (both) -------------------------------------------------------------------------------
-
-function guestFields(formData: FormData) {
-  const attendance = ["yes", "no", "partial"].includes(str(formData, "attendance")) ? str(formData, "attendance") : "yes";
-  return [
-    str(formData, "firstName", 80), str(formData, "lastName", 80), str(formData, "relation", 120), str(formData, "email", 200),
-    str(formData, "phone", 40), str(formData, "diet", 500), attendance, str(formData, "partialNote", 300),
-    formData.get("isKid") === "on", str(formData, "notes", 1000),
-  ];
-}
-
-export async function saveGuest(formData: FormData) {
-  const ctx = await ctxFrom(formData);
-  const guestId = id(formData, "guestId");
-  const back = portal(ctx.couple.id, "/gasten");
-  if (formData.get("intent") === "delete" && guestId) {
-    await query("delete from guests where id = $1 and couple_id = $2", [guestId, ctx.couple.id]);
-    await note(ctx, "Gast verwijderd");
-    done(back, "Gast verwijderd.");
-  }
-  const fields = guestFields(formData);
-  if (!fields[0]) done(back, "Vul minstens een voornaam in.", true);
-  if (guestId) {
-    await query(
-      `update guests set first_name = $3, last_name = $4, relation = $5, email = $6, phone = $7, diet = $8, attendance = $9,
-              partial_note = $10, is_kid = $11, notes = $12 where id = $1 and couple_id = $2`,
-      [guestId, ctx.couple.id, ...fields],
-    );
-  } else {
-    await query(
-      `insert into guests (couple_id, first_name, last_name, relation, email, phone, diet, attendance, partial_note, is_kid, notes)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [ctx.couple.id, ...fields],
-    );
-  }
-  await note(ctx, "Gastenlijst bijgewerkt");
-  done(back, "Gast opgeslagen.");
-}
+// RSVP forms and the guest list: see ws-rsvp.ts.
 
 // Assignments -----------------------------------------------------------------------------------------
 
