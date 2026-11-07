@@ -137,8 +137,24 @@ export async function createCouple(input: NewCouple, createdBy: string): Promise
     }
     await query(
       `insert into runsheet_tabs (couple_id, title, kind, position) values
-         ($1, 'Dagplanning', 'schedule', 1), ($1, 'Opstelling', 'list', 2), ($1, 'Meeneemlijst', 'list', 3), ($1, 'Overig', 'list', 4)`,
+         ($1, 'Dagplanning', 'schedule', 1), ($1, 'Opstelling', 'seating', 2), ($1, 'Meeneemlijst', 'packing', 3),
+         ($1, 'Stylingplan', 'styling', 4), ($1, 'Groepsfoto''s', 'photos', 5), ($1, 'Gastenlijst', 'guests', 6)`,
       [coupleId],
+      db,
+    );
+    // The partners' names, each with an own colour, for "Wie" in the day planning.
+    await query(
+      `insert into couple_people (couple_id, name, color, position)
+       select $1, n.name, n.color, n.position from (values ($2, '#E8C9CF', 1), ($3, '#D9E4CF', 2)) as n (name, color, position)
+        where n.name <> '' on conflict do nothing`,
+      [coupleId, input.partner1_first, input.partner2_first],
+      db,
+    );
+    // Standard packing lists, with both first names as "who takes it".
+    await query(
+      `insert into packing_items (couple_id, list_kind, what, who, is_default, position)
+       select $1, list_kind, what, $2, true, position from default_packing_items`,
+      [coupleId, [input.partner1_first, input.partner2_first].filter(Boolean).join(" & ")],
       db,
     );
     const templates = await query<{ id: string }>("select id from assignment_templates where not archived order by position", [], db);

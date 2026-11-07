@@ -11,10 +11,15 @@ export function AutoTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaEle
   const fit = useCallback(() => {
     const el = ref.current;
     if (!el) return;
+    // A minimum height, not a fixed one: in a table row the field can still
+    // stretch to the height of the tallest cell next to it.
+    el.style.minHeight = "0px";
     el.style.height = "auto";
-    el.style.height = `${el.scrollHeight + 2}px`;
+    const needed = el.scrollHeight + 2;
+    el.style.height = "";
+    el.style.minHeight = `${needed}px`;
   }, []);
-  useEffect(fit, [fit]);
+  useEffect(fit, [fit, props.value]);
   return (
     <textarea
       rows={1}

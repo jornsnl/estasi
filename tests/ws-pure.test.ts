@@ -74,3 +74,25 @@ describe("Uitnodigingslijst", () => {
     expect(matchInvitation({ email: "", names: "Bert", response_id: "r2" }, responses).state).toBe("yes");
   });
 });
+
+import { indexForTime, timeOutOfOrder } from "@/lib/ws/pure";
+
+describe("Dagplanning", () => {
+  const rows = [
+    { id: "a", at_time: "10:00" },
+    { id: "b", at_time: "" },
+    { id: "c", at_time: "12:00" },
+    { id: "d", at_time: "14:00" },
+  ];
+  it("puts a row with a new time in its place", () => {
+    expect(indexForTime(rows, "d", "11:00")).toBe(2);
+    expect(indexForTime(rows, "a", "13:00")).toBe(2);
+    expect(indexForTime(rows, "c", "8:30")).toBe(0);
+    expect(indexForTime(rows, "b", "")).toBe(1);
+  });
+  it("marks a dragged row whose time does not fit", () => {
+    expect(timeOutOfOrder(rows, 2)).toBe(false);
+    expect(timeOutOfOrder([{ at_time: "12:00" }, { at_time: "10:00" }, { at_time: "14:00" }], 1)).toBe(true);
+    expect(timeOutOfOrder([{ at_time: "12:00" }, { at_time: "" }], 1)).toBe(false);
+  });
+});

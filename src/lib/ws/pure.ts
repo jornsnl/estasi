@@ -104,3 +104,28 @@ export function matchInvitation(
   }
   return { state: "no", responseId: null };
 }
+
+/**
+ * Where a row with this time belongs (index among the other rows): before
+ * the first row with a later time.
+ */
+export function indexForTime(rows: { id: string; at_time: string }[], id: string, time: string): number {
+  const key = timeKey(time);
+  const others = rows.filter((r) => r.id !== id);
+  if (key === Number.MAX_SAFE_INTEGER) return rows.findIndex((r) => r.id === id);
+  // Before the first timed row that is later; untimed rows stay with the row above them.
+  const later = others.findIndex((r) => {
+    const k = timeKey(r.at_time);
+    return k !== Number.MAX_SAFE_INTEGER && k > key;
+  });
+  return later === -1 ? others.length : later;
+}
+
+/** A time that does not fit between the timed rows around it (after dragging): shown light red. */
+export function timeOutOfOrder(rows: { at_time: string }[], index: number): boolean {
+  const key = timeKey(rows[index].at_time);
+  if (key === Number.MAX_SAFE_INTEGER) return false;
+  const before = rows.slice(0, index).map((r) => timeKey(r.at_time)).filter((k) => k !== Number.MAX_SAFE_INTEGER);
+  const after = rows.slice(index + 1).map((r) => timeKey(r.at_time)).filter((k) => k !== Number.MAX_SAFE_INTEGER);
+  return (before.length > 0 && before[before.length - 1] > key) || (after.length > 0 && after[0] < key);
+}

@@ -23,6 +23,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
         { href: "/beheer/bruidsparen/pakketten", label: "Pakketten" },
         { href: "/beheer/bruidsparen/opdrachten", label: "Opdrachten" },
         { href: "/beheer/bruidsparen/aanraders", label: "Aanraders" },
+        { href: "/beheer/bruidsparen/standaardlijsten", label: "Standaardlijsten" },
         { href: "/beheer/bruidsparen/instellingen", label: "Instellingen portaal" },
       ]}
       footer={

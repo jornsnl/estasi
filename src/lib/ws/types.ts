@@ -62,6 +62,7 @@ export interface Settings {
   detail_guide: string;
   evaluation_guide: string;
   contact_photo_file_id: string | null;
+  group_photo_intro: string;
 }
 
 export interface Task {

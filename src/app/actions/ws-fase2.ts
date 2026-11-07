@@ -39,71 +39,7 @@ export async function saveGuestCounts(formData: FormData) {
   done(portal(ctx.couple.id, "/draaiboek"), "Aantal gasten opgeslagen.");
 }
 
-const ROW_FIELDS = ["atTime", "who", "what", "info", "location", "rainLocation"] as const;
-const ROW_MAX = { atTime: 20, who: 300, what: 500, info: 2000, location: 300, rainLocation: 300 } as const;
-
-/**
- * One form per tab: every button saves all rows first, so adding or deleting
- * a row never throws away edits elsewhere (same idea as the lesson editor).
- */
-export async function saveRunsheet(formData: FormData) {
-  const ctx = await ctxFrom(formData);
-  const tabId = id(formData, "tabId");
-  const back = portal(ctx.couple.id, `/draaiboek?tab=${tabId}`);
-  if (!tabId || !(await one("select 1 from runsheet_tabs where id = $1 and couple_id = $2", [tabId, ctx.couple.id]))) done(portal(ctx.couple.id, "/draaiboek"), "Tabblad niet gevonden.", true);
-  const rows = await query<{ id: string }>("select id from runsheet_rows where tab_id = $1", [tabId]);
-  const [action, arg] = str(formData, "intent", 60).split(":");
-  let message = "Draaiboek opgeslagen.";
-  await tx(async (db) => {
-    for (const row of rows) {
-      if (!formData.has(`r-${row.id}-what`)) continue;
-      const values = ROW_FIELDS.map((f) => str(formData, `r-${row.id}-${f}`, ROW_MAX[f]));
-      await query(
-        "update runsheet_rows set at_time = $2, who = $3, what = $4, info = $5, location = $6, rain_location = $7 where id = $1",
-        [row.id, ...values],
-        db,
-      );
-    }
-    const fresh = ROW_FIELDS.map((f) => str(formData, `new-${f}`, ROW_MAX[f]));
-    if (fresh.some(Boolean)) {
-      await query(
-        `insert into runsheet_rows (couple_id, tab_id, at_time, who, what, info, location, rain_location, position)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, (select coalesce(max(position), 0) + 1 from runsheet_rows where tab_id = $2))`,
-        [ctx.couple.id, tabId, ...fresh],
-        db,
-      );
-      message = "Draaiboek opgeslagen, regel toegevoegd.";
-    }
-    if (action === "delete" && isUuid(arg)) {
-      await query("delete from runsheet_rows where id = $1 and tab_id = $2", [arg, tabId], db);
-      message = "Draaiboek opgeslagen, regel verwijderd.";
-    }
-  });
-  await note(ctx, "Draaiboek bijgewerkt");
-  done(back, message);
-}
-
-export async function saveRunsheetTab(formData: FormData) {
-  const ctx = await adminFrom(formData);
-  const tabId = id(formData, "tabId");
-  const title = str(formData, "title", 80);
-  const back = portal(ctx.couple.id, "/draaiboek");
-  if (formData.get("intent") === "delete" && tabId) {
-    await query("delete from runsheet_tabs where id = $1 and couple_id = $2", [tabId, ctx.couple.id]);
-    done(back, "Tabblad verwijderd.");
-  }
-  if (!title) done(back, "Geef het tabblad een naam.", true);
-  const kind = str(formData, "kind") === "schedule" ? "schedule" : "list";
-  if (tabId) {
-    await query("update runsheet_tabs set title = $3 where id = $1 and couple_id = $2", [tabId, ctx.couple.id, title]);
-    done(`${back}?tab=${tabId}`, "Tabblad hernoemd.");
-  }
-  const tab = await one<{ id: string }>(
-    "insert into runsheet_tabs (couple_id, title, kind, position) values ($1, $2, $3, (select coalesce(max(position), 0) + 1 from runsheet_tabs where couple_id = $1)) returning id",
-    [ctx.couple.id, title, kind],
-  );
-  done(`${back}?tab=${tab!.id}`, "Tabblad toegevoegd.");
-}
+// Rows and tabs: see ws-runsheet.ts.
 
 // RSVP forms (Sabine) ----------------------------------------------------------------------------
 
