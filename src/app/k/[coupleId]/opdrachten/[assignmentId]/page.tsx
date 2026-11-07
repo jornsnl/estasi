@@ -8,6 +8,8 @@ import { requirePlanning } from "@/lib/ws/access";
 import { aiConfigured } from "@/lib/ws/ai";
 import { assignmentsFor, questionsFor, sectionsFor } from "@/lib/ws/assignments";
 import { SectionedAssignment } from "@/components/ws/SectionedAssignment";
+import { BudgetPlanner } from "@/components/ws/BudgetPlanner";
+import { costLines } from "@/lib/ws/costs";
 import { query } from "@/lib/ws/db";
 import { directUploads } from "@/lib/ws/files";
 import { formatDateTime } from "@/lib/ws/format";
@@ -27,6 +29,7 @@ export default async function AssignmentPage({
   if (!assignment) notFound();
   const questions = await questionsFor(assignment.id);
   const parts = assignment.kind === "sections" ? await sectionsFor(assignment.id) : [];
+  const budgetLines = assignment.budget ? (await costLines(couple.id)).filter((l) => l.kind === "category" || l.kind === "own") : [];
   const moodboard = parts.some((p) => p.kind === "moodboard")
     ? await query<{ id: string; file_id: string }>("select id, file_id from styling_images where couple_id = $1 order by created_at", [couple.id])
     : [];
@@ -111,6 +114,15 @@ export default async function AssignmentPage({
           </div>
         )}
       </form>}
+
+      {assignment.budget && (
+        <BudgetPlanner
+          coupleId={couple.id}
+          total={couple.total_budget_cents}
+          back={`/k/${couple.id}/opdrachten/${assignment.id}`}
+          lines={budgetLines.map((l) => ({ id: l.id, name: l.name, kind: l.kind as "category" | "own", budget: l.budget_cents }))}
+        />
+      )}
 
       {isAdmin && (
         <section className="card space-y-4 p-5">

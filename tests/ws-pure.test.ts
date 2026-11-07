@@ -117,3 +117,23 @@ describe("Eten en allergieën", () => {
     expect(dietSummary([])).toBe("");
   });
 });
+
+import { budgetLine, costDifference, costRemaining, payingSoon } from "@/lib/ws/pure";
+
+describe("Kosten", () => {
+  const eur = (c: number) => `€ ${c / 100}`;
+  it("works out difference, remaining and due payments", () => {
+    expect(costDifference(1000, 1200)).toBe(-200);
+    expect(costDifference(1000, null)).toBeNull();
+    expect(costRemaining(1200, 300, false)).toBe(900);
+    expect(costRemaining(1200, 300, true)).toBe(0);
+    expect(payingSoon("2026-11-20", false, "2026-11-07")).toBe(true);
+    expect(payingSoon("2026-12-20", false, "2026-11-07")).toBe(false);
+    expect(payingSoon("2026-11-01", false, "2026-11-07")).toBe(true);
+    expect(payingSoon("2026-11-10", true, "2026-11-07")).toBe(false);
+  });
+  it("counts the budget down", () => {
+    expect(budgetLine(2450000, 2500000, eur)).toEqual({ text: "Begroot: € 24500 van € 25000, nog € 500 over", over: false });
+    expect(budgetLine(2600000, 2500000, eur).over).toBe(true);
+  });
+});

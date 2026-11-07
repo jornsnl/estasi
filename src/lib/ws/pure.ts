@@ -181,3 +181,27 @@ export function dietSummary(diets: string[]): string {
   const order = [...DIETS.map(([n]) => n), "overig"];
   return [...counts.entries()].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([n, c]) => `${c} ${n}`).join(", ");
 }
+
+/** Verschil: begroot minus werkelijk (negative = over budget). Null while there is no real amount yet. */
+export const costDifference = (budget: number, actual: number | null) => (actual === null ? null : budget - actual);
+
+/** Resterend: werkelijk minus aanbetaald; nothing left once paid in full. */
+export const costRemaining = (actual: number | null, deposit: number | null, paid: boolean) =>
+  paid ? 0 : actual === null ? null : Math.max(0, actual - (deposit ?? 0));
+
+/** "Binnenkort betalen": a payment date within two weeks (or past) and not paid yet. */
+export function payingSoon(due: string | null, paid: boolean, today: string, days = 14): boolean {
+  if (!due || paid) return false;
+  const diff = (Date.parse(`${due}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000;
+  return diff <= days;
+}
+
+/** "Begroot: € 24.500 van € 25.000, nog € 500 over" */
+export function budgetLine(planned: number, total: number | null, money: (cents: number) => string): { text: string; over: boolean } {
+  if (!total) return { text: `Begroot: ${money(planned)}`, over: false };
+  const left = total - planned;
+  return {
+    text: `Begroot: ${money(planned)} van ${money(total)}, ${left >= 0 ? `nog ${money(left)} over` : `${money(-left)} te veel`}`,
+    over: left < 0,
+  };
+}

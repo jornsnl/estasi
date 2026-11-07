@@ -4,7 +4,7 @@ import { isUuid, one, query, tx } from "@/lib/ws/db";
 import { requireCouple, requireCoupleAdmin, type CoupleContext } from "@/lib/ws/access";
 import { coupleMembers, logActivity } from "@/lib/ws/couples";
 import { deleteFiles, storeUpload, UploadError } from "@/lib/ws/files";
-import { coupleName, formatDate, LANES, parseMoney } from "@/lib/ws/format";
+import { coupleName, formatDate, LANES } from "@/lib/ws/format";
 import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
 import { dateField, done, str } from "@/lib/ws/redirect";
 import type { Lane } from "@/lib/ws/types";
@@ -224,52 +224,4 @@ export async function deleteMeeting(formData: FormData) {
 
 // Suppliers: see ws-suppliers.ts.
 
-// Budget -----------------------------------------------------------------------------------------
-
-function moneyField(formData: FormData, name: string, back: string): number | null {
-  try {
-    return parseMoney(str(formData, name, 30));
-  } catch (err) {
-    done(back, (err as Error).message, true);
-  }
-}
-
-export async function saveBudgetItem(formData: FormData) {
-  const ctx = await ctxFrom(formData);
-  const back = portal(ctx.couple.id, "/kosten");
-  const id = str(formData, "itemId", 40);
-  const name = str(formData, "name", 200);
-  if (!name) done(back, "Geef de kostenpost een naam.", true);
-  const values = [
-    name,
-    str(formData, "category", 100),
-    moneyField(formData, "budget", back) ?? 0,
-    moneyField(formData, "actual", back),
-    moneyField(formData, "deposit", back),
-    dateField(formData, "depositDue"),
-    dateField(formData, "paymentDue"),
-    formData.get("paid") === "on",
-  ];
-  if (isUuid(id)) {
-    await query(
-      `update budget_items set name = $3, category = $4, budget_cents = $5, actual_cents = $6, deposit_cents = $7,
-              deposit_due = $8, payment_due = $9, paid = $10 where id = $1 and couple_id = $2`,
-      [id, ctx.couple.id, ...values],
-    );
-  } else {
-    await query(
-      `insert into budget_items (couple_id, name, category, budget_cents, actual_cents, deposit_cents, deposit_due, payment_due, paid, position)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, coalesce((select max(position) + 1 from budget_items where couple_id = $1), 1))`,
-      [ctx.couple.id, ...values],
-    );
-  }
-  await note(ctx, `Kostenpost bijgewerkt: ${name}`);
-  done(back, "Kostenpost opgeslagen.");
-}
-
-export async function deleteBudgetItem(formData: FormData) {
-  const ctx = await ctxFrom(formData);
-  const id = str(formData, "itemId", 40);
-  if (isUuid(id)) await query("delete from budget_items where id = $1 and couple_id = $2", [id, ctx.couple.id]);
-  done(portal(ctx.couple.id, "/kosten"), "Kostenpost verwijderd.");
-}
+// Budget and costs: see ws-costs.ts.

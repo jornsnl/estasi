@@ -41,3 +41,14 @@ describe("namen", () => {
     expect(coupleName({ partner1_first: "Carlijn", partner2_first: " " })).toBe("Carlijn");
   });
 });
+
+import { parseMoney as parse } from "@/lib/ws/format";
+
+describe("bedragen met duizendtallen", () => {
+  it("reads 25.000 as twenty-five thousand", () => {
+    expect(parse("25.000")).toBe(2_500_000);
+    expect(parse("€ 1.250.000")).toBe(125_000_000);
+    expect(parse("12.50")).toBe(1250);
+    expect(parse("1.234,56")).toBe(123_456);
+  });
+});

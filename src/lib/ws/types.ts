@@ -47,6 +47,7 @@ export interface Couple {
   guests_day: number | null;
   guests_day_kids: number | null;
   guests_evening: number | null;
+  total_budget_cents: number | null;
 }
 
 export interface Settings {

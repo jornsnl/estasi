@@ -43,7 +43,8 @@ export function parseMoney(input: string): number | null {
   const raw = input.replace(/[€\s]/g, "");
   if (!raw) return null;
   // Dutch notation: dots for thousands, comma for cents. Accept a lone dot as decimal point too.
-  const normalised = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
+  // "25.000" (dots as thousand separators, no cents) is twenty-five thousand.
+  const normalised = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : /^\d{1,3}(\.\d{3})+$/.test(raw) ? raw.replace(/\./g, "") : raw;
   if (!/^\d+(\.\d{1,2})?$/.test(normalised)) throw new Error(`"${input}" is geen geldig bedrag.`);
   return Math.round(Number(normalised) * 100);
 }

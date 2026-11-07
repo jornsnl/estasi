@@ -16,6 +16,8 @@ export interface Assignment {
   ai_error: string;
   kind: "questions" | "sections";
   closing: string;
+  /** "Budgetplanning & prioriteiten": the budget table comes with it. */
+  budget: boolean;
   completed_at: Date | null;
   /** Questions answered, or for an assignment in parts: parts marked done. */
   answered: number;

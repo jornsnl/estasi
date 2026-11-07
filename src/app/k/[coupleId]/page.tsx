@@ -6,7 +6,7 @@ import { AnswerReveal } from "@/components/ws/AnswerReveal";
 import { requireCouple } from "@/lib/ws/access";
 import { query } from "@/lib/ws/db";
 import { getSettings } from "@/lib/ws/settings";
-import { countdownLabel, coupleName, formatDate, formatDateTime, LANE_LABELS, LANES, plural, WELCOME_TEXT } from "@/lib/ws/format";
+import { countdownLabel, coupleName, formatDate, formatDateTime, formatMoney, LANE_LABELS, LANES, plural, todayIso, WELCOME_TEXT } from "@/lib/ws/format";
 import type { Question, Task } from "@/lib/ws/types";
 
 export const metadata = { title: "Overzicht" };
@@ -17,7 +17,7 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
   const { coupleId } = await params;
   const { couple, isAdmin, planning, dance } = await requireCouple(coupleId);
   const base = `/k/${couple.id}`;
-  const [tasks, questions, settings] = await Promise.all([
+  const [tasks, questions, settings, upcoming, payments] = await Promise.all([
     query<Task>("select * from tasks where couple_id = $1 and done_at is null order by position, created_at", [couple.id]),
     query<Question>(
       `select q.* from questions q
@@ -25,6 +25,19 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
       [couple.id],
     ),
     getSettings(),
+    query<{ id: string; title: string; on_date: string; at_time: string; kind: string }>(
+      "select id, title, on_date, at_time, kind from appointments where couple_id = $1 and on_date >= $2 order by on_date, at_time limit 4",
+      [couple.id, todayIso()],
+    ),
+    // "Binnenkort betalen": payment dates within two weeks (or past) that are not paid yet.
+    planning
+      ? query<{ id: string; name: string; payment_due: string; remaining: number | null }>(
+          `select id, name, payment_due, case when actual_cents is null then null else greatest(actual_cents - coalesce(deposit_cents, 0), 0) end as remaining
+             from budget_items where couple_id = $1 and not paid and payment_due is not null and payment_due <= $2::date + 14
+            order by payment_due limit 6`,
+          [couple.id, todayIso()],
+        )
+      : [],
   ]);
   const countdown = countdownLabel(couple.wedding_date);
 
@@ -102,6 +115,35 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
           )}
         </div>
       </section>
+
+      {(upcoming.length > 0 || payments.length > 0) && (
+        <section>
+          <div className="mb-3 flex items-baseline gap-4">
+            <h2 className="section-title">Binnenkort</h2>
+            <Link href={`${base}/afspraken`} className="text-sm text-bordeaux hover:underline">Alle afspraken</Link>
+          </div>
+          <ul className="card divide-y divide-line text-sm">
+            {upcoming.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+                <span>
+                  <span className={`mr-2 rounded-full px-2 py-0.5 text-xs ${a.kind === "deadline" ? "bg-bordeaux-soft text-bordeaux" : "bg-cream text-gold-ink"}`}>{a.kind === "deadline" ? "Deadline" : "Afspraak"}</span>
+                  {a.title}
+                </span>
+                <span className="text-muted">{formatDate(a.on_date)}{a.at_time ? `, ${a.at_time}` : ""}</span>
+              </li>
+            ))}
+            {payments.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+                <Link href={`${base}/kosten`} className="hover:text-bordeaux">
+                  <span className="mr-2 rounded-full bg-[#fbe3d0] px-2 py-0.5 text-xs text-[#8a4b1c]">Binnenkort betalen</span>
+                  {p.name}{p.remaining ? ` · ${formatMoney(p.remaining)}` : ""}
+                </Link>
+                <span className="text-muted">vóór {formatDate(p.payment_due)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Task board */}
       <section id="takenlijst" className="scroll-mt-6">

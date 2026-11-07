@@ -1,34 +1,16 @@
-import { deleteBudgetItem, saveBudgetItem } from "@/app/actions/ws-portal";
+import Link from "next/link";
+import { addExtraCost } from "@/app/actions/ws-costs";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
+import { CostPie, CostTable } from "@/components/ws/CostTable";
 import { requirePlanning } from "@/lib/ws/access";
-import { query } from "@/lib/ws/db";
-import { budgetTotals } from "@/lib/ws/budget";
-import { formatDate, formatMoney } from "@/lib/ws/format";
-import type { BudgetItem } from "@/lib/ws/types";
+import { budgetTotals, costsByCategory } from "@/lib/ws/budget";
+import { costLines, ESTASI } from "@/lib/ws/costs";
+import { one } from "@/lib/ws/db";
+import { formatMoney, todayIso } from "@/lib/ws/format";
+import { categoriesFor } from "@/lib/ws/suppliers";
 
 export const metadata = { title: "Kostenoverzicht" };
-
-const money = (cents: number | null) => (cents === null ? "" : (cents / 100).toFixed(2).replace(".", ","));
-
-function ItemForm({ coupleId, item }: { coupleId: string; item?: BudgetItem }) {
-  const id = item?.id ?? "nieuw";
-  return (
-    <form action={saveBudgetItem} className="grid gap-3 sm:grid-cols-6">
-      <input type="hidden" name="coupleId" value={coupleId} />
-      {item && <input type="hidden" name="itemId" value={item.id} />}
-      <div className="sm:col-span-3"><label className="label" htmlFor={`n-${id}`}>Kostenpost</label><input id={`n-${id}`} name="name" required defaultValue={item?.name} className="input" placeholder="Bijvoorbeeld: Catering" /></div>
-      <div className="sm:col-span-3"><label className="label" htmlFor={`c-${id}`}>Categorie</label><input id={`c-${id}`} name="category" defaultValue={item?.category} className="input" list="budget-categories" /></div>
-      <div className="sm:col-span-2"><label className="label" htmlFor={`b-${id}`}>Begroot (€)</label><input id={`b-${id}`} name="budget" inputMode="decimal" defaultValue={money(item?.budget_cents ?? null)} className="input" placeholder="0" /></div>
-      <div className="sm:col-span-2"><label className="label" htmlFor={`a-${id}`}>Werkelijk (€)</label><input id={`a-${id}`} name="actual" inputMode="decimal" defaultValue={money(item?.actual_cents ?? null)} className="input" /></div>
-      <div className="sm:col-span-2"><label className="label" htmlFor={`d-${id}`}>Aanbetaling (€)</label><input id={`d-${id}`} name="deposit" inputMode="decimal" defaultValue={money(item?.deposit_cents ?? null)} className="input" /></div>
-      <div className="sm:col-span-2"><label className="label" htmlFor={`dd-${id}`}>Aanbetalen vóór</label><input id={`dd-${id}`} name="depositDue" type="date" defaultValue={item?.deposit_due ?? ""} className="input" /></div>
-      <div className="sm:col-span-2"><label className="label" htmlFor={`pd-${id}`}>Betalen vóór</label><input id={`pd-${id}`} name="paymentDue" type="date" defaultValue={item?.payment_due ?? ""} className="input" /></div>
-      <label className="flex items-end gap-2 pb-3 text-sm sm:col-span-2"><input type="checkbox" name="paid" defaultChecked={item?.paid} className="accent-[#6B1E2E]" /> Volledig betaald</label>
-      <div className="sm:col-span-6"><SubmitButton className="btn-primary" pendingText="Opslaan…">{item ? "Opslaan" : "Toevoegen"}</SubmitButton></div>
-    </form>
-  );
-}
 
 export default async function BudgetPage({
   params,
@@ -38,16 +20,24 @@ export default async function BudgetPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId } = await params;
-  const { couple } = await requirePlanning(coupleId);
-  const items = await query<BudgetItem>("select * from budget_items where couple_id = $1 order by position, created_at", [couple.id]);
-  const totals = budgetTotals(items);
+  const { couple, isAdmin } = await requirePlanning(coupleId);
+  const [lines, categories, budgetAssignment] = await Promise.all([
+    costLines(couple.id),
+    categoriesFor(couple.id),
+    one<{ id: string }>("select id from assignments where couple_id = $1 and budget order by position limit 1", [couple.id]),
+  ]);
+  const totals = budgetTotals(lines);
+  const categoryNames = [...categories.map((c) => c.name), ESTASI];
 
   return (
     <div className="space-y-6">
       <header>
         <p className="eyebrow">Onderdeel</p>
         <h1 className="mt-1 text-3xl">Kostenoverzicht</h1>
-        <p className="mt-1 text-sm text-muted">Begroting, werkelijke kosten en wat er nog betaald moet worden. Bedragen inclusief btw.</p>
+        <p className="mt-1 text-sm text-muted">
+          Begroting, werkelijke kosten en wat er nog betaald moet worden. Bedragen inclusief btw.
+          {budgetAssignment && <> De begroting vullen jullie in bij <Link href={`/k/${couple.id}/opdrachten/${budgetAssignment.id}`} className="text-bordeaux underline">Budgetplanning & prioriteiten</Link>.</>}
+        </p>
       </header>
       <Notice searchParams={searchParams} />
 
@@ -65,55 +55,41 @@ export default async function BudgetPage({
         ))}
       </section>
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead className="table-head">
-            <tr><th className="px-4 py-2.5">Kostenpost</th><th className="px-4 py-2.5 text-right">Begroot</th><th className="px-4 py-2.5 text-right">Werkelijk</th><th className="px-4 py-2.5">Betaling</th><th className="px-4 py-2.5 text-center">Betaald</th></tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id} className="border-t border-line align-top">
-                <td className="px-4 py-3">
-                  <details>
-                    <summary className="cursor-pointer">{item.name}{item.category && <span className="ml-2 text-xs text-muted">{item.category}</span>}</summary>
-                    <div className="mt-3 rounded-xl bg-cream p-4">
-                      <ItemForm coupleId={couple.id} item={item} />
-                      <form action={deleteBudgetItem} className="mt-2">
-                        <input type="hidden" name="coupleId" value={couple.id} />
-                        <input type="hidden" name="itemId" value={item.id} />
-                        <SubmitButton className="btn-ghost px-0 text-xs text-bordeaux" confirm={`"${item.name}" verwijderen?`}>Kostenpost verwijderen</SubmitButton>
-                      </form>
-                    </div>
-                  </details>
-                </td>
-                <td className="px-4 py-3 text-right whitespace-nowrap">{formatMoney(item.budget_cents)}</td>
-                <td className="px-4 py-3 text-right whitespace-nowrap">{formatMoney(item.actual_cents)}</td>
-                <td className="px-4 py-3 text-xs text-muted">
-                  {item.deposit_cents ? <span className="block">Aanbetaling {formatMoney(item.deposit_cents)}{item.deposit_due ? ` vóór ${formatDate(item.deposit_due)}` : ""}</span> : null}
-                  {item.payment_due ? <span className="block">Rest vóór {formatDate(item.payment_due)}</span> : null}
-                </td>
-                <td className="px-4 py-3 text-center">{item.paid ? <span className="text-success" aria-label="Betaald">✓</span> : <span className="text-muted">–</span>}</td>
-              </tr>
-            ))}
-            {items.length === 0 && <tr><td colSpan={5} className="px-4 py-6 text-center text-muted">Nog geen kostenposten.</td></tr>}
-            {items.length > 0 && (
-              <tr className="border-t border-line bg-cream font-medium">
-                <td className="px-4 py-3">Totaal</td>
-                <td className="px-4 py-3 text-right">{formatMoney(totals.budget)}</td>
-                <td className="px-4 py-3 text-right">{formatMoney(totals.actual)}</td>
-                <td colSpan={2} />
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <CostTable
+        coupleId={couple.id}
+        isAdmin={isAdmin}
+        today={todayIso()}
+        categories={categoryNames}
+        rows={lines.map((l) => ({
+          id: l.id, kind: l.kind, name: l.name, category: l.category, supplier: l.supplier, budget: l.budget_cents,
+          actual: l.actual_cents, deposit: l.deposit_cents, payment_due: l.payment_due, paid: l.paid,
+        }))}
+      />
+
+      <section className="card p-5">
+        <h2 className="mb-3 text-lg">Werkelijke kosten per categorie</h2>
+        <CostPie parts={costsByCategory(lines)} />
+      </section>
 
       <section className="card p-5">
         <h2 className="mb-3 text-lg">Kostenpost toevoegen</h2>
-        <ItemForm coupleId={couple.id} />
-        <datalist id="budget-categories">
-          {["Locatie", "Catering", "Styling", "Foto & video", "Entertainment", "Kleding", "Ceremonie", "Overig"].map((c) => <option key={c} value={c} />)}
-        </datalist>
+        <form action={addExtraCost} className="grid gap-3 sm:grid-cols-6">
+          <input type="hidden" name="coupleId" value={couple.id} />
+          <div className="sm:col-span-3"><label className="label" htmlFor="n-new">Kostenpost</label><input id="n-new" name="name" required className="input" placeholder="Bijvoorbeeld: Bedankjes" /></div>
+          <div className="sm:col-span-3">
+            <label className="label" htmlFor="c-new">Categorie</label>
+            <select id="c-new" name="category" className="input" defaultValue="">
+              <option value="">Kies een categorie</option>
+              {categoryNames.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="sm:col-span-2"><label className="label" htmlFor="s-new">Leverancier</label><input id="s-new" name="supplier" className="input" /></div>
+          <div className="sm:col-span-2"><label className="label" htmlFor="a-new">Werkelijk (€)</label><input id="a-new" name="actual" inputMode="decimal" className="input" /></div>
+          <div className="sm:col-span-2"><label className="label" htmlFor="d-new">Aanbetaald (€)</label><input id="d-new" name="deposit" inputMode="decimal" className="input" /></div>
+          <div className="sm:col-span-2"><label className="label" htmlFor="p-new">Betaaldatum</label><input id="p-new" name="paymentDue" type="date" className="input" /></div>
+          <label className="flex items-end gap-2 pb-3 text-sm sm:col-span-2"><input type="checkbox" name="paid" className="accent-[#6B1E2E]" /> Volledig betaald</label>
+          <div className="sm:col-span-6"><SubmitButton className="btn-primary" pendingText="Opslaan…">Toevoegen</SubmitButton></div>
+        </form>
       </section>
     </div>
   );

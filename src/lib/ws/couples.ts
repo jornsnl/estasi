@@ -175,8 +175,8 @@ export async function createCouple(input: NewCouple, createdBy: string): Promise
 /** Copies one of Sabine's assignment templates into a couple's portal. */
 export async function copyAssignmentTemplate(coupleId: string, templateId: string, db?: Parameters<typeof query>[2]) {
   const assignment = await one<{ id: string }>(
-    `insert into assignments (couple_id, template_id, title, intro, styling_source, kind, closing, position)
-     select $1, t.id, t.title, t.intro, t.styling_source, t.kind, t.closing,
+    `insert into assignments (couple_id, template_id, title, intro, styling_source, kind, closing, budget, position)
+     select $1, t.id, t.title, t.intro, t.styling_source, t.kind, t.closing, t.budget,
             (select coalesce(max(position), 0) + 1 from assignments where couple_id = $1)
        from assignment_templates t where t.id = $2 returning id`,
     [coupleId, templateId],
