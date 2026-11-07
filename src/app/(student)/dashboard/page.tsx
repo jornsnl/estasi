@@ -8,6 +8,7 @@ import { nextLesson, studentOverview } from "@/lib/academy";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
 import { remainingDays } from "@/lib/domain/access";
+import { plural } from "@/lib/domain/labels";
 import { COURSE_STATUS_LABELS, isUnfinished } from "@/lib/domain/progress";
 import { formatDate } from "@/lib/util/format";
 
@@ -68,10 +69,10 @@ export default async function Dashboard() {
 
           <div className="card p-6">
             <p className="eyebrow">Je toegang</p>
-            <p className="mt-2 font-serif text-3xl">{remainingDays(o.enrollment)} dagen</p>
+            <p className="mt-2 font-serif text-3xl">{plural(remainingDays(o.enrollment), "dag", "dagen")}</p>
             <p className="text-sm text-muted">Geldig tot {formatDate(o.enrollment.endsAt)}</p>
             {o.openFeedback > 0 && (
-              <p className="mt-4 text-sm text-muted">{o.openFeedback} opdracht(en) wachten op feedback. Je kunt gewoon verder.</p>
+              <p className="mt-4 text-sm text-muted">{o.openFeedback === 1 ? "1 opdracht wacht" : `${o.openFeedback} opdrachten wachten`} op feedback. Je kunt gewoon verder.</p>
             )}
           </div>
         </section>

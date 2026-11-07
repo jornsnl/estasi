@@ -4,9 +4,14 @@ import { manageAssignment, saveAnswers } from "@/app/actions/ws-fase2";
 import { DirtyGuard } from "@/components/DirtyGuard";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { requireCouple } from "@/lib/ws/access";
+import { requirePlanning } from "@/lib/ws/access";
 import { aiConfigured } from "@/lib/ws/ai";
-import { assignmentsFor, questionsFor } from "@/lib/ws/assignments";
+import { assignmentsFor, questionsFor, sectionsFor } from "@/lib/ws/assignments";
+import { SectionedAssignment } from "@/components/ws/SectionedAssignment";
+import { BudgetPlanner } from "@/components/ws/BudgetPlanner";
+import { costLines } from "@/lib/ws/costs";
+import { query } from "@/lib/ws/db";
+import { directUploads } from "@/lib/ws/files";
 import { formatDateTime } from "@/lib/ws/format";
 
 export const metadata = { title: "Opdracht" };
@@ -19,10 +24,15 @@ export default async function AssignmentPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId, assignmentId } = await params;
-  const { couple, isAdmin } = await requireCouple(coupleId);
+  const { couple, isAdmin } = await requirePlanning(coupleId);
   const assignment = (await assignmentsFor(couple.id, isAdmin)).find((a) => a.id === assignmentId);
   if (!assignment) notFound();
   const questions = await questionsFor(assignment.id);
+  const parts = assignment.kind === "sections" ? await sectionsFor(assignment.id) : [];
+  const budgetLines = assignment.budget ? (await costLines(couple.id)).filter((l) => l.kind === "category" || l.kind === "own") : [];
+  const moodboard = parts.some((p) => p.kind === "moodboard")
+    ? await query<{ id: string; file_id: string }>("select id, file_id from styling_images where couple_id = $1 order by created_at", [couple.id])
+    : [];
   const hidden = { coupleId: couple.id, assignmentId: assignment.id };
   const Hidden = () => <>{Object.entries(hidden).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}</>;
 
@@ -31,12 +41,12 @@ export default async function AssignmentPage({
       <header>
         <Link href={`/k/${couple.id}/opdrachten`} className="text-sm text-muted hover:text-bordeaux">← Opdrachten</Link>
         <h1 className="mt-2 text-3xl">{assignment.title}</h1>
-        {assignment.intro && <p className="mt-2 text-sm whitespace-pre-line text-muted">{assignment.intro}</p>}
+        {assignment.intro && assignment.kind !== "sections" && <p className="mt-2 text-sm whitespace-pre-line text-muted">{assignment.intro}</p>}
         {assignment.submitted_at && <p className="mt-2 text-sm text-success">Ingestuurd op {formatDateTime(assignment.submitted_at)}. Aanpassen kan nog steeds.</p>}
       </header>
       <Notice searchParams={searchParams} />
 
-      {(assignment.ai_summary || assignment.ai_error || assignment.submitted_at) && (
+      {assignment.kind !== "sections" && (assignment.ai_summary || assignment.ai_error || assignment.submitted_at) && (
         <section className="card p-5">
           <h2 className="text-lg">Samenvatting</h2>
           {assignment.ai_summary ? (
@@ -70,7 +80,23 @@ export default async function AssignmentPage({
         </section>
       )}
 
-      <form id="answers" action={saveAnswers} className="space-y-4">
+      {assignment.kind === "sections" && (
+        <SectionedAssignment
+          coupleId={couple.id}
+          intro={assignment.intro}
+          closing={assignment.closing}
+          direct={directUploads()}
+          back={`/k/${couple.id}/opdrachten/${assignment.id}`}
+          moodboard={moodboard}
+          sections={parts.map((p) => ({
+            id: p.id, title: p.title, intro: p.intro, kind: p.kind, fields: p.fields, tips: p.tips, embeds: p.embeds,
+            example: p.example_file_id ? `/api/ws-bestanden/${p.example_file_id}` : null, notice: p.notice,
+            answers: p.answers ?? {}, link: p.link, done: Boolean(p.completed_at),
+          }))}
+        />
+      )}
+
+      {assignment.kind !== "sections" && <form id="answers" action={saveAnswers} className="space-y-4">
         <Hidden />
         {questions.map((q, i) => (
           <div key={q.id} className="card p-5">
@@ -87,7 +113,16 @@ export default async function AssignmentPage({
             <SubmitButton name="intent" value="submit" className="btn-primary" pendingText="Insturen…">{assignment.submitted_at ? "Opslaan en opnieuw insturen" : "Insturen"}</SubmitButton>
           </div>
         )}
-      </form>
+      </form>}
+
+      {assignment.budget && (
+        <BudgetPlanner
+          coupleId={couple.id}
+          total={couple.total_budget_cents}
+          back={`/k/${couple.id}/opdrachten/${assignment.id}`}
+          lines={budgetLines.map((l) => ({ id: l.id, name: l.name, kind: l.kind as "category" | "own", budget: l.budget_cents }))}
+        />
+      )}
 
       {isAdmin && (
         <section className="card space-y-4 p-5">
@@ -101,6 +136,9 @@ export default async function AssignmentPage({
             <label className="flex items-end gap-2 pb-3 text-sm"><input type="checkbox" name="stylingSource" defaultChecked={assignment.styling_source} className="accent-[#6B1E2E]" /> Basis voor het stylingplan</label>
             <div className="sm:col-span-2"><SubmitButton className="btn-primary">Opslaan</SubmitButton></div>
           </form>
+          {assignment.kind === "sections" ? (
+            <p className="border-t border-line pt-4 text-sm text-muted">De teksten, vragen en Pinterest-borden van deze opdracht beheer je centraal onder Beheer, Opdrachten.</p>
+          ) : (
           <div className="border-t border-line pt-4">
             <h3 className="mb-2 font-sans text-sm font-medium">Vragen</h3>
             <ul className="space-y-1.5 text-sm">
@@ -124,6 +162,7 @@ export default async function AssignmentPage({
               <SubmitButton className="btn-secondary py-1.5">Toevoegen</SubmitButton>
             </form>
           </div>
+          )}
           <div className="flex flex-wrap gap-2 border-t border-line pt-4">
             {assignment.submitted_at && (
               <form action={manageAssignment}><Hidden /><input type="hidden" name="intent" value="reopen" /><SubmitButton className="btn-secondary">Weer openzetten</SubmitButton></form>

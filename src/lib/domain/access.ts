@@ -4,6 +4,10 @@ export type AccessStatus = "active" | "paused" | "expired" | "revoked";
 
 export const ACCESS_MONTHS = 12;
 
+/** Choices for "Verlengen", the same on the overview and on the student page. */
+export const EXTEND_MONTHS = [1, 2, 3, 6, 12] as const;
+export const DEFAULT_EXTEND_MONTHS = 1;
+
 export function addMonths(iso: string, months: number): string {
   const date = new Date(iso);
   const day = date.getUTCDate();

@@ -40,9 +40,9 @@ Overige commando's: `npm test` (regels voor toegang, voortgang en feedback), `np
 * Verlopen, gepauzeerde of ingetrokken toegang: account blijft bestaan, lessen zijn dicht, contactadres blijft zichtbaar
 
 **Opleider (`/beheer`)**
-* Overzicht cursisten met pakket, aankoopdatum, toegang, voortgang, status, openstaande feedback en laatste activiteit
+* Overzicht cursisten met pakket, aankoopdatum, toegang, voortgang, status, openstaande feedback en laatste activiteit; bij verlopen toegang meteen verlengen vanuit het overzicht
 * Cursist toevoegen (handmatige activatie, zie hieronder) met activatielink
-* Per cursist: toegang pauzeren, hervatten (einddatum schuift mee), verlengen, einddatum zetten, intrekken; alle antwoorden per les; feedback met bijlage; online afronding bevestigen; certificaat vrijgeven; praktijkstatus en upgrade A naar B; interne notities; wijzigingslog
+* Per cursist: gegevens en aankoopdatum aanpassen; toegang pauzeren, hervatten (einddatum schuift mee), verlengen, einddatum zetten, intrekken; alle antwoorden per les; feedback met bijlage; online afronding bevestigen; certificaat vrijgeven; praktijkstatus en upgrade A naar B; interne notities; wijzigingslog
 * Lesinhoud: modules en lessen toevoegen, bewerken, verwijderen en herschikken; per les blokken toevoegen, bewerken, verplicht/optioneel en "feedbackopdracht" markeren en herschikken. Geen Word of pdf nodig voor vragen
 * Instellingen: welkomstvideo en tekst, contactadres, praktijkplekken open/dicht, privacyuitleg boven de opdrachten
 * Logboek van alle beheeracties
@@ -81,7 +81,7 @@ Hoe het in elkaar zit:
 1. **Migraties**: gaan vanzelf bij elke deploy (zie Deployen). Handmatig kan ook: `npm run db:migrate` met `DATABASE_URL` gezet, of de bestanden uit `supabase/migrations` op volgorde in de SQL editor plakken.
 2. **Authentication, Sign In / Providers**: e-mail aan, **Allow new users to sign up uit** (alleen uitnodigen). Minimale wachtwoordlengte 10. Email OTP Expiration op 86400 (24 uur), zodat een uitnodiging een dag geldig is.
 3. **Authentication, URL Configuration**: Site URL = de `APP_URL`, en bij Redirect URLs `APP_URL/**`.
-4. **Authentication, SMTP**: eigen SMTP instellen (bijvoorbeeld Resend, afzender op het domein van Estasi). De ingebouwde mailer van Supabase mailt alleen naar teamleden en maar een paar keer per uur.
+4. **Authentication, SMTP**: eigen SMTP instellen, met Resend: host `smtp.resend.com`, poort `465`, gebruiker `resend`, wachtwoord = de Resend API key, afzender een adres op het geverifieerde domein (bijvoorbeeld `academy@estasiweddings.nl`). De ingebouwde mailer van Supabase mailt alleen naar teamleden en maar een paar keer per uur.
 5. **Authentication, Email Templates**: zet in de templates de link zo:
    * Invite user: `{{ .SiteURL }}/auth/bevestigen?token_hash={{ .TokenHash }}&type=invite`
    * Reset password: `{{ .SiteURL }}/auth/bevestigen?token_hash={{ .TokenHash }}&type=recovery`
@@ -108,7 +108,8 @@ Er staat een `Dockerfile` (werkt op beide) en een `render.yaml` blueprint. Zet i
 | `SUPABASE_ANON_KEY` | publishable key (`sb_publishable_...`) of de oude anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | secret key (`sb_secret_...`) of de oude service_role key, geheim |
 | `DATABASE_URL` | migraties én Your Wedding Space: in Supabase de knop **Connect**, dan **Session pooler** (poort 5432, niet de transaction pooler), met het databasewachtwoord ingevuld. Geheim |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | e-mail van Your Wedding Space (uitnodigingen, vragen, RSVP). Kan dezelfde SMTP zijn als in Supabase Auth |
+| `RESEND_API_KEY`, `MAIL_FROM` | e-mail van Your Wedding Space (uitnodigingen, vragen, RSVP) via de API van Resend. `MAIL_FROM` moet op het bij Resend geverifieerde domein staan. Geheim |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | alleen als je geen Resend gebruikt: een andere SMTP-server |
 | `ADMIN_NOTIFY_EMAIL` | waar meldingen voor Sabine heen gaan |
 | `ANTHROPIC_API_KEY` | optioneel: AI-samenvattingen en concept-stylingplan |
 
@@ -118,6 +119,28 @@ En in Render bij Settings (met de blueprint staat dit er al in):
 
 Het migratiescript voert alleen de nieuwe bestanden uit `supabase/migrations` uit, op volgorde. Wat al gedaan is staat in de tabel `public.schema_migrations`; migraties die eerder met de hand zijn uitgevoerd worden herkend. Elke migratie loopt in één transactie: mislukt hij, dan wordt alles teruggedraaid, stopt de deploy en blijft de vorige versie draaien. Een nieuwe migratie is dus gewoon een nieuw bestand, bijvoorbeeld `0003_iets.sql`.
 
+### E-mail via Resend
+
+Alle e-mail loopt via Resend: die van Your Wedding Space via de API (`RESEND_API_KEY`), die van inloggen en wachtwoorden (Supabase Auth) via de SMTP van Resend.
+
+1. Account op resend.com; onder **Domains** het domein `estasiweddings.nl` toevoegen en de DNS-records (SPF, DKIM en eventueel DMARC) bij de domeinbeheerder zetten. Wacht tot Resend het domein als *Verified* toont.
+2. Onder **API Keys** een key maken met *Sending access* voor dat domein.
+3. In Render: `RESEND_API_KEY` = de key, `MAIL_FROM` = bijvoorbeeld `Sabine van Estasi Weddings <sabine@estasiweddings.nl>`. `SMTP_*` leeg laten.
+4. In Supabase, Authentication, SMTP: host `smtp.resend.com`, poort `465`, gebruiker `resend`, wachtwoord = dezelfde key.
+5. Test: deel een portaal met een eigen e-mailadres of vul een RSVP in. Lukt het niet, dan staat de reden van Resend in de log van Render (`[mail] versturen mislukt`).
+
+### Uploads van Your Wedding Space
+
+Bestanden van Your Wedding Space (coverfoto, moodboard, documenten, samenvattingen) gaan rechtstreeks van de browser naar de privé bucket `wedding-space` in Supabase Storage, niet via Render:
+
+1. Het uploadveld (`src/components/ws/FileUpload.tsx`) controleert type en grootte en maakt foto's eerst kleiner (maximaal 2400 px, JPG).
+2. De server action `requestUpload` controleert wie het vraagt en geeft een eenmalige upload-link. In `files` komt een regel met status `pending`.
+3. De browser stuurt het bestand naar die link en zet alleen het id in het formulier.
+4. De actie die het formulier ontvangt controleert of het bestand echt is aangekomen en zet de status op `ready`. Uploads die nooit gekoppeld zijn, worden na een dag opgeruimd.
+5. Bekijken gaat via `/api/ws-bestanden/[id]`: eerst de toegangscontrole, daarna een link naar Storage die tien minuten geldig is.
+
+Grenzen (Supabase Free: 50 MB per bestand, 1 GB in totaal): foto's tot 15 MB (na verkleinen meestal een paar honderd kB), documenten tot 25 MB, audio tot 45 MB. Boven 900 MB in totaal weigert de app nieuwe uploads (`WS_STORAGE_BUDGET_BYTES`). De bucket maakt migratie `0005` aan. Oudere bestanden die nog in de database staan blijven gewoon werken. Zonder Supabase (lokaal), of met `WS_DIRECT_UPLOADS=off`, gaat het bestand zoals vroeger met het formulier mee (maximaal 10 MB).
+
 Er is geen schijf en geen `SESSION_SECRET` nodig. Wil je een demo draaien met `DATA_BACKEND=local`, dan is `SESSION_SECRET` (minimaal 32 tekens) verplicht en heb je een persistente schijf nodig met `DATA_DIR` erop.
 
 ## Your Wedding Space (portaal per bruidspaar)
@@ -125,25 +148,26 @@ Er is geen schijf en geen `SESSION_SECRET` nodig. Wil je een demo draaien met `D
 De opvolger van Sabine's Notion-template, op basis van haar document *Reverse engineering: Your Wedding Space* en de schets. Het zit in deze app: één login, één beheer, dezelfde database (eigen schema `wedding_space`, zodat tabellen nooit botsen met de Academy).
 
 **Sabine (beheer, onder "Your Wedding Space" in het menu)**
-* Bruidsparen: aanmaken als concept (gegevens, trouwdatum, pakket, aantal meetings). Het portaal staat meteen klaar met starttaken, meetings, draaiboek-tabbladen en opdrachten, maar het bruidspaar ziet niets totdat Sabine na de betaling op "Maak beschikbaar en deel" klikt. Elke partner krijgt dan een Academy-account met de rol `couple` en een uitnodiging
-* Mijn takenbord (alle taken in de kolom "Sabine") en Mijn agenda (afspraken en deadlines van alle bruidsparen)
-* Pakketten met prijs, richtaantal meetings en starttaken; standaardopdrachten; leverancierscategorieën, contactblok, teksten en haar pasfoto
+* Bruidsparen: aanmaken als concept met één of meer pakketten (Weddingplanner, Ceremoniemeester, Openingsdans). Het portaal staat meteen klaar met starttaken, meetings, draaiboek-tabbladen, RSVP-formulieren voor Daggasten en Avondgasten, meeneemlijsten, stylingplekken, eetmomenten en opdrachten; het bruidspaar ziet niets totdat Sabine op "Maak beschikbaar en deel" klikt. Pakketten later toevoegen of weghalen kan op Gegevens & delen
+* Dashboard met meldingen (opdracht afgerond, nieuwe favorieten bij de aanraders), Mijn takenbord en Mijn agenda
+* Pakketten (met soort: die bepaalt het menu), Opdrachten (ook de delen van Thema & Styling: teksten, vragen, Pinterest-borden, voorbeeld), Aanraders (leveranciers met foto, brochure en haar ervaring), Standaardlijsten (plekken in het stylingplan, eetmomenten, meeneemlijsten, tekst bij de groepsfoto's), Instellingen portaal
 
 **Het portaal (`/k/...`, eigen huisstijl: Playfair Display, goud `#A89650`, bordeaux `#6B1E2E`)**
-* Hoofdpagina: cover met countdown, welkom, tegels, takenbord (Bruidspaar, Sabine, Bruid, Bruidegom) met geschiedenis, vragenblok (antwoord per mail) met geschiedenis, contactkaart met pasfoto
-* Jullie Pakket: meetings met samenvatting (tekst of bestand), Detailbespreking, optioneel Evaluatie
-* Draaiboek: tabbladen (Dagplanning met Tijd, Wie, Wat, Meer info, Waar, Waar bij regen; plus lijsten), verwachte gasten bovenaan, tabblad Leveranciers vult zich vanuit Jullie leveranciers, compacte printversie
-* Jullie leveranciers: alle categorieën, status, contact, notities en documenten
-* Afspraken & deadlines, Kostenoverzicht
-* Gastenlijst & RSVP: per groep een formulier met eigen link en QR-code (kleur en achtergrond instelbaar, download als png of svg), vragenlijst per bruiloft aan te passen (deel van de dag, dieet, dresscode, eigen vragen), bevestigings- of afmeldmail met eigen tekst, melding aan Sabine en het bruidspaar. Ieder persoon een eigen regel in de gastenlijst; wie samen aanmeldt blijft gekoppeld
-* Opdrachten: vragen met notitievelden, tussentijds opslaan, insturen; zichtbaar vanaf een datum; AI-samenvatting na insturen (Sabine kan hem aanpassen)
-* Stylingplan & Moodboard: AI-concept uit de opdracht Thema & Moodboard, door Sabine verfijnd met kleurenpalet en pas zichtbaar na publiceren; moodboard-afbeeldingen
+* Menu per pakket: alleen de openingsdans geeft Overzicht, Afspraken, De openingsdans en Facturen & Offertes; andere pagina's zijn dan ook via een link niet bereikbaar. Sabine ziet altijd alles. Overzicht is een huisje
+* Overzicht: cover, vaste welkomsttekst, tegels, blok Binnenkort (afspraken en "Binnenkort betalen"), takenbord, vragenblok (een antwoord blijft zichtbaar tot het bruidspaar het opent; melding per mail zonder het antwoord), contactkaart
+* Jullie pakket: de pakketten, meetings met samenvatting, extra documenten (vast voor alle bruidsparen of per bruidspaar). Facturen & Offertes: documenten van Sabine
+* Draaiboek: dagplanning met namen in kleur, meegroeiende velden, slepen of pijltjes, rijen van Sabine op slot voor het bruidspaar; opstelling (diner en ceremonie, gasten plaatsen); meeneemlijsten; stylingplan; groepsfoto's; gastenlijst voor op de dag; leveranciers; printen met keuze per tabblad
+* Jullie leveranciers: alles direct invulbaar, vijf statussen, meerdere per categorie, eigen categorieën, aanraders met favorieten
+* Gastenlijst & RSVP: gastenlijst per gastengroep, uitnodigingslijst (Excel importeren en downloaden), formulieren met standaardvragen, eigen vragen (met "alleen tonen als"), headerfoto, bevestigingsmails met alle antwoorden, QR-codes
+* Eten & allergieën: eetmomenten, wie eet er mee (personen, eigen groepen, RSVP-groepen met automatische aantallen), allergielijst (kopiëren of PDF), deel van de dag per gast
+* Stylingplan & Moodboard: plan per plek (wat, wie, klaargezet, afbeeldingen), moodboard, samenvatting met AI als concept dat Sabine vrijgeeft
+* Opdrachten: vragen, of opdrachten in delen met notitievelden en "Opdracht afgerond"; Budgetplanning met de begroting
+* Kosten: begroot, werkelijk, verschil, aanbetaald, resterend, betaaldatum, cirkeldiagram, pakketregels van Estasi
+* De openingsdans: wensen van het bruidspaar (dans, muziek met audiobestand, inspiratie) en notities van Sabine
 
-**Nog niet**: offertes met digitaal ondertekenen, Sabine's aanraders (fotokaarten per categorie), de dagelijkse e-mailsamenvatting van activiteit (de activiteit wordt al vastgelegd).
+**Beveiliging**: elke pagina, actie en elk bestand van een bruidspaar loopt via `requireCouple` (`src/lib/ws/access.ts`): een bruidspaar ziet alleen het eigen, gedeelde portaal. Bestanden staan in Supabase Storage (zie Uploads). RSVP-formulieren zijn openbaar via een moeilijk te raden link, met een limiet per IP en een honeypot. De tabellen hebben row level security aan en geen rechten voor de publieke Supabase API.
 
-**Beveiliging**: elke pagina, actie en elk bestand van een bruidspaar loopt via `requireCouple` (`src/lib/ws/access.ts`): een bruidspaar ziet alleen het eigen, gedeelde portaal. Bestanden staan in de database (max. 10 MB). RSVP-formulieren zijn openbaar via een moeilijk te raden link, met een limiet per IP en een honeypot. De tabellen hebben row level security aan en geen rechten voor de publieke Supabase API.
-
-**AI**: met `ANTHROPIC_API_KEY` worden opdrachten samengevat en kan Sabine een concept-stylingplan laten maken (model Claude Opus 5.5; een samenvatting kost een paar cent). Zonder sleutel schrijft Sabine die zelf.
+**AI**: met `ANTHROPIC_API_KEY` worden opdrachten samengevat en maakt "Samenvatting maken" een concept-stylingplan met voorstellen per plek (model Claude Opus 5.5; een samenvatting kost een paar cent). Zonder sleutel schrijft Sabine die zelf.
 
 **Lokaal**: Your Wedding Space heeft een Postgres-database nodig. Zet `DATABASE_URL` naar een lokale database, draai `node scripts/migrate.mjs` en start de app. Op een lege lokale database heeft migratie 0001 de Supabase-schema's `auth` en `storage` nodig; voor alleen Wedding Space kun je die als lege stubs aanmaken (zie de testopzet in de commitgeschiedenis) of tegen een Supabase-branch werken.
 

@@ -3,6 +3,7 @@ import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
+import { LIMITS } from "@/lib/domain/input";
 
 export const metadata = { title: "Mijn profiel" };
 
@@ -10,10 +11,20 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const user = await requireStudent();
   const profile = await getStore().getProfile(user.id);
 
-  const text = (name: string, label: string, value: string | undefined, type = "text", autoComplete?: string) => (
+  const text = (name: string, label: string, value: string | undefined, maxLength: number, type = "text", autoComplete?: string) => (
     <div>
       <label htmlFor={name} className="label">{label}</label>
-      <input id={name} name={name} type={type} defaultValue={value ?? ""} autoComplete={autoComplete} className="input" />
+      <input
+        id={name}
+        name={name}
+        // A website without https:// is completed on save instead of blocking the form.
+        type={type === "url" ? "text" : type}
+        inputMode={type === "url" ? "url" : undefined}
+        defaultValue={value ?? ""}
+        autoComplete={autoComplete}
+        maxLength={maxLength}
+        className="input"
+      />
     </div>
   );
 
@@ -49,22 +60,22 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            {text("name", "Naam", user.name, "text", "name")}
+            {text("name", "Naam", user.name, LIMITS.name, "text", "name")}
             <div>
               <span className="label">E-mailadres</span>
               <p className="input bg-cream text-muted">{user.email}</p>
             </div>
-            {text("phone", "Telefoon", profile?.phone, "tel", "tel")}
-            {text("city", "Woonplaats", profile?.city, "text", "address-level2")}
-            {text("companyName", "Bedrijfsnaam (optioneel)", profile?.companyName, "text", "organization")}
+            {text("phone", "Telefoon", profile?.phone, LIMITS.phone, "tel", "tel")}
+            {text("city", "Woonplaats", profile?.city, LIMITS.city, "text", "address-level2")}
+            {text("companyName", "Bedrijfsnaam (optioneel)", profile?.companyName, LIMITS.companyName, "text", "organization")}
           </div>
         </section>
 
         <section className="card space-y-4 p-6">
           <h2 className="text-2xl">Socials</h2>
           <div className="grid gap-4 sm:grid-cols-2">
-            {text("instagram", "Instagram", profile?.instagram)}
-            {text("website", "Website", profile?.website, "url")}
+            {text("instagram", "Instagram", profile?.instagram, LIMITS.social)}
+            {text("website", "Website", profile?.website, LIMITS.social, "url")}
           </div>
         </section>
 
@@ -72,11 +83,11 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           <h2 className="text-2xl">Introductie en doelen</h2>
           <div>
             <label htmlFor="intro" className="label">Korte introductie</label>
-            <textarea id="intro" name="intro" rows={4} defaultValue={profile?.intro ?? ""} className="input" />
+            <textarea id="intro" name="intro" rows={4} defaultValue={profile?.intro ?? ""} maxLength={LIMITS.intro} className="input" />
           </div>
           <div>
             <label htmlFor="goals" className="label">Ondernemersdoelen</label>
-            <textarea id="goals" name="goals" rows={4} defaultValue={profile?.goals ?? ""} className="input" />
+            <textarea id="goals" name="goals" rows={4} defaultValue={profile?.goals ?? ""} maxLength={LIMITS.intro} className="input" />
           </div>
         </section>
 

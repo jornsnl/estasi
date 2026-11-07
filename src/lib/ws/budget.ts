@@ -1,4 +1,5 @@
-import type { BudgetItem } from "@/lib/ws/types";
+import { costRemaining } from "./pure";
+import type { BudgetItem } from "./types";
 
 export interface BudgetTotals {
   budget: number;
@@ -24,3 +25,12 @@ export function budgetTotals(items: Pick<BudgetItem, "budget_cents" | "actual_ce
   const expected = items.reduce((n, i) => n + (i.actual_cents ?? i.budget_cents), 0);
   return { budget, actual, paid, outstanding: Math.max(0, expected - paid) };
 }
+
+/** Real costs per category, largest first (for the pie chart). */
+export function costsByCategory(items: Pick<BudgetItem, "category" | "actual_cents">[]): { category: string; cents: number }[] {
+  const map = new Map<string, number>();
+  for (const i of items) if (i.actual_cents) map.set(i.category || "Overig", (map.get(i.category || "Overig") ?? 0) + i.actual_cents);
+  return [...map.entries()].map(([category, cents]) => ({ category, cents })).sort((a, b) => b.cents - a.cents);
+}
+
+export { costRemaining };

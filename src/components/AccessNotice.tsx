@@ -1,5 +1,6 @@
 import type { Enrollment } from "@/lib/data";
 import { accessStatus, remainingDays } from "@/lib/domain/access";
+import { plural } from "@/lib/domain/labels";
 import { formatDate } from "@/lib/util/format";
 
 /** Clear message for students whose lessons are currently closed. */
@@ -11,7 +12,7 @@ export function AccessNotice({ enrollment, contactEmail }: { enrollment: Enrollm
     none: { title: "Nog geen toegang", body: "Er is nog geen opleiding aan je account gekoppeld." },
     paused: {
       title: "Je toegang staat op pauze",
-      body: `Je resterende tijd (${enrollment ? remainingDays(enrollment) : 0} dagen) staat stil. Zodra je toegang weer wordt hervat, schuift je einddatum mee.`,
+      body: `Je resterende tijd (${plural(enrollment ? remainingDays(enrollment) : 0, "dag", "dagen")}) staat stil. Zodra je toegang weer wordt hervat, schuift je einddatum mee.`,
     },
     expired: {
       title: "Je toegang is verlopen",

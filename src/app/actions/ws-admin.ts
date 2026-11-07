@@ -7,8 +7,8 @@ import { requireOwner } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
 import { endSessionsOf } from "@/lib/ws/sessions";
 import { loginLink } from "@/lib/ws/logins";
-import { activateCouple, createCouple } from "@/lib/ws/couples";
-import { storeUpload, UploadError } from "@/lib/ws/files";
+import { activateCouple, addPackages, createCouple } from "@/lib/ws/couples";
+import { deleteFiles, storeUpload, UploadError } from "@/lib/ws/files";
 import { coupleName, formatDate, LANES, parseMoney } from "@/lib/ws/format";
 import { sendMail } from "@/lib/ws/mail";
 import { dateField, done, str } from "@/lib/ws/redirect";
@@ -31,10 +31,13 @@ export async function createCoupleAction(formData: FormData) {
     const existing = await getStore().getUserByEmail(address);
     if (existing && existing.role !== "couple") done(back, `${address} heeft al een account in de Academy. Gebruik een ander e-mailadres.`, true);
   }
-  const packageId = str(formData, "packageId", 40);
-  const pkg = isUuid(packageId) ? await one<Package>("select * from packages where id = $1", [packageId]) : null;
+  const packageIds = formData.getAll("packageIds").map(String).filter(isUuid).slice(0, 10);
+  const packages = packageIds.length ? await query<Package>("select * from packages where id = any($1::uuid[])", [packageIds]) : [];
   const meetingsInput = Number(str(formData, "meetings", 3));
-  const meetings = Number.isInteger(meetingsInput) && meetingsInput >= 0 && meetingsInput <= 20 && str(formData, "meetings") !== "" ? meetingsInput : (pkg?.meetings ?? 0);
+  // Several packages: the one with the most meetings decides (the opening dance has none).
+  const meetings = Number.isInteger(meetingsInput) && meetingsInput >= 0 && meetingsInput <= 20 && str(formData, "meetings") !== ""
+    ? meetingsInput
+    : Math.max(0, ...packages.map((p) => p.meetings));
 
   const id = await createCouple(
     {
@@ -50,7 +53,7 @@ export async function createCoupleAction(formData: FormData) {
       wedding_date: dateField(formData, "weddingDate"),
       wedding_date_confirmed: formData.get("dateUnconfirmed") !== "on",
       location: str(formData, "location", 200),
-      package_id: pkg?.id ?? null,
+      package_ids: packages.map((p) => p.id),
       meetings,
     },
     admin.id,
@@ -69,13 +72,13 @@ export async function updateCouple(formData: FormData) {
     `update couples set partner1_first = $2, partner1_last = $3, partner1_email = $4, partner1_phone = $5,
             partner2_first = $6, partner2_last = $7, partner2_email = $8, partner2_phone = $9,
             address = $10, wedding_date = $11, wedding_date_confirmed = $12, location = $13,
-            welcome_text = $14, suppliers_enabled = $15
+            suppliers_enabled = $14
       where id = $1`,
     [
       couple.id, str(formData, "partner1First", 80), str(formData, "partner1Last", 80), p1, str(formData, "partner1Phone", 40),
       str(formData, "partner2First", 80), str(formData, "partner2Last", 80), p2, str(formData, "partner2Phone", 40),
       str(formData, "address", 300), dateField(formData, "weddingDate"), formData.get("dateUnconfirmed") !== "on",
-      str(formData, "location", 200), str(formData, "welcomeText", 3000), formData.get("suppliersEnabled") === "on",
+      str(formData, "location", 200), formData.get("suppliersEnabled") === "on",
     ],
   );
   done(back, "Gegevens opgeslagen.");
@@ -86,14 +89,14 @@ export async function uploadCover(formData: FormData) {
   const back = `/k/${couple.id}/gegevens`;
   if (formData.get("removeCover") === "on") {
     await query("update couples set cover_file_id = null where id = $1", [couple.id]);
-    if (couple.cover_file_id) await query("delete from files where id = $1 and couple_id = $2", [couple.cover_file_id, couple.id]);
+    if (couple.cover_file_id) await deleteFiles("delete from files where id = $1 and couple_id = $2", [couple.cover_file_id, couple.id]);
     done(back, "Coverfoto verwijderd.");
   }
   try {
     const file = await storeUpload(formData.get("cover"), { coupleId: couple.id, accountId: account.id, images: true });
     if (!file) done(back, "Kies eerst een foto.", true);
     await query("update couples set cover_file_id = $2 where id = $1", [couple.id, file.id]);
-    if (couple.cover_file_id) await query("delete from files where id = $1 and couple_id = $2", [couple.cover_file_id, couple.id]);
+    if (couple.cover_file_id) await deleteFiles("delete from files where id = $1 and couple_id = $2", [couple.cover_file_id, couple.id]);
   } catch (err) {
     if (err instanceof UploadError) done(back, err.message, true);
     throw err;
@@ -101,7 +104,22 @@ export async function uploadCover(formData: FormData) {
   done(back, "Coverfoto opgeslagen.");
 }
 
-/** Without SMTP the links are shown to Sabine once, through a short-lived cookie. */
+/** Packages can be added or removed later; the menu follows automatically. */
+export async function setCouplePackages(formData: FormData) {
+  const { couple, account } = await requireCoupleAdmin(str(formData, "coupleId", 40));
+  const back = `/k/${couple.id}/gegevens#pakketten`;
+  const wanted = formData.getAll("packageIds").map(String).filter(isUuid).slice(0, 10);
+  const valid = wanted.length ? await query<{ id: string }>("select id from packages where id = any($1::uuid[])", [wanted]) : [];
+  const ids = valid.map((p) => p.id);
+  await tx(async (db) => {
+    await query("delete from couple_packages where couple_id = $1 and not (package_id = any($2::uuid[]))", [couple.id, ids], db);
+    await addPackages(couple.id, ids, account.id, db);
+    await query("update couples set package_id = $2 where id = $1", [couple.id, ids[0] ?? null], db);
+  });
+  done(back, "Pakketten opgeslagen. Het menu van het bruidspaar past zich aan.");
+}
+
+/** Without e-mail (no Resend key or SMTP) the links are shown to Sabine once, through a short-lived cookie. */
 async function showLinksOnce(links: { email: string; link: string }[]) {
   (await cookies()).set("ws_links", JSON.stringify(links), {
     httpOnly: true,
@@ -191,14 +209,15 @@ export async function savePackage(formData: FormData) {
     done(back, (err as Error).message, true);
   }
   const meetings = Math.max(0, Math.min(20, Math.round(Number(str(formData, "meetings", 3)) || 0)));
-  const values = [name, str(formData, "variant", 120), price ?? 0, meetings, formData.get("suppliersEnabled") === "on", str(formData, "description", 5000)];
+  const kind = ["wp", "cm", "od"].includes(str(formData, "kind")) ? str(formData, "kind") : "wp";
+  const values = [name, str(formData, "variant", 120), price ?? 0, meetings, formData.get("suppliersEnabled") === "on", str(formData, "description", 5000), kind];
   if (isUuid(id)) {
-    await query("update packages set name = $2, variant = $3, price_cents = $4, meetings = $5, suppliers_enabled = $6, description = $7 where id = $1", [id, ...values]);
+    await query("update packages set name = $2, variant = $3, price_cents = $4, meetings = $5, suppliers_enabled = $6, description = $7, kind = $8 where id = $1", [id, ...values]);
     done(back, "Pakket opgeslagen. Bestaande bruidsparen houden hun eigen meetings en taken.");
   }
   const row = await one<{ id: string }>(
-    `insert into packages (name, variant, price_cents, meetings, suppliers_enabled, description, position)
-     values ($1, $2, $3, $4, $5, $6, (select coalesce(max(position), 0) + 1 from packages)) returning id`,
+    `insert into packages (name, variant, price_cents, meetings, suppliers_enabled, description, kind, position)
+     values ($1, $2, $3, $4, $5, $6, $7, (select coalesce(max(position), 0) + 1 from packages)) returning id`,
     values,
   );
   done(`/beheer/bruidsparen/pakketten/${row!.id}`, "Pakket toegevoegd. Voeg nu de starttaken toe.");

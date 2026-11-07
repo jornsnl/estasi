@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { changeAccess, changeCompletion, giveFeedback, newSetupLink } from "@/app/actions/admin";
+import { changeAccess, changeCompletion, giveFeedback, newSetupLink, updateStudentDetails } from "@/app/actions/admin";
 import { Badge } from "@/components/Badge";
 import { Notice } from "@/components/Notice";
 import { ProgressBar } from "@/components/ProgressBar";
 import { SubmitButton } from "@/components/SubmitButton";
 import { studentOverview } from "@/lib/academy";
 import { getStore, isSupabaseMode, type Answer, type AnswerableBlock, type Feedback } from "@/lib/data";
-import { ACCESS_LABELS, remainingDays } from "@/lib/domain/access";
+import { ACCESS_LABELS, DEFAULT_EXTEND_MONTHS, EXTEND_MONTHS, remainingDays } from "@/lib/domain/access";
 import { isActivated } from "@/lib/domain/account";
-import { PACKAGE_LABELS } from "@/lib/domain/labels";
+import { LIMITS } from "@/lib/domain/input";
+import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
 import { appUrl } from "@/lib/supabase/config";
 import { COURSE_STATUS_LABELS, feedbackState, isAnswerable, isAnswered } from "@/lib/domain/progress";
 import { ACCEPT_ATTR } from "@/lib/uploads";
@@ -53,7 +54,7 @@ export default async function StudentDetail({
           <h1 className="text-4xl">{user.name}</h1>
           {e && <Badge tone="gold">Pakket {e.package} · {PACKAGE_LABELS[e.package]}</Badge>}
           {o.access !== "none" && <Badge tone={o.access === "active" ? "success" : "bordeaux"}>{ACCESS_LABELS[o.access]}</Badge>}
-          {o.status && <Badge>{COURSE_STATUS_LABELS[o.status]}</Badge>}
+          {o.status && COURSE_STATUS_LABELS[o.status] !== (o.access === "none" ? "" : ACCESS_LABELS[o.access]) && <Badge>{COURSE_STATUS_LABELS[o.status]}</Badge>}
         </div>
         <p className="mt-1 text-sm text-muted">
           {user.email}
@@ -95,7 +96,7 @@ export default async function StudentDetail({
               <dt className="text-muted">Einddatum</dt>
               <dd>{formatDate(e.endsAt)}</dd>
               <dt className="text-muted">Resterend</dt>
-              <dd>{remainingDays(e)} dagen{e.pausedAt ? " (bevroren)" : ""}</dd>
+              <dd>{plural(remainingDays(e), "dag", "dagen")}{e.pausedAt ? " (bevroren)" : ""}</dd>
               {e.pausedAt && (
                 <>
                   <dt className="text-muted">Gepauzeerd sinds</dt>
@@ -122,9 +123,9 @@ export default async function StudentDetail({
               <input type="hidden" name="op" value="extend" />
               <div>
                 <label htmlFor="months" className="label">Verlengen met</label>
-                <select id="months" name="months" className="input w-36" defaultValue="1">
-                  {[1, 2, 3, 6, 12].map((m) => (
-                    <option key={m} value={m}>{m} maand{m > 1 ? "en" : ""}</option>
+                <select id="months" name="months" className="input w-36" defaultValue={DEFAULT_EXTEND_MONTHS}>
+                  {EXTEND_MONTHS.map((m) => (
+                    <option key={m} value={m}>{plural(m, "maand", "maanden")}</option>
                   ))}
                 </select>
               </div>
@@ -239,7 +240,7 @@ export default async function StudentDetail({
                   <span className="text-muted">Module {i + 1}.</span> {p.module.title}
                 </h3>
                 <span className="text-sm text-muted">
-                  {p.completedCount}/{p.lessons.length} lessen · {p.state === "locked" ? "vergrendeld" : p.state === "completed" ? "afgerond" : "open"}
+                  {p.completedCount}/{plural(p.lessons.length, "les", "lessen")} · {p.state === "locked" ? "vergrendeld" : p.state === "completed" ? "afgerond" : "open"}
                 </span>
               </div>
               <div className="mt-3 divide-y divide-line border-t border-line">
@@ -283,11 +284,49 @@ export default async function StudentDetail({
           <form action={changeCompletion} className="mt-3 space-y-3">
             <input type="hidden" name="userId" value={userId} />
             <input type="hidden" name="op" value="notes" />
-            <textarea name="ownerNotes" rows={4} defaultValue={e.ownerNotes} className="input" />
+            <textarea name="ownerNotes" rows={4} defaultValue={e.ownerNotes} maxLength={LIMITS.ownerNotes} className="input" aria-label="Interne notities" />
             <SubmitButton className="btn-secondary">Notities opslaan</SubmitButton>
           </form>
         </section>
       )}
+
+      <section className="card p-6">
+        <h2 className="text-2xl">Gegevens</h2>
+        <p className="hint">De cursist kan naam, telefoon, woonplaats en bedrijfsnaam ook zelf aanpassen bij Mijn profiel.</p>
+        <form action={updateStudentDetails} className="mt-4 grid gap-4 sm:grid-cols-2">
+          <input type="hidden" name="userId" value={userId} />
+          <div>
+            <label htmlFor="d-name" className="label">Naam</label>
+            <input id="d-name" name="name" required defaultValue={user.name} maxLength={LIMITS.name} className="input" />
+          </div>
+          <div>
+            <span className="label">E-mailadres</span>
+            <p className="input bg-cream text-muted">{user.email}</p>
+          </div>
+          <div>
+            <label htmlFor="d-phone" className="label">Telefoon</label>
+            <input id="d-phone" name="phone" type="tel" defaultValue={profile?.phone ?? ""} maxLength={LIMITS.phone} className="input" />
+          </div>
+          <div>
+            <label htmlFor="d-city" className="label">Woonplaats</label>
+            <input id="d-city" name="city" defaultValue={profile?.city ?? ""} maxLength={LIMITS.city} className="input" />
+          </div>
+          <div>
+            <label htmlFor="d-company" className="label">Bedrijfsnaam</label>
+            <input id="d-company" name="companyName" defaultValue={profile?.companyName ?? ""} maxLength={LIMITS.companyName} className="input" />
+          </div>
+          {e && (
+            <div>
+              <label htmlFor="d-purchased" className="label">Aankoopdatum</label>
+              <input id="d-purchased" name="purchasedAt" type="date" defaultValue={toDateInput(e.purchasedAt)} className="input" />
+              <p className="hint">De einddatum verandert hierdoor niet; die pas je aan bij Toegang.</p>
+            </div>
+          )}
+          <div className="sm:col-span-2">
+            <SubmitButton className="btn-secondary" pendingText="Opslaan…">Gegevens opslaan</SubmitButton>
+          </div>
+        </form>
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="card p-6">
@@ -433,7 +472,7 @@ function AnswerView({ block, answer, feedback }: { block: AnswerableBlock; answe
           <summary className="cursor-pointer text-sm text-bordeaux">Feedback geven</summary>
           <form action={giveFeedback} className="mt-2 space-y-2">
             <input type="hidden" name="answerId" value={answer.id} />
-            <textarea name="text" rows={3} required className="input" placeholder="Schrijf je feedback…" />
+            <textarea name="text" rows={3} required maxLength={LIMITS.feedback} className="input" placeholder="Schrijf je feedback…" />
             <div className="flex flex-wrap items-center gap-3">
               <input type="file" name="attachment" accept={ACCEPT_ATTR} className="text-sm" />
               <SubmitButton className="btn-primary py-2" pendingText="Opslaan…">Feedback opslaan</SubmitButton>

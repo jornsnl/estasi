@@ -43,7 +43,8 @@ export function parseMoney(input: string): number | null {
   const raw = input.replace(/[€\s]/g, "");
   if (!raw) return null;
   // Dutch notation: dots for thousands, comma for cents. Accept a lone dot as decimal point too.
-  const normalised = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
+  // "25.000" (dots as thousand separators, no cents) is twenty-five thousand.
+  const normalised = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : /^\d{1,3}(\.\d{3})+$/.test(raw) ? raw.replace(/\./g, "") : raw;
   if (!/^\d+(\.\d{1,2})?$/.test(normalised)) throw new Error(`"${input}" is geen geldig bedrag.`);
   return Math.round(Number(normalised) * 100);
 }
@@ -63,3 +64,7 @@ export function coupleName(c: Pick<Couple, "partner1_first" | "partner2_first">)
 }
 
 export const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+/** The welcome on every couple's overview: the same for everyone, not editable. */
+export const WELCOME_TEXT =
+  "Welkom in Your Wedding Space. Hier vinden jullie alles met betrekking tot jullie bruiloft overzichtelijk op één plek, zodat er voor jullie maar één ding overblijft: genieten.";

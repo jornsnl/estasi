@@ -1,8 +1,7 @@
-import { submitRsvp } from "@/app/actions/rsvp";
 import { Notice } from "@/components/Notice";
-import { SubmitButton } from "@/components/SubmitButton";
+import { RsvpFormClient } from "@/components/ws/RsvpFormClient";
 import { coupleName, formatDate } from "@/lib/ws/format";
-import { publicForm, RELATIONS } from "@/lib/ws/rsvp";
+import { fillTemplate, MAX_RELATIONS, publicForm, relationOptions } from "@/lib/ws/rsvp";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "RSVP", robots: { index: false, follow: false } };
@@ -29,25 +28,38 @@ export default async function RsvpPage({
   }
   const { form, couple, questions } = found;
   const names = coupleName(couple);
+  const date = couple.wedding_date ? formatDate(couple.wedding_date) : "";
+  const photo = form.header_file_id || couple.cover_file_id;
+  const intro = fillTemplate(form.intro, { namen: names, datum: date || "de trouwdag" });
 
   return (
-    <main className="ws-theme px-4 py-10">
-      <div className="mx-auto max-w-lg">
-        <section
-          className="relative mb-6 h-44 overflow-hidden rounded-2xl bg-cover bg-center"
-          style={{
-            backgroundImage: couple.cover_file_id
-              ? `linear-gradient(0deg, rgba(44,44,44,0.55), rgba(44,44,44,0.1)), url(/rsvp/${form.slug}/cover)`
-              : "linear-gradient(0deg, rgba(44,44,44,0.45), rgba(44,44,44,0.1)), linear-gradient(135deg, #A89650, #8a7838)",
-          }}
-        >
-          <div className="absolute inset-x-0 bottom-5 text-center text-white">
+    <main className="ws-theme pb-10">
+      {/* Header: the form's own photo, else the couple's cover, else a calm cream header with the logo. */}
+      {photo ? (
+        <section className="relative h-56 w-full overflow-hidden sm:h-72">
+          {/* eslint-disable-next-line @next/next/no-img-element -- served after checking the form is open */}
+          <img
+            src={`/rsvp/${form.slug}/cover`}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ objectPosition: `50% ${form.header_file_id ? form.header_position : 50}%` }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-black/5" />
+          <div className="absolute inset-x-0 bottom-6 px-4 text-center text-white">
             <p className="text-[11px] tracking-[0.2em] uppercase opacity-90">Jullie zijn uitgenodigd</p>
-            <h1 className="mt-1 text-3xl text-white">{names}</h1>
-            <p className="mt-1 text-sm opacity-90">{formatDate(couple.wedding_date)}{couple.location ? ` · ${couple.location}` : ""}</p>
+            <h1 className="mt-1 text-3xl text-white sm:text-4xl">{names}</h1>
+            {(date || couple.location) && <p className="mt-1 text-sm opacity-90">{date}{couple.location ? ` · ${couple.location}` : ""}</p>}
           </div>
         </section>
+      ) : (
+        <section className="border-b border-line bg-cream-deep/60 px-4 py-10 text-center">
+          <p className="font-serif text-xl tracking-wide">Estasi Weddings</p>
+          <h1 className="mt-4 text-3xl sm:text-4xl">{names}</h1>
+          {(date || couple.location) && <p className="mt-1 text-sm text-muted">{date}{couple.location ? ` · ${couple.location}` : ""}</p>}
+        </section>
+      )}
 
+      <div className="mx-auto mt-6 max-w-lg px-4">
         {thanks ? (
           <div className="card p-8 text-center">
             <h2 className="text-2xl">{thanks === "nee" ? "Bedankt voor het laten weten" : "Dank je wel!"}</h2>
@@ -56,72 +68,32 @@ export default async function RsvpPage({
             </p>
           </div>
         ) : (
-          <form action={submitRsvp} className="card space-y-4 p-6">
+          <div className="card space-y-4 p-6">
             <h2 className="text-xl">{form.name}</h2>
-            {form.intro && <p className="text-sm whitespace-pre-line text-muted">{form.intro}</p>}
+            {intro && <p className="text-sm whitespace-pre-line text-muted">{intro}</p>}
             <Notice searchParams={searchParams} />
-            <input type="hidden" name="slug" value={form.slug} />
-            {/* Honeypot: people never see or fill this. */}
-            <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
-              <label>Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div><label className="label" htmlFor="firstName">Voornaam</label><input id="firstName" name="firstName" required autoComplete="given-name" className="input" /></div>
-              <div><label className="label" htmlFor="lastName">Achternaam</label><input id="lastName" name="lastName" autoComplete="family-name" className="input" /></div>
-              <div><label className="label" htmlFor="email">E-mail</label><input id="email" name="email" type="email" required autoComplete="email" className="input" /></div>
-              <div><label className="label" htmlFor="phone">Telefoon</label><input id="phone" name="phone" type="tel" autoComplete="tel" className="input" /></div>
-            </div>
-            <div>
-              <label className="label" htmlFor="relation">Relatie tot {names}</label>
-              <select id="relation" name="relation" className="input" defaultValue="">
-                <option value="" disabled>Kies…</option>
-                {RELATIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <input name="relationOther" aria-label="Anders, namelijk" placeholder="Anders, namelijk…" className="input mt-2" />
-            </div>
-            <fieldset>
-              <legend className="label">Ben je erbij?</legend>
-              <div className="flex flex-wrap gap-2 text-sm">
-                <label className="flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2"><input type="radio" name="attending" value="yes" required className="accent-[#6B1E2E]" /> Ja, ik kom!</label>
-                {form.ask_part_of_day && <label className="flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2"><input type="radio" name="attending" value="partial" className="accent-[#6B1E2E]" /> Een deel van de dag</label>}
-                <label className="flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2"><input type="radio" name="attending" value="no" className="accent-[#6B1E2E]" /> Helaas niet</label>
-              </div>
-            </fieldset>
-            {form.ask_part_of_day && (
-              <div><label className="label" htmlFor="partialNote">Alleen een deel van de dag? Van hoe laat tot hoe laat?</label><input id="partialNote" name="partialNote" className="input" /></div>
-            )}
-            <div>
-              <label className="label" htmlFor="party">Wie neem je mee?</label>
-              <textarea id="party" name="party" rows={2} className="input" placeholder="Eén naam per regel" />
-              <p className="hint">Laat leeg als je alleen komt.</p>
-            </div>
-            {form.ask_diet && (
-              <div><label className="label" htmlFor="diet">Dieetwensen of allergieën (ook van wie je meeneemt)</label><input id="diet" name="diet" className="input" /></div>
-            )}
-            {form.dresscode && (
-              <fieldset>
-                <legend className="label">De dresscode is: {form.dresscode}. Is dat duidelijk?</legend>
-                <div className="flex gap-2 text-sm">
-                  <label className="flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2"><input type="radio" name="dresscodeOk" value="yes" className="accent-[#6B1E2E]" /> Ja</label>
-                  <label className="flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2"><input type="radio" name="dresscodeOk" value="no" className="accent-[#6B1E2E]" /> Ik heb een vraag</label>
-                </div>
-              </fieldset>
-            )}
-            {questions.map((q) =>
-              q.kind === "yesno" ? (
-                <fieldset key={q.id}>
-                  <legend className="label">{q.label}</legend>
-                  <div className="flex gap-2 text-sm">
-                    <label className="flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2"><input type="radio" name={`q-${q.id}`} value="Ja" className="accent-[#6B1E2E]" /> Ja</label>
-                    <label className="flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2"><input type="radio" name={`q-${q.id}`} value="Nee" className="accent-[#6B1E2E]" /> Nee</label>
-                  </div>
-                </fieldset>
-              ) : (
-                <div key={q.id}><label className="label" htmlFor={`q-${q.id}`}>{q.label}</label><input id={`q-${q.id}`} name={`q-${q.id}`} className="input" /></div>
-              ),
-            )}
-            <SubmitButton className="btn-primary w-full" pendingText="Versturen…">Versturen</SubmitButton>
-          </form>
+            <RsvpFormClient
+              slug={form.slug}
+              relations={relationOptions(couple)}
+              maxRelations={MAX_RELATIONS}
+              askPartOfDay={form.ask_part_of_day}
+              askDiet={form.ask_diet}
+              askDresscode={form.ask_dresscode && Boolean(form.dresscode)}
+              dresscode={form.dresscode}
+              dresscodeNote={form.dresscode_note}
+              questions={questions.map((q) => ({
+                id: q.id,
+                label: q.label,
+                help: q.help,
+                kind: q.kind,
+                required: q.required,
+                options: Array.isArray(q.options) ? q.options : [],
+                max_choices: q.max_choices,
+                show_if_question_id: q.show_if_question_id,
+                show_if_value: q.show_if_value,
+              }))}
+            />
+          </div>
         )}
       </div>
     </main>

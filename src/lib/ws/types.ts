@@ -12,6 +12,7 @@ export interface Package {
   description: string;
   position: number;
   archived: boolean;
+  kind: "wp" | "cm" | "od";
 }
 
 export interface PackageTask {
@@ -46,6 +47,7 @@ export interface Couple {
   guests_day: number | null;
   guests_day_kids: number | null;
   guests_evening: number | null;
+  total_budget_cents: number | null;
 }
 
 export interface Settings {
@@ -61,6 +63,8 @@ export interface Settings {
   detail_guide: string;
   evaluation_guide: string;
   contact_photo_file_id: string | null;
+  group_photo_intro: string;
+  default_styling_places: string[];
 }
 
 export interface Task {
@@ -84,6 +88,7 @@ export interface Question {
   asked_by_name: string;
   answer: string | null;
   answered_at: Date | null;
+  read_at: Date | null;
 }
 
 export interface Appointment {
@@ -118,11 +123,14 @@ export interface SupplierCategory {
   archived: boolean;
 }
 
+export type SupplierStatus = "tbd" | "favorite" | "talking" | "booked" | "not_needed";
+
 export interface CoupleSupplier {
-  id: string | null;
+  id: string;
   category_id: string;
   category_name: string;
-  status: "open" | "talking" | "booked";
+  status: SupplierStatus;
+  recommendation_id: string | null;
   name: string;
   contact_person: string;
   phone: string;
@@ -151,4 +159,19 @@ export interface BudgetItem {
   payment_due: string | null;
   paid: boolean;
   position: number;
+}
+
+export interface Recommendation {
+  id: string;
+  category_id: string;
+  name: string;
+  profession: string;
+  phone: string;
+  email: string;
+  website: string;
+  photo_file_id: string | null;
+  brochure_file_id: string | null;
+  experience: string;
+  position: number;
+  archived: boolean;
 }

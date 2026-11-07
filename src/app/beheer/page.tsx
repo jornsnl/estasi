@@ -6,8 +6,8 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { SubmitButton } from "@/components/SubmitButton";
 import { studentOverview } from "@/lib/academy";
 import { getStore } from "@/lib/data";
-import { ACCESS_LABELS } from "@/lib/domain/access";
-import { PACKAGE_LABELS } from "@/lib/domain/labels";
+import { ACCESS_LABELS, DEFAULT_EXTEND_MONTHS, EXTEND_MONTHS } from "@/lib/domain/access";
+import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
 import { COURSE_STATUS_LABELS, isUnfinished } from "@/lib/domain/progress";
 import { formatDate, formatDateTime } from "@/lib/util/format";
 
@@ -75,9 +75,9 @@ export default async function OwnerHome({ searchParams }: { searchParams: Promis
                         <input type="hidden" name="op" value="extend" />
                         <input type="hidden" name="returnTo" value="overzicht" />
                         <label className="sr-only" htmlFor={`months-${o.user.id}`}>Aantal maanden</label>
-                        <select id={`months-${o.user.id}`} name="months" defaultValue="3" className="input w-auto px-2 py-1 text-xs">
-                          {[1, 3, 6, 12].map((m) => (
-                            <option key={m} value={m}>{m} mnd</option>
+                        <select id={`months-${o.user.id}`} name="months" defaultValue={DEFAULT_EXTEND_MONTHS} className="input w-auto px-2 py-1 text-xs">
+                          {EXTEND_MONTHS.map((m) => (
+                            <option key={m} value={m}>{plural(m, "maand", "maanden")}</option>
                           ))}
                         </select>
                         <SubmitButton className="btn-secondary px-2 py-1 text-xs" pendingText="…">Verlengen</SubmitButton>

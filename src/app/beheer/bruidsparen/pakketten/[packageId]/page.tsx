@@ -35,7 +35,15 @@ export default async function PackageDetail({
         <div className="sm:col-span-3"><label className="label" htmlFor="variant">Toevoeging</label><input id="variant" name="variant" defaultValue={pkg.variant} className="input" /></div>
         <div className="sm:col-span-2"><label className="label" htmlFor="price">Prijs incl. btw (€)</label><input id="price" name="price" inputMode="decimal" defaultValue={pkg.price_cents ? (pkg.price_cents / 100).toFixed(2).replace(".", ",") : ""} className="input" /></div>
         <div className="sm:col-span-2"><label className="label" htmlFor="meetings">Meetings (richtaantal)</label><input id="meetings" name="meetings" type="number" min={0} max={20} defaultValue={pkg.meetings} className="input" /></div>
-        <label className="flex items-end gap-2 pb-3 text-sm sm:col-span-2"><input type="checkbox" name="suppliersEnabled" defaultChecked={pkg.suppliers_enabled} className="accent-[#6B1E2E]" /> Met &quot;Jullie leveranciers&quot;</label>
+        <div className="sm:col-span-3">
+          <label className="label" htmlFor="kind">Soort pakket (bepaalt wat het bruidspaar ziet)</label>
+          <select id="kind" name="kind" defaultValue={pkg.kind} className="input">
+            <option value="wp">Weddingplanner: alles, met draaiboek</option>
+            <option value="cm">Ceremoniemeester: alles, met draaiboek</option>
+            <option value="od">Openingsdans: alleen overzicht, afspraken, de openingsdans en facturen</option>
+          </select>
+        </div>
+        <label className="flex items-end gap-2 pb-3 text-sm sm:col-span-3"><input type="checkbox" name="suppliersEnabled" defaultChecked={pkg.suppliers_enabled} className="accent-[#6B1E2E]" /> Met &quot;Jullie leveranciers&quot;</label>
         <div className="sm:col-span-6">
           <label className="label" htmlFor="description">Omschrijving (zichtbaar bij &quot;Jullie Pakket&quot;)</label>
           <textarea id="description" name="description" rows={5} defaultValue={pkg.description} className="input" />

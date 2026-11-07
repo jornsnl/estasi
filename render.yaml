@@ -26,7 +26,11 @@ services:
       # Supabase "Session pooler" connection string: migrations and Your Wedding Space.
       - key: DATABASE_URL
         sync: false
-      # E-mail for Your Wedding Space (invitations, questions and answers).
+      # E-mail for Your Wedding Space via Resend (preferred): API key with
+      # sending access; the domain of MAIL_FROM must be verified at Resend.
+      - key: RESEND_API_KEY
+        sync: false
+      # Or any SMTP server instead (leave empty when Resend is used).
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT

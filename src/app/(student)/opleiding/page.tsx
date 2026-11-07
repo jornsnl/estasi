@@ -5,6 +5,7 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { studentOverview } from "@/lib/academy";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
+import { plural } from "@/lib/domain/labels";
 
 export const metadata = { title: "Mijn opleiding" };
 
@@ -38,7 +39,7 @@ export default async function CoursePage() {
                 <Badge tone={p.state === "completed" ? "success" : p.state === "open" ? "gold" : "neutral"}>
                   {p.state === "completed" ? "Afgerond" : p.state === "open" ? "Beschikbaar" : "Vergrendeld"}
                 </Badge>
-                <p className="mt-1 text-sm text-muted">{p.completedCount}/{p.lessons.length} lessen</p>
+                <p className="mt-1 text-sm text-muted">{p.completedCount}/{plural(p.lessons.length, "les", "lessen")}</p>
               </div>
             </div>
 

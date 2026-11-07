@@ -1,6 +1,7 @@
 import { archiveCategory, saveCategory, saveSettings } from "@/app/actions/ws-admin";
 import { uploadContactPhoto } from "@/app/actions/ws-fase2";
-import { IMAGE_ACCEPT } from "@/lib/ws/files";
+import { FileUpload } from "@/components/ws/FileUpload";
+import { directUploads } from "@/lib/ws/files";
 import { aiConfigured } from "@/lib/ws/ai";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -12,7 +13,7 @@ import type { SupplierCategory } from "@/lib/ws/types";
 export const metadata = { title: "Instellingen" };
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const [s, categories] = await Promise.all([getSettings(), query<SupplierCategory>("select * from supplier_categories order by archived, position, name")]);
+  const [s, categories] = await Promise.all([getSettings(), query<SupplierCategory>("select * from supplier_categories where couple_id is null order by archived, position, name")]);
   const field = (name: string, label: string, value: string, type = "text") => (
     <div><label className="label" htmlFor={name}>{label}</label><input id={name} name={name} type={type} defaultValue={value} className="input" /></div>
   );
@@ -25,7 +26,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <Notice searchParams={searchParams} />
       {!mailConfigured() && (
         <p className="rounded-xl border border-gold/50 bg-white p-4 text-sm">
-          E-mail staat nog niet aan (SMTP ontbreekt). Uitnodigingen toon ik je als link om zelf door te sturen; meldingen over vragen komen nog niet aan.
+          E-mail staat nog niet aan (RESEND_API_KEY ontbreekt). Uitnodigingen toon ik je als link om zelf door te sturen; meldingen over vragen komen nog niet aan.
         </p>
       )}
 
@@ -44,7 +45,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         )}
         <div className="flex-1 space-y-2">
           <h2 className="text-xl">Pasfoto in de contactkaart</h2>
-          <input type="file" name="photo" accept={IMAGE_ACCEPT} aria-label="Pasfoto" className="text-sm" />
+          <FileUpload name="photo" coupleId={null} kind="image" direct={directUploads()} label="Pasfoto uploaden" />
           {s.contact_photo_file_id && <label className="flex items-center gap-2 text-sm text-muted"><input type="checkbox" name="remove" /> Foto verwijderen</label>}
         </div>
         <SubmitButton className="btn-secondary" pendingText="Uploaden…">Opslaan</SubmitButton>
@@ -62,10 +63,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           {field("termsUrl", "Link naar algemene voorwaarden", s.terms_url, "url")}
         </div>
         <h2 className="pt-2 text-xl">Teksten</h2>
-        <div>
-          <label className="label" htmlFor="defaultWelcome">Standaard welkomsttekst voor nieuwe bruidsparen</label>
-          <textarea id="defaultWelcome" name="defaultWelcome" rows={3} defaultValue={s.default_welcome} className="input" />
-        </div>
+        <input type="hidden" name="defaultWelcome" value={s.default_welcome} />
         <div>
           <label className="label" htmlFor="meetingGuides">Richtlijn per meeting (Meeting 1, 2, 3, ...)</label>
           <textarea id="meetingGuides" name="meetingGuides" rows={8} defaultValue={(s.meeting_guides ?? []).join("\n\n")} className="input" />

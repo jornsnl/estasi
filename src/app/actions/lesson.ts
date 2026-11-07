@@ -1,10 +1,11 @@
 "use server";
 
-import { plural } from "@/lib/domain/labels";
 import { redirect } from "next/navigation";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore, type Answer, type AnswerableBlock } from "@/lib/data";
 import { hasLessonAccess } from "@/lib/domain/access";
+import { LIMITS } from "@/lib/domain/input";
+import { plural } from "@/lib/domain/labels";
 import { canOpenLesson, isAnswerable, missingRequired, moduleProgress } from "@/lib/domain/progress";
 import { storeUpload, UploadError } from "@/lib/uploads";
 import { newId } from "@/lib/util/id";
@@ -34,22 +35,29 @@ export async function saveLesson(formData: FormData) {
   const existing = new Map((await store.listAnswers({ userId: user.id, lessonId })).map((a) => [a.blockId, a]));
   const now = new Date().toISOString();
 
-  try {
-    for (const block of lesson.blocks.filter(isAnswerable)) {
-      const before = existing.get(block.id);
-      const after = await applyInput(block, before, formData, user.id);
-      if (!after) continue;
-      const answer: Answer = before
-        ? { ...before, ...after, version: before.version + 1, updatedAt: now }
-        : { id: newId(), userId: user.id, lessonId, blockId: block.id, text: "", choice: null, files: [], version: 1, createdAt: now, updatedAt: now, ...after };
-      await store.saveAnswer(answer);
-      existing.set(block.id, answer);
+  // A rejected upload must not cost the student the text typed in the other questions.
+  const uploadErrors: string[] = [];
+  for (const block of lesson.blocks.filter(isAnswerable)) {
+    const before = existing.get(block.id);
+    let after: Partial<Answer> | null;
+    try {
+      after = await applyInput(block, before, formData, user.id);
+    } catch (err) {
+      if (!(err instanceof UploadError)) throw err;
+      uploadErrors.push(err.message);
+      continue;
     }
-  } catch (err) {
-    if (err instanceof UploadError) next(lessonId, "fout", err.message);
-    throw err;
+    if (!after) continue;
+    const answer: Answer = before
+      ? { ...before, ...after, version: before.version + 1, updatedAt: now }
+      : { id: newId(), userId: user.id, lessonId, blockId: block.id, text: "", choice: null, files: [], version: 1, createdAt: now, updatedAt: now, ...after };
+    await store.saveAnswer(answer);
+    existing.set(block.id, answer);
   }
 
+  if (uploadErrors.length > 0) {
+    next(lessonId, "fout", `Je andere antwoorden zijn opgeslagen, maar een bestand is niet geüpload: ${uploadErrors.join(" ")}`);
+  }
   if (intent === "save") next(lessonId, "melding", "Je antwoorden zijn opgeslagen.");
 
   const missing = missingRequired(lesson, [...existing.values()]);
@@ -72,13 +80,15 @@ async function applyInput(
   if (block.type === "question") {
     const value = formData.get(`a_${block.id}`);
     if (typeof value !== "string") return null;
-    const text = value.slice(0, 20_000);
+    const text = value.slice(0, LIMITS.answer);
     return text === (before?.text ?? "") ? null : { text };
   }
   if (block.type === "choice") {
+    // No option ticked means nothing was chosen on this page; never clear an earlier choice
+    // (for example one the trainer has since reworded, so it no longer matches an option).
     const value = formData.get(`c_${block.id}`);
-    const choice = typeof value === "string" && block.options.includes(value) ? value : null;
-    return choice === (before?.choice ?? null) ? null : { choice };
+    if (typeof value !== "string" || !block.options.includes(value)) return null;
+    return value === before?.choice ? null : { choice: value };
   }
   const remove = new Set(formData.getAll(`rm_${block.id}`).map(String));
   const files = (before?.files ?? []).filter((f) => !remove.has(f.id));

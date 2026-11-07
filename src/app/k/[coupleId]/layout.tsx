@@ -11,19 +11,26 @@ const STATUS = { concept: "Concept: nog niet gedeeld", active: "Gedeeld met het 
 
 export default async function PortalLayout({ children, params }: { children: React.ReactNode; params: Promise<{ coupleId: string }> }) {
   const { coupleId } = await params;
-  const { couple, isAdmin, account } = await requireCouple(coupleId);
+  const { couple, isAdmin, account, planning, dance } = await requireCouple(coupleId);
   if (!isAdmin) await touchActivity(account);
   const base = `/k/${couple.id}`;
+  // Only the opening dance: overview, appointments, the dance and invoices. Sabine always sees everything.
   const items = [
-    { href: base, label: "Overzicht", exact: true },
-    { href: `${base}/pakket`, label: "Jullie Pakket" },
-    { href: `${base}/draaiboek`, label: "Draaiboek" },
-    ...(couple.suppliers_enabled ? [{ href: `${base}/leveranciers`, label: "Leveranciers" }] : []),
+    { href: base, label: "Overzicht", exact: true, icon: "home" as const },
+    ...(planning ? [{ href: `${base}/pakket`, label: "Jullie pakket" }, { href: `${base}/draaiboek`, label: "Draaiboek" }] : []),
+    ...(planning && couple.suppliers_enabled ? [{ href: `${base}/leveranciers`, label: "Leveranciers" }] : []),
     { href: `${base}/afspraken`, label: "Afspraken" },
-    { href: `${base}/gasten`, label: "Gasten & RSVP" },
-    { href: `${base}/styling`, label: "Styling" },
-    { href: `${base}/opdrachten`, label: "Opdrachten" },
-    { href: `${base}/kosten`, label: "Kosten" },
+    ...(planning
+      ? [
+          { href: `${base}/gasten`, label: "Gastenlijst & RSVP" },
+          { href: `${base}/eten`, label: "Eten & allergieën" },
+          { href: `${base}/styling`, label: "Stylingplan & Moodboard" },
+          { href: `${base}/opdrachten`, label: "Opdrachten" },
+          { href: `${base}/kosten`, label: "Kosten" },
+        ]
+      : []),
+    ...(dance ? [{ href: `${base}/openingsdans`, label: "De openingsdans" }] : []),
+    { href: `${base}/facturen`, label: "Facturen & Offertes" },
     ...(isAdmin ? [{ href: `${base}/gegevens`, label: "Gegevens & delen" }] : []),
   ];
   return (

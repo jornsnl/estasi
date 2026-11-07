@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { markFavoritesSeen } from "@/app/actions/ws-suppliers";
+import { markNoticesSeen } from "@/app/actions/ws-styling";
+import { SubmitButton } from "@/components/SubmitButton";
 import { listCouples } from "@/lib/ws/couples";
+import { query } from "@/lib/ws/db";
 import { countdownLabel, coupleName, formatDate, formatDateTime } from "@/lib/ws/format";
 
 export const metadata = { title: "Bruidsparen" };
@@ -12,6 +16,16 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   const couples = await listCouples(showArchived);
   const openQuestions = couples.reduce((n, c) => n + c.open_questions, 0);
   const openTasks = couples.reduce((n, c) => n + c.open_sabine_tasks, 0);
+  const favorites = await query<{ id: string; couple_id: string; p1: string; p2: string; rec: string | null; category: string | null; created_at: Date }>(
+    `select e.id, e.couple_id, c.partner1_first as p1, c.partner2_first as p2, r.name as rec, sc.name as category, e.created_at
+       from favorite_events e join couples c on c.id = e.couple_id
+       left join recommendations r on r.id = e.recommendation_id
+       left join supplier_categories sc on sc.id = r.category_id
+      where e.seen_at is null order by e.created_at desc limit 30`,
+  );
+  const notices = await query<{ id: string; text: string; link: string; created_at: Date }>(
+    "select id, text, link, created_at from admin_notices where seen_at is null order by created_at desc limit 30",
+  );
 
   return (
     <div className="space-y-6">
@@ -29,6 +43,42 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
         <Link href="/beheer/bruidsparen/takenbord" className="card p-4 hover:shadow-md"><p className="text-sm text-muted">Mijn open taken</p><p className={`font-serif text-3xl ${openTasks ? "text-bordeaux" : ""}`}>{openTasks}</p></Link>
         <div className="card p-4"><p className="text-sm text-muted">Onbeantwoorde vragen</p><p className={`font-serif text-3xl ${openQuestions ? "text-bordeaux" : ""}`}>{openQuestions}</p></div>
       </section>
+
+      {notices.length > 0 && (
+        <section className="card border border-success/40 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg">Meldingen</h2>
+            <form action={markNoticesSeen}><SubmitButton className="btn-ghost py-1 text-xs">Gezien</SubmitButton></form>
+          </div>
+          <ul className="mt-2 divide-y divide-line text-sm">
+            {notices.map((n) => (
+              <li key={n.id} className="flex flex-wrap justify-between gap-2 py-2">
+                <Link href={n.link || "#"} className="hover:text-bordeaux">{n.text}</Link>
+                <span className="text-xs text-muted">{formatDateTime(n.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {favorites.length > 0 && (
+        <section className="card border border-bordeaux/30 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg">♥ Nieuwe favorieten bij de aanraders</h2>
+            <form action={markFavoritesSeen}><SubmitButton className="btn-ghost py-1 text-xs">Gezien</SubmitButton></form>
+          </div>
+          <ul className="mt-2 divide-y divide-line text-sm">
+            {favorites.map((f) => (
+              <li key={f.id} className="flex flex-wrap justify-between gap-2 py-2">
+                <Link href={`/k/${f.couple_id}/leveranciers`} className="hover:text-bordeaux">
+                  <strong>{coupleName({ partner1_first: f.p1, partner2_first: f.p2 })}</strong>: {f.rec ?? "verwijderde aanrader"}{f.category ? ` (${f.category})` : ""}
+                </Link>
+                <span className="text-xs text-muted">{formatDateTime(f.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[760px] text-sm">

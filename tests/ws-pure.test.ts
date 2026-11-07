@@ -26,3 +26,143 @@ describe("stylingplan", () => {
     expect(extractColors("Terracotta #C98B6B, saliegroen #7e9c86 en nog eens #c98b6b; geen #12345")).toEqual(["#c98b6b", "#7e9c86"]);
   });
 });
+
+import { fillTemplate, isQuestionVisible } from "@/lib/ws/pure";
+
+describe("RSVP helpers", () => {
+  it("fills placeholders and leaves unknown ones", () => {
+    expect(fillTemplate("Bruiloft van [namen] op [datum], [iets]", { namen: "Estelle & Ramon", datum: "12 juni 2027" })).toBe(
+      "Bruiloft van Estelle & Ramon op 12 juni 2027, [iets]",
+    );
+  });
+
+  it("shows a question only when the other answer matches", () => {
+    const qs = [
+      { id: "a", show_if_question_id: null, show_if_value: "" },
+      { id: "b", show_if_question_id: "a", show_if_value: "Ja" },
+      { id: "c", show_if_question_id: "b", show_if_value: "" },
+      { id: "d", show_if_question_id: "e", show_if_value: "x" },
+      { id: "e", show_if_question_id: "d", show_if_value: "x" },
+    ];
+    expect(isQuestionVisible(qs[1], qs, { a: "ja" })).toBe(true);
+    expect(isQuestionVisible(qs[1], qs, { a: "Nee" })).toBe(false);
+    expect(isQuestionVisible(qs[2], qs, { a: "Nee", b: "iets" })).toBe(false);
+    expect(isQuestionVisible(qs[2], qs, { a: "Ja", b: "iets" })).toBe(true);
+    expect(isQuestionVisible(qs[1], qs, { a: ["Nee", "Ja"] })).toBe(true);
+    expect(isQuestionVisible(qs[3], qs, { d: "x", e: "x" })).toBe(false);
+  });
+});
+
+import { householdNames, matchInvitation } from "@/lib/ws/pure";
+
+describe("Uitnodigingslijst", () => {
+  it("splits households", () => {
+    expect(householdNames("Jan & Els de Vries")).toEqual(["Jan de Vries", "Els de Vries"]);
+    expect(householdNames("Piet Jansen, Anna Smit en Kees")).toEqual(["Piet Jansen", "Anna Smit", "Kees"]);
+    expect(householdNames("Oma Truus")).toEqual(["Oma Truus"]);
+  });
+
+  it("knows who responded", () => {
+    const responses = [
+      { id: "r1", email: "jan@x.nl", people: ["Jan de Vries", "Els de Vries"] },
+      { id: "r2", email: "kim@x.nl", people: ["Kim Bakker"] },
+    ];
+    expect(matchInvitation({ email: "JAN@x.nl", names: "Familie", response_id: null }, responses)).toMatchObject({ state: "yes", responseId: "r1" });
+    expect(matchInvitation({ email: "", names: "Jan & Els de Vries", response_id: null }, responses)).toMatchObject({ state: "yes", responseId: "r1" });
+    expect(matchInvitation({ email: "", names: "Kim van Dijk", response_id: null }, responses)).toMatchObject({ state: "maybe", candidate: "Kim Bakker" });
+    expect(matchInvitation({ email: "", names: "Bert", response_id: null }, responses).state).toBe("no");
+    expect(matchInvitation({ email: "", names: "Bert", response_id: "r2" }, responses).state).toBe("yes");
+  });
+});
+
+import { indexForTime, timeOutOfOrder } from "@/lib/ws/pure";
+
+describe("Dagplanning", () => {
+  const rows = [
+    { id: "a", at_time: "10:00" },
+    { id: "b", at_time: "" },
+    { id: "c", at_time: "12:00" },
+    { id: "d", at_time: "14:00" },
+  ];
+  it("puts a row with a new time in its place", () => {
+    expect(indexForTime(rows, "d", "11:00")).toBe(2);
+    expect(indexForTime(rows, "a", "13:00")).toBe(2);
+    expect(indexForTime(rows, "c", "8:30")).toBe(0);
+    expect(indexForTime(rows, "b", "")).toBe(1);
+  });
+  it("marks a dragged row whose time does not fit", () => {
+    expect(timeOutOfOrder(rows, 2)).toBe(false);
+    expect(timeOutOfOrder([{ at_time: "12:00" }, { at_time: "10:00" }, { at_time: "14:00" }], 1)).toBe(true);
+    expect(timeOutOfOrder([{ at_time: "12:00" }, { at_time: "" }], 1)).toBe(false);
+  });
+});
+
+import { parseStylingProposal } from "@/lib/ws/pure";
+
+describe("AI-samenvatting stylingplan", () => {
+  it("reads the JSON and keeps only known places", () => {
+    const text = 'Hier is het:\n```json\n{"samenvatting":"Romantisch.","kleuren":["#AABBCC","rood"],"items":[{"plek":"diner","wat":"Kaarsen"},{"plek":"Tuin","wat":"x"}]}\n```';
+    expect(parseStylingProposal(text, ["Diner", "Entree"])).toEqual({ summary: "Romantisch.", colors: ["#aabbcc"], items: [{ place: "Diner", what: "Kaarsen" }] });
+  });
+  it("falls back to the plain text", () => {
+    expect(parseStylingProposal("Geen JSON, wel #112233", ["Diner"])).toEqual({ summary: "Geen JSON, wel #112233", colors: ["#112233"], items: [] });
+  });
+});
+
+import { dietSummary } from "@/lib/ws/pure";
+
+describe("Eten en allergieën", () => {
+  it("sums up diets", () => {
+    expect(dietSummary(["Vegetarisch", "vega", "glutenvrij", "notenallergie", "geen", "", "Kiwi", "veganist"])).toBe("1 vegan, 2 vega, 1 glutenvrij, 1 noten, 1 overig");
+    expect(dietSummary([])).toBe("");
+  });
+});
+
+import { budgetLine, costDifference, costRemaining, payingSoon } from "@/lib/ws/pure";
+
+describe("Kosten", () => {
+  const eur = (c: number) => `€ ${c / 100}`;
+  it("works out difference, remaining and due payments", () => {
+    expect(costDifference(1000, 1200)).toBe(-200);
+    expect(costDifference(1000, null)).toBeNull();
+    expect(costRemaining(1200, 300, false)).toBe(900);
+    expect(costRemaining(1200, 300, true)).toBe(0);
+    expect(payingSoon("2026-11-20", false, "2026-11-07")).toBe(true);
+    expect(payingSoon("2026-12-20", false, "2026-11-07")).toBe(false);
+    expect(payingSoon("2026-11-01", false, "2026-11-07")).toBe(true);
+    expect(payingSoon("2026-11-10", true, "2026-11-07")).toBe(false);
+  });
+  it("counts the budget down", () => {
+    expect(budgetLine(2450000, 2500000, eur)).toEqual({ text: "Begroot: € 24500 van € 25000, nog € 500 over", over: false });
+    expect(budgetLine(2600000, 2500000, eur).over).toBe(true);
+  });
+});
+
+import { matchSeatName } from "@/lib/ws/pure";
+import { ceremonySeats, tableSeats, tableSize } from "@/lib/ws/seating-geometry";
+
+describe("Opstelling", () => {
+  it("puts the right number of chairs around tables", () => {
+    const base = { id: "t1", x: 50, y: 50, rotation: 0, long_sides: "both" as const, head_seats: false };
+    expect(tableSeats({ ...base, shape: "round", seats: 8 })).toHaveLength(8);
+    expect(tableSeats({ ...base, shape: "square", seats: 6 })).toHaveLength(6);
+    expect(tableSeats({ ...base, shape: "long", seats: 10, head_seats: true })).toHaveLength(10);
+    const one = tableSeats({ ...base, shape: "long", seats: 5, long_sides: "one" });
+    expect(new Set(one.map((s) => Math.round(s.y))).size).toBe(1);
+    expect(tableSize({ shape: "long", seats: 10, long_sides: "both", head_seats: false }).w).toBeGreaterThan(300);
+    const turned = tableSeats({ ...base, shape: "long", seats: 4, rotation: 90 });
+    expect(new Set(turned.map((s) => Math.round(s.x))).size).toBe(2);
+  });
+  it("lays out ceremonies", () => {
+    expect(ceremonySeats({ shape: "rows", rows: 5, seats_per_row: 4 })).toHaveLength(40);
+    expect(ceremonySeats({ shape: "half", rows: 2, seats_per_row: 10 }).length).toBeGreaterThan(20);
+    expect(new Set(ceremonySeats({ shape: "circle", rows: 3, seats_per_row: 8 }).map((s) => s.key)).size).toBe(ceremonySeats({ shape: "circle", rows: 3, seats_per_row: 8 }).length);
+  });
+  it("recognises typed names", () => {
+    const guests = [{ id: "a", name: "Jan de Vries", attending: true }, { id: "b", name: "Els Bakker", attending: false }];
+    expect(matchSeatName("jan de vries", guests)).toEqual({ state: "guest", guestId: "a" });
+    expect(matchSeatName("Els Bakker", guests).state).toBe("declined");
+    expect(matchSeatName("Jan", guests)).toMatchObject({ state: "maybe", candidate: "Jan de Vries" });
+    expect(matchSeatName("Oma", guests).state).toBe("unknown");
+  });
+});

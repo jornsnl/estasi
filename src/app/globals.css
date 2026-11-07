@@ -155,3 +155,32 @@
     display: none !important;
   }
 }
+
+/* Run sheet print: every section on a new page, table headers repeated, light colours. */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+  .print-page {
+    break-before: page;
+  }
+  .print-page:first-child {
+    break-before: auto;
+  }
+  .print-sheet thead {
+    display: table-header-group;
+  }
+  .print-sheet tr,
+  .print-sheet img {
+    break-inside: avoid;
+  }
+  .print-sheet {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .ws-theme header,
+  .ws-theme nav[aria-label="Onderdelen"] {
+    display: none !important;
+  }
+}

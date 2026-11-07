@@ -5,8 +5,8 @@ import { useRef } from "react";
 type Action = "bold" | "italic" | "heading" | "list" | "numbered" | "link";
 
 const BUTTONS: { action: Action; label: string; title: string; className?: string }[] = [
-  { action: "bold", label: "B", title: "Vet", className: "font-bold" },
-  { action: "italic", label: "I", title: "Cursief", className: "italic" },
+  { action: "bold", label: "B", title: "Vet (Ctrl+B)", className: "font-bold" },
+  { action: "italic", label: "I", title: "Cursief (Ctrl+I)", className: "italic" },
   { action: "heading", label: "Kopje", title: "Kopje" },
   { action: "list", label: "• Opsomming", title: "Opsomming" },
   { action: "numbered", label: "1. Nummering", title: "Genummerde lijst" },
@@ -17,7 +17,19 @@ const BUTTONS: { action: Action; label: string; title: string; className?: strin
  * Text area with a small toolbar. The buttons write the same simple markup
  * (Markdown) the lesson page already understands, so nothing else changes.
  */
-export function MarkdownEditor({ name, defaultValue, rows = 10, label }: { name: string; defaultValue: string; rows?: number; label: string }) {
+export function MarkdownEditor({
+  name,
+  defaultValue,
+  rows = 10,
+  label,
+  maxLength,
+}: {
+  name: string;
+  defaultValue: string;
+  rows?: number;
+  label: string;
+  maxLength?: number;
+}) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
   function replace(area: HTMLTextAreaElement, start: number, end: number, text: string, select: [number, number]) {
@@ -88,7 +100,16 @@ export function MarkdownEditor({ name, defaultValue, rows = 10, label }: { name:
         name={name}
         rows={rows}
         defaultValue={defaultValue}
+        maxLength={maxLength}
         aria-label={label}
+        onKeyDown={(e) => {
+          // The usual shortcuts for bold and italic, also with Cmd on a Mac.
+          if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+          const key = e.key.toLowerCase();
+          if (key !== "b" && key !== "i") return;
+          e.preventDefault();
+          apply(key === "b" ? "bold" : "italic");
+        }}
         className="block w-full resize-y border-0 bg-white p-3 text-sm leading-relaxed focus:outline-none"
       />
     </div>

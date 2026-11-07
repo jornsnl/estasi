@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { plural } from "@/lib/domain/labels";
 import type { ModuleProgress } from "@/lib/domain/progress";
 import { Badge } from "./Badge";
 
@@ -15,7 +16,7 @@ export function ModuleCard({ p, index, href }: { p: ModuleProgress; index: numbe
       <h3 className={`mt-2 text-xl ${p.state === "locked" ? "text-muted" : ""}`}>{p.module.title}</h3>
       <p className="mt-1 line-clamp-2 text-sm text-muted">{p.module.description}</p>
       <p className="mt-4 text-sm text-muted">
-        {p.completedCount} van {p.lessons.length} lessen afgerond
+        {p.completedCount} van {plural(p.lessons.length, "les", "lessen")} afgerond
       </p>
     </>
   );

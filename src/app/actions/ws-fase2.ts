@@ -1,13 +1,12 @@
 "use server";
 
-import { randomBytes } from "crypto";
 import { after } from "next/server";
 import { requireOwner } from "@/lib/auth/session";
 import { requireCouple, requireCoupleAdmin, type CoupleContext } from "@/lib/ws/access";
 import { aiConfigured, draftStylingPlan, extractColors, summariseAssignment } from "@/lib/ws/ai";
 import { copyAssignmentTemplate, logActivity } from "@/lib/ws/couples";
 import { isUuid, one, query, tx } from "@/lib/ws/db";
-import { storeUpload, UploadError } from "@/lib/ws/files";
+import { deleteFiles, storeUpload, storeUploads, UploadError } from "@/lib/ws/files";
 import { coupleName } from "@/lib/ws/format";
 import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
 import { dateField, done, str } from "@/lib/ws/redirect";
@@ -40,167 +39,11 @@ export async function saveGuestCounts(formData: FormData) {
   done(portal(ctx.couple.id, "/draaiboek"), "Aantal gasten opgeslagen.");
 }
 
-const ROW_FIELDS = ["atTime", "who", "what", "info", "location", "rainLocation"] as const;
-const ROW_MAX = { atTime: 20, who: 300, what: 500, info: 2000, location: 300, rainLocation: 300 } as const;
-
-/**
- * One form per tab: every button saves all rows first, so adding or deleting
- * a row never throws away edits elsewhere (same idea as the lesson editor).
- */
-export async function saveRunsheet(formData: FormData) {
-  const ctx = await ctxFrom(formData);
-  const tabId = id(formData, "tabId");
-  const back = portal(ctx.couple.id, `/draaiboek?tab=${tabId}`);
-  if (!tabId || !(await one("select 1 from runsheet_tabs where id = $1 and couple_id = $2", [tabId, ctx.couple.id]))) done(portal(ctx.couple.id, "/draaiboek"), "Tabblad niet gevonden.", true);
-  const rows = await query<{ id: string }>("select id from runsheet_rows where tab_id = $1", [tabId]);
-  const [action, arg] = str(formData, "intent", 60).split(":");
-  let message = "Draaiboek opgeslagen.";
-  await tx(async (db) => {
-    for (const row of rows) {
-      if (!formData.has(`r-${row.id}-what`)) continue;
-      const values = ROW_FIELDS.map((f) => str(formData, `r-${row.id}-${f}`, ROW_MAX[f]));
-      await query(
-        "update runsheet_rows set at_time = $2, who = $3, what = $4, info = $5, location = $6, rain_location = $7 where id = $1",
-        [row.id, ...values],
-        db,
-      );
-    }
-    const fresh = ROW_FIELDS.map((f) => str(formData, `new-${f}`, ROW_MAX[f]));
-    if (fresh.some(Boolean)) {
-      await query(
-        `insert into runsheet_rows (couple_id, tab_id, at_time, who, what, info, location, rain_location, position)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, (select coalesce(max(position), 0) + 1 from runsheet_rows where tab_id = $2))`,
-        [ctx.couple.id, tabId, ...fresh],
-        db,
-      );
-      message = "Draaiboek opgeslagen, regel toegevoegd.";
-    }
-    if (action === "delete" && isUuid(arg)) {
-      await query("delete from runsheet_rows where id = $1 and tab_id = $2", [arg, tabId], db);
-      message = "Draaiboek opgeslagen, regel verwijderd.";
-    }
-  });
-  await note(ctx, "Draaiboek bijgewerkt");
-  done(back, message);
-}
-
-export async function saveRunsheetTab(formData: FormData) {
-  const ctx = await adminFrom(formData);
-  const tabId = id(formData, "tabId");
-  const title = str(formData, "title", 80);
-  const back = portal(ctx.couple.id, "/draaiboek");
-  if (formData.get("intent") === "delete" && tabId) {
-    await query("delete from runsheet_tabs where id = $1 and couple_id = $2", [tabId, ctx.couple.id]);
-    done(back, "Tabblad verwijderd.");
-  }
-  if (!title) done(back, "Geef het tabblad een naam.", true);
-  const kind = str(formData, "kind") === "schedule" ? "schedule" : "list";
-  if (tabId) {
-    await query("update runsheet_tabs set title = $3 where id = $1 and couple_id = $2", [tabId, ctx.couple.id, title]);
-    done(`${back}?tab=${tabId}`, "Tabblad hernoemd.");
-  }
-  const tab = await one<{ id: string }>(
-    "insert into runsheet_tabs (couple_id, title, kind, position) values ($1, $2, $3, (select coalesce(max(position), 0) + 1 from runsheet_tabs where couple_id = $1)) returning id",
-    [ctx.couple.id, title, kind],
-  );
-  done(`${back}?tab=${tab!.id}`, "Tabblad toegevoegd.");
-}
+// Rows and tabs: see ws-runsheet.ts.
 
 // RSVP forms (Sabine) ----------------------------------------------------------------------------
 
-const HEX = /^#[0-9a-fA-F]{6}$/;
-
-export async function saveRsvpForm(formData: FormData) {
-  const ctx = await adminFrom(formData);
-  const formId = id(formData, "formId");
-  const back = portal(ctx.couple.id, "/gasten/formulieren");
-  if (formData.get("intent") === "delete" && formId) {
-    await query("delete from rsvp_forms where id = $1 and couple_id = $2", [formId, ctx.couple.id]);
-    done(back, "Formulier verwijderd. Aanmeldingen blijven in de gastenlijst.");
-  }
-  const name = str(formData, "name", 80);
-  if (!name) done(back, "Geef het formulier een naam, bijvoorbeeld Daggasten.", true);
-  const color = HEX.test(str(formData, "qrColor", 7)) ? str(formData, "qrColor", 7) : "#2c2c2c";
-  const background = HEX.test(str(formData, "qrBackground", 7)) ? str(formData, "qrBackground", 7) : "#ffffff";
-  const values = [
-    name, str(formData, "intro", 3000), formData.get("askPartOfDay") === "on", formData.get("askDiet") === "on",
-    str(formData, "dresscode", 300), str(formData, "confirmationText", 5000), str(formData, "declineText", 5000),
-    color, background, formData.get("open") === "on",
-  ];
-  if (formId) {
-    await query(
-      `update rsvp_forms set name = $3, intro = $4, ask_part_of_day = $5, ask_diet = $6, dresscode = $7, confirmation_text = $8,
-              decline_text = $9, qr_color = $10, qr_background = $11, open = $12 where id = $1 and couple_id = $2`,
-      [formId, ctx.couple.id, ...values],
-    );
-    done(`${back}#f-${formId}`, "Formulier opgeslagen.");
-  }
-  const slug = randomBytes(9).toString("base64url");
-  const form = await one<{ id: string }>(
-    `insert into rsvp_forms (couple_id, slug, name, intro, ask_part_of_day, ask_diet, dresscode, confirmation_text, decline_text, qr_color, qr_background, open, position)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, (select coalesce(max(position), 0) + 1 from rsvp_forms where couple_id = $1)) returning id`,
-    [ctx.couple.id, slug, ...values],
-  );
-  done(`${back}#f-${form!.id}`, "Formulier aangemaakt. Deel de link of de QR-code.");
-}
-
-export async function saveRsvpQuestion(formData: FormData) {
-  const ctx = await adminFrom(formData);
-  const formId = id(formData, "formId");
-  const back = portal(ctx.couple.id, `/gasten/formulieren#f-${formId}`);
-  if (!formId || !(await one("select 1 from rsvp_forms where id = $1 and couple_id = $2", [formId, ctx.couple.id]))) done(back, "Formulier niet gevonden.", true);
-  const questionId = id(formData, "questionId");
-  if (questionId) {
-    await query("delete from rsvp_questions where id = $1 and form_id = $2", [questionId, formId]);
-    done(back, "Vraag verwijderd.");
-  }
-  const label = str(formData, "label", 300);
-  if (!label) done(back, "Vul de vraag in.", true);
-  await query(
-    "insert into rsvp_questions (form_id, label, kind, position) values ($1, $2, $3, (select coalesce(max(position), 0) + 1 from rsvp_questions where form_id = $1))",
-    [formId, label, str(formData, "kind") === "yesno" ? "yesno" : "text"],
-  );
-  done(back, "Vraag toegevoegd.");
-}
-
-// Guest list (both) -------------------------------------------------------------------------------
-
-function guestFields(formData: FormData) {
-  const attendance = ["yes", "no", "partial"].includes(str(formData, "attendance")) ? str(formData, "attendance") : "yes";
-  return [
-    str(formData, "firstName", 80), str(formData, "lastName", 80), str(formData, "relation", 120), str(formData, "email", 200),
-    str(formData, "phone", 40), str(formData, "diet", 500), attendance, str(formData, "partialNote", 300),
-    formData.get("isKid") === "on", str(formData, "notes", 1000),
-  ];
-}
-
-export async function saveGuest(formData: FormData) {
-  const ctx = await ctxFrom(formData);
-  const guestId = id(formData, "guestId");
-  const back = portal(ctx.couple.id, "/gasten");
-  if (formData.get("intent") === "delete" && guestId) {
-    await query("delete from guests where id = $1 and couple_id = $2", [guestId, ctx.couple.id]);
-    await note(ctx, "Gast verwijderd");
-    done(back, "Gast verwijderd.");
-  }
-  const fields = guestFields(formData);
-  if (!fields[0]) done(back, "Vul minstens een voornaam in.", true);
-  if (guestId) {
-    await query(
-      `update guests set first_name = $3, last_name = $4, relation = $5, email = $6, phone = $7, diet = $8, attendance = $9,
-              partial_note = $10, is_kid = $11, notes = $12 where id = $1 and couple_id = $2`,
-      [guestId, ctx.couple.id, ...fields],
-    );
-  } else {
-    await query(
-      `insert into guests (couple_id, first_name, last_name, relation, email, phone, diet, attendance, partial_note, is_kid, notes)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [ctx.couple.id, ...fields],
-    );
-  }
-  await note(ctx, "Gastenlijst bijgewerkt");
-  done(back, "Gast opgeslagen.");
-}
+// RSVP forms and the guest list: see ws-rsvp.ts.
 
 // Assignments -----------------------------------------------------------------------------------------
 
@@ -359,25 +202,32 @@ export async function saveStylingPlan(formData: FormData) {
 
 export async function stylingImage(formData: FormData) {
   const ctx = await ctxFrom(formData);
-  const back = portal(ctx.couple.id, "/styling");
+  // Also used from the moodboard part of the assignment; only back to a page of this couple.
+  const wanted = str(formData, "back", 300);
+  const back = wanted.startsWith(portal(ctx.couple.id, "/")) ? wanted : portal(ctx.couple.id, "/styling#moodboard");
   const imageId = id(formData, "imageId");
   if (imageId) {
-    await query(
+    await deleteFiles(
       "delete from files where id = (select file_id from styling_images where id = $1 and couple_id = $2)",
       [imageId, ctx.couple.id],
     );
     done(back, "Afbeelding verwijderd.");
   }
+  let count = 0;
   try {
-    const file = await storeUpload(formData.get("image"), { coupleId: ctx.couple.id, accountId: ctx.account.id, images: true });
-    if (!file) done(back, "Kies eerst een afbeelding.", true);
-    await query("insert into styling_images (couple_id, file_id, caption) values ($1, $2, $3)", [ctx.couple.id, file.id, str(formData, "caption", 200)]);
+    // Several photos at once; the caption goes with each of them.
+    const files = await storeUploads(formData.getAll("image"), { coupleId: ctx.couple.id, accountId: ctx.account.id, images: true });
+    if (files.length === 0) done(back, "Kies eerst een afbeelding.", true);
+    for (const file of files) {
+      await query("insert into styling_images (couple_id, file_id, caption) values ($1, $2, $3)", [ctx.couple.id, file.id, str(formData, "caption", 200)]);
+    }
+    count = files.length;
   } catch (err) {
     if (err instanceof UploadError) done(back, err.message, true);
     throw err;
   }
-  await note(ctx, "Afbeelding aan het moodboard toegevoegd");
-  done(back, "Afbeelding toegevoegd aan het moodboard.");
+  await note(ctx, count === 1 ? "Afbeelding aan het moodboard toegevoegd" : `${count} afbeeldingen aan het moodboard toegevoegd`);
+  done(back, count === 1 ? "Afbeelding toegevoegd aan het moodboard." : `${count} afbeeldingen toegevoegd aan het moodboard.`);
 }
 
 // Sabine's templates and photo -------------------------------------------------------------------------
@@ -429,14 +279,14 @@ export async function uploadContactPhoto(formData: FormData) {
   const current = await one<{ contact_photo_file_id: string | null }>("select contact_photo_file_id from settings");
   if (formData.get("remove") === "on") {
     await query("update settings set contact_photo_file_id = null");
-    if (current?.contact_photo_file_id) await query("delete from files where id = $1 and couple_id is null", [current.contact_photo_file_id]);
+    if (current?.contact_photo_file_id) await deleteFiles("delete from files where id = $1 and couple_id is null", [current.contact_photo_file_id]);
     done(back, "Pasfoto verwijderd.");
   }
   try {
     const file = await storeUpload(formData.get("photo"), { coupleId: null, accountId: owner.id, images: true });
     if (!file) done(back, "Kies eerst een foto.", true);
     await query("update settings set contact_photo_file_id = $1", [file.id]);
-    if (current?.contact_photo_file_id) await query("delete from files where id = $1 and couple_id is null", [current.contact_photo_file_id]);
+    if (current?.contact_photo_file_id) await deleteFiles("delete from files where id = $1 and couple_id is null", [current.contact_photo_file_id]);
   } catch (err) {
     if (err instanceof UploadError) done(back, err.message, true);
     throw err;

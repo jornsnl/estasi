@@ -3,6 +3,7 @@ import { saveSettings } from "@/app/actions/content";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { getStore, isSupabaseMode } from "@/lib/data";
+import { LIMITS } from "@/lib/domain/input";
 import { authClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Instellingen" };
@@ -39,15 +40,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <h2 className="text-2xl">Dashboard</h2>
           <div>
             <label htmlFor="welcomeVideoUrl" className="label">Welkomstvideo (link)</label>
-            <input id="welcomeVideoUrl" name="welcomeVideoUrl" type="url" defaultValue={s.welcomeVideoUrl} className="input" />
+            <input id="welcomeVideoUrl" name="welcomeVideoUrl" inputMode="url" autoComplete="off" defaultValue={s.welcomeVideoUrl} maxLength={LIMITS.url} className="input" />
           </div>
           <div>
             <label htmlFor="welcomeText" className="label">Welkomsttekst</label>
-            <textarea id="welcomeText" name="welcomeText" rows={3} defaultValue={s.welcomeText} className="input" />
+            <textarea id="welcomeText" name="welcomeText" rows={3} defaultValue={s.welcomeText} maxLength={LIMITS.welcomeText} className="input" />
           </div>
           <div>
             <label htmlFor="contactEmail" className="label">Contactadres voor cursisten</label>
-            <input id="contactEmail" name="contactEmail" type="email" defaultValue={s.contactEmail} className="input" />
+            <input id="contactEmail" name="contactEmail" type="email" defaultValue={s.contactEmail} maxLength={LIMITS.contactEmail} className="input" />
             <p className="hint">Staat in het menu van elke cursist voor vragen en technische problemen.</p>
           </div>
         </section>
@@ -60,7 +61,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </label>
           <div>
             <label htmlFor="practicalSpotsNote" className="label">Notitie (intern)</label>
-            <input id="practicalSpotsNote" name="practicalSpotsNote" defaultValue={s.practicalSpotsNote} className="input" placeholder="Bijvoorbeeld: 2 plekken in juni" />
+            <input id="practicalSpotsNote" name="practicalSpotsNote" defaultValue={s.practicalSpotsNote} maxLength={LIMITS.practicalSpotsNote} className="input" placeholder="Bijvoorbeeld: 2 plekken in juni" />
           </div>
         </section>
 
@@ -68,7 +69,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <h2 className="text-2xl">Privacy</h2>
           <div>
             <label htmlFor="answersPrivacyNotice" className="label">Uitleg boven de opdrachten</label>
-            <textarea id="answersPrivacyNotice" name="answersPrivacyNotice" rows={4} defaultValue={s.answersPrivacyNotice} className="input" />
+            <textarea id="answersPrivacyNotice" name="answersPrivacyNotice" rows={4} defaultValue={s.answersPrivacyNotice} maxLength={LIMITS.privacyNotice} className="input" />
             <p className="hint">Cursisten zien deze tekst voordat ze antwoorden invullen.</p>
           </div>
         </section>

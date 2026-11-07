@@ -1,12 +1,18 @@
 import Link from "next/link";
 import { saveStylingPlan, stylingImage } from "@/app/actions/ws-fase2";
+import { makeStylingSummary, releaseStylingPlan, savePlace } from "@/app/actions/ws-styling";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { requireCouple } from "@/lib/ws/access";
+import { AutoTextarea } from "@/components/ws/AutoTextarea";
+import { FileUpload } from "@/components/ws/FileUpload";
+import { StylingPlaces } from "@/components/ws/StylingPlaces";
+import { requirePlanning } from "@/lib/ws/access";
 import { aiConfigured } from "@/lib/ws/ai";
 import { one, query } from "@/lib/ws/db";
-import { IMAGE_ACCEPT } from "@/lib/ws/files";
+import { directUploads } from "@/lib/ws/files";
 import { formatDateTime } from "@/lib/ws/format";
+import { peopleFor } from "@/lib/ws/runsheet";
+import { stylingPlaces } from "@/lib/ws/styling";
 
 export const metadata = { title: "Stylingplan & Moodboard" };
 
@@ -27,23 +33,39 @@ export default async function Styling({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId } = await params;
-  const { couple, isAdmin } = await requireCouple(coupleId);
-  const [plan, images, source] = await Promise.all([
+  const { couple, isAdmin } = await requirePlanning(coupleId);
+  const [plan, images, source, places, people] = await Promise.all([
     one<Plan>("select * from styling_plans where couple_id = $1", [couple.id]),
     query<{ id: string; file_id: string; caption: string }>("select id, file_id, caption from styling_images where couple_id = $1 order by created_at", [couple.id]),
-    one<{ id: string; title: string; submitted_at: Date | null }>("select id, title, submitted_at from assignments where couple_id = $1 and styling_source order by position limit 1", [couple.id]),
+    one<{ id: string; title: string; kind: string; done: number; total: number; completed_at: Date | null }>(
+      `select a.id, a.title, a.kind, a.completed_at,
+              (select count(*) filter (where s.completed_at is not null)::int from assignment_sections s where s.assignment_id = a.id) as done,
+              (select count(*)::int from assignment_sections s where s.assignment_id = a.id) as total
+         from assignments a where a.couple_id = $1 and a.styling_source order by a.kind desc, a.position limit 1`,
+      [couple.id],
+    ),
+    stylingPlaces(couple.id, isAdmin),
+    peopleFor(couple.id),
   ]);
-  const visible = isAdmin || plan?.published;
+  const showConcept = (isAdmin || plan?.published) && plan && (plan.concept || plan.colors.length > 0);
+  const drafts = places.reduce((n, p) => n + p.items.filter((i) => i.draft).length, 0);
+  const direct = directUploads();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <header>
         <p className="eyebrow">Onderdeel</p>
         <h1 className="mt-1 text-3xl">Stylingplan & Moodboard</h1>
+        {source && (
+          <p className="mt-2 text-sm">
+            <Link href={`/k/${couple.id}/opdrachten/${source.id}`} className="text-bordeaux underline">Opdracht {source.title}</Link>
+            {source.kind === "sections" && <span className="text-muted"> · {source.done} van {source.total} afgerond</span>}
+          </p>
+        )}
       </header>
       <Notice searchParams={searchParams} />
 
-      {visible && plan && (plan.concept || plan.colors.length > 0) ? (
+      {showConcept ? (
         <section className="card space-y-4 p-6">
           {!plan.published && <p className="rounded-lg bg-cream px-3 py-2 text-xs text-gold-ink">Nog niet zichtbaar voor het bruidspaar.</p>}
           {plan.concept && <p className="text-[15px] leading-7 whitespace-pre-line">{plan.concept}</p>}
@@ -59,16 +81,37 @@ export default async function Styling({
           )}
         </section>
       ) : (
-        <section className="card p-6 text-sm text-muted">
-          {source && !source.submitted_at ? (
-            <>Het stylingplan maken we samen op basis van de opdracht <Link className="text-bordeaux underline" href={`/k/${couple.id}/opdrachten/${source.id}`}>{source.title}</Link>. Vul die eerst in.</>
-          ) : (
-            "Sabine werkt jullie stylingplan uit en zet het hier neer."
-          )}
-        </section>
+        !isAdmin && (
+          <section className="card p-6 text-sm text-muted">
+            {source && !source.completed_at
+              ? <>Sabine maakt jullie stylingplan op basis van de opdracht <Link className="text-bordeaux underline" href={`/k/${couple.id}/opdrachten/${source.id}`}>{source.title}</Link>. Vul die eerst in.</>
+              : "Sabine werkt jullie stylingplan uit en zet het hier neer."}
+          </section>
+        )
       )}
 
-      <section>
+      <section id="plan" className="scroll-mt-6 space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="section-title">Stylingplan per plek</h2>
+            <p className="text-sm text-muted">Wat komt waar, en wie regelt het. Staat hier een van jullie namen bij, dan komt het vanzelf op de meeneemlijst &quot;Styling meenemen&quot;.</p>
+          </div>
+          {isAdmin && drafts > 0 && (
+            <form action={releaseStylingPlan}>
+              <input type="hidden" name="coupleId" value={couple.id} />
+              <SubmitButton className="btn-primary" confirm="Het stylingplan en alle voorstellen worden zichtbaar voor het bruidspaar. Doorgaan?">Vrijgeven ({drafts} voorstellen)</SubmitButton>
+            </form>
+          )}
+        </div>
+        <StylingPlaces coupleId={couple.id} places={places} names={people.map((p) => p.name)} isAdmin={isAdmin} mode="edit" direct={direct} />
+        <form action={savePlace} className="flex flex-wrap gap-2">
+          <input type="hidden" name="coupleId" value={couple.id} />
+          <input name="name" required placeholder="Nieuwe plek, bijvoorbeeld: Tuin" aria-label="Nieuwe plek" className="input max-w-xs py-1.5" />
+          <SubmitButton className="btn-secondary py-1.5">Plek toevoegen</SubmitButton>
+        </form>
+      </section>
+
+      <section id="moodboard" className="scroll-mt-6">
         <h2 className="section-title mb-3">Moodboard</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {images.map((img) => (
@@ -86,37 +129,45 @@ export default async function Styling({
             </figure>
           ))}
         </div>
-        <form action={stylingImage} className="mt-3 flex flex-wrap items-center gap-2">
+        <form action={stylingImage} className="mt-3 space-y-2">
           <input type="hidden" name="coupleId" value={couple.id} />
-          <input type="file" name="image" accept={IMAGE_ACCEPT} required aria-label="Afbeelding" className="text-sm" />
-          <input name="caption" placeholder="Onderschrift (optioneel)" aria-label="Onderschrift" className="input w-56 py-1.5" />
-          <SubmitButton className="btn-secondary py-1.5" pendingText="Uploaden…">Toevoegen</SubmitButton>
+          <FileUpload name="image" coupleId={couple.id} kind="image" direct={direct} multiple required label="Foto's uploaden" />
+          <div className="flex flex-wrap items-center gap-2">
+            <input name="caption" placeholder="Onderschrift (optioneel)" aria-label="Onderschrift" className="input w-56 py-1.5" />
+            <SubmitButton className="btn-primary py-1.5" pendingText="Toevoegen…">Toevoegen aan moodboard</SubmitButton>
+          </div>
         </form>
       </section>
 
       {isAdmin && (
-        <section className="card space-y-4 p-6">
+        <section id="uitwerken" className="card scroll-mt-6 space-y-4 p-6">
           <h2 className="text-xl">Stylingplan uitwerken</h2>
-          {aiConfigured() && (
-            <form action={saveStylingPlan}>
-              <input type="hidden" name="coupleId" value={couple.id} />
-              <input type="hidden" name="intent" value="draft" />
-              <SubmitButton className="btn-secondary" pendingText="Concept maken… (kan een halve minuut duren)">
-                {plan?.ai_draft ? "Nieuw AI-concept maken" : "AI-concept maken uit Thema & Moodboard"}
-              </SubmitButton>
-            </form>
-          )}
+          <div className="rounded-xl bg-cream p-4 text-sm">
+            <p className="font-medium">Samenvatting maken met AI</p>
+            <p className="mt-1 text-muted">
+              Maakt van de antwoorden uit {source ? `"${source.title}"` : "de opdracht"} een overzicht van stijl, sfeer, kleuren en materialen, plus per plek een voorstel voor stylingitems. Alles komt als concept hierin; het bruidspaar ziet het pas na &quot;Vrijgeven&quot;.
+              {source?.kind === "sections" && source.done < source.total ? ` Let op: nog ${source.total - source.done} van de ${source.total} opdrachten open.` : ""}
+            </p>
+            {aiConfigured() ? (
+              <form action={makeStylingSummary} className="mt-3">
+                <input type="hidden" name="coupleId" value={couple.id} />
+                <SubmitButton className="btn-secondary" pendingText="Samenvatting maken… (kan een halve minuut duren)">Samenvatting maken</SubmitButton>
+              </form>
+            ) : (
+              <p className="mt-2 text-xs text-bordeaux">Staat uit: zet ANTHROPIC_API_KEY in de hosting om dit te gebruiken.</p>
+            )}
+          </div>
           {plan?.ai_draft && (
             <details open={!plan.concept}>
-              <summary className="cursor-pointer text-sm font-medium text-bordeaux">AI-concept{plan.ai_draft_at ? ` van ${formatDateTime(plan.ai_draft_at)}` : ""}</summary>
+              <summary className="cursor-pointer text-sm font-medium text-bordeaux">Samenvatting{plan.ai_draft_at ? ` van ${formatDateTime(plan.ai_draft_at)}` : ""}</summary>
               <p className="mt-2 rounded-xl bg-cream p-4 text-sm whitespace-pre-line">{plan.ai_draft}</p>
             </details>
           )}
           <form action={saveStylingPlan} className="space-y-3">
             <input type="hidden" name="coupleId" value={couple.id} />
             <div>
-              <label className="label" htmlFor="concept">Stylingplan (dit ziet het bruidspaar)</label>
-              <textarea id="concept" name="concept" rows={10} defaultValue={plan?.concept || plan?.ai_draft || ""} className="input" />
+              <label className="label" htmlFor="concept">Stijl en sfeer (dit ziet het bruidspaar na vrijgeven)</label>
+              <AutoTextarea id="concept" name="concept" defaultValue={plan?.concept || plan?.ai_draft || ""} className="input min-h-40" />
             </div>
             <div>
               <label className="label" htmlFor="colors">Kleurenpalet</label>
@@ -124,7 +175,7 @@ export default async function Styling({
               <p className="hint">Hexcodes, gescheiden door spaties.</p>
             </div>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="published" defaultChecked={plan?.published ?? false} className="accent-[#6B1E2E]" /> Zichtbaar voor het bruidspaar</label>
-            <SubmitButton className="btn-primary" pendingText="Opslaan…">Stylingplan opslaan</SubmitButton>
+            <SubmitButton className="btn-primary" pendingText="Opslaan…">Opslaan</SubmitButton>
           </form>
         </section>
       )}

@@ -99,8 +99,9 @@ export const COURSE_STATUS_LABELS: Record<CourseStatus, string> = {
   awaiting_confirmation: "Wacht op bevestiging",
   online_completed: "Online afgerond",
   practical_completed: "Praktijkervaring afgerond",
-  expired: "Verlopen, niet afgerond",
-  stopped: "Gestopt, niet afgerond",
+  // Access ran out or was revoked before the course was finished.
+  expired: "Verlopen",
+  stopped: "Gestopt",
 };
 
 /** Statuses where the student is no longer working on the course without having finished it. */
