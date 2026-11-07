@@ -108,3 +108,12 @@ describe("AI-samenvatting stylingplan", () => {
     expect(parseStylingProposal("Geen JSON, wel #112233", ["Diner"])).toEqual({ summary: "Geen JSON, wel #112233", colors: ["#112233"], items: [] });
   });
 });
+
+import { dietSummary } from "@/lib/ws/pure";
+
+describe("Eten en allergieën", () => {
+  it("sums up diets", () => {
+    expect(dietSummary(["Vegetarisch", "vega", "glutenvrij", "notenallergie", "geen", "", "Kiwi", "veganist"])).toBe("1 vegan, 2 vega, 1 glutenvrij, 1 noten, 1 overig");
+    expect(dietSummary([])).toBe("");
+  });
+});

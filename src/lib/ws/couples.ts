@@ -157,6 +157,8 @@ export async function createCouple(input: NewCouple, createdBy: string): Promise
       [coupleId, JSON.stringify(settings.default_styling_places ?? [])],
       db,
     );
+    // Meal moments from Sabine's standard list.
+    await query("insert into meal_moments (couple_id, name, position) select $1, name, position from default_meal_moments", [coupleId], db);
     // Standard packing lists, with both first names as "who takes it".
     await query(
       `insert into packing_items (couple_id, list_kind, what, who, is_default, position)

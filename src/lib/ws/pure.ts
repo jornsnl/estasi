@@ -155,3 +155,29 @@ export function parseStylingProposal(text: string, places: string[]): StylingPro
   return { summary: String(data.samenvatting ?? "").trim(), colors, items };
 }
 
+
+const DIETS: [string, RegExp][] = [
+  ["vegan", /\bvegan|veganist/i],
+  ["vega", /\bvega\b|vegetari/i],
+  ["glutenvrij", /gluten|coeliak/i],
+  ["lactosevrij", /lactose|zuivel|melk/i],
+  ["noten", /noot|noten|pinda/i],
+  ["vis/schaal", /\bvis\b|schaal|garnaal|kreeft|mossel/i],
+  ["halal", /halal/i],
+];
+
+/** "3 vega, 2 glutenvrij, 4 overig": what a group of guests has filled in as diet. */
+export function dietSummary(diets: string[]): string {
+  const counts = new Map<string, number>();
+  for (const raw of diets) {
+    const diet = raw.trim();
+    if (!diet || /^(geen|nee|n\.?v\.?t\.?|-)$/i.test(diet)) continue;
+    const hits = DIETS.filter(([, re]) => re.test(diet)).map(([name]) => name);
+    // "vegan" also matches "vega"-ish words: one label per guest is enough.
+    for (const name of hits.length ? (hits.includes("vegan") ? ["vegan", ...hits.filter((h) => h !== "vegan" && h !== "vega")] : hits) : ["overig"]) {
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+  }
+  const order = [...DIETS.map(([n]) => n), "overig"];
+  return [...counts.entries()].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([n, c]) => `${c} ${n}`).join(", ");
+}
