@@ -205,3 +205,23 @@ export function budgetLine(planned: number, total: number | null, money: (cents:
     over: left < 0,
   };
 }
+
+/**
+ * A name typed on a chair: is it a guest who is coming (then the chair is
+ * theirs), someone who declined, possibly the same as a guest (only the first
+ * name matches: ask), or not registered (yet)?
+ */
+export function matchSeatName(
+  name: string,
+  guests: { id: string; name: string; attending: boolean }[],
+): { state: "guest" | "declined" | "maybe" | "unknown"; guestId?: string; candidate?: string } {
+  const n = normName(name);
+  if (!n) return { state: "unknown" };
+  const exact = guests.filter((g) => normName(g.name) === n);
+  const coming = exact.find((g) => g.attending);
+  if (coming) return { state: "guest", guestId: coming.id };
+  if (exact.length) return { state: "declined", guestId: exact[0].id };
+  const first = n.split(" ")[0];
+  const maybe = guests.find((g) => g.attending && normName(g.name).split(" ")[0] === first);
+  return maybe ? { state: "maybe", guestId: maybe.id, candidate: maybe.name } : { state: "unknown" };
+}

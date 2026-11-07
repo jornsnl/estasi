@@ -137,3 +137,32 @@ describe("Kosten", () => {
     expect(budgetLine(2600000, 2500000, eur).over).toBe(true);
   });
 });
+
+import { matchSeatName } from "@/lib/ws/pure";
+import { ceremonySeats, tableSeats, tableSize } from "@/lib/ws/seating-geometry";
+
+describe("Opstelling", () => {
+  it("puts the right number of chairs around tables", () => {
+    const base = { id: "t1", x: 50, y: 50, rotation: 0, long_sides: "both" as const, head_seats: false };
+    expect(tableSeats({ ...base, shape: "round", seats: 8 })).toHaveLength(8);
+    expect(tableSeats({ ...base, shape: "square", seats: 6 })).toHaveLength(6);
+    expect(tableSeats({ ...base, shape: "long", seats: 10, head_seats: true })).toHaveLength(10);
+    const one = tableSeats({ ...base, shape: "long", seats: 5, long_sides: "one" });
+    expect(new Set(one.map((s) => Math.round(s.y))).size).toBe(1);
+    expect(tableSize({ shape: "long", seats: 10, long_sides: "both", head_seats: false }).w).toBeGreaterThan(300);
+    const turned = tableSeats({ ...base, shape: "long", seats: 4, rotation: 90 });
+    expect(new Set(turned.map((s) => Math.round(s.x))).size).toBe(2);
+  });
+  it("lays out ceremonies", () => {
+    expect(ceremonySeats({ shape: "rows", rows: 5, seats_per_row: 4 })).toHaveLength(40);
+    expect(ceremonySeats({ shape: "half", rows: 2, seats_per_row: 10 }).length).toBeGreaterThan(20);
+    expect(new Set(ceremonySeats({ shape: "circle", rows: 3, seats_per_row: 8 }).map((s) => s.key)).size).toBe(ceremonySeats({ shape: "circle", rows: 3, seats_per_row: 8 }).length);
+  });
+  it("recognises typed names", () => {
+    const guests = [{ id: "a", name: "Jan de Vries", attending: true }, { id: "b", name: "Els Bakker", attending: false }];
+    expect(matchSeatName("jan de vries", guests)).toEqual({ state: "guest", guestId: "a" });
+    expect(matchSeatName("Els Bakker", guests).state).toBe("declined");
+    expect(matchSeatName("Jan", guests)).toMatchObject({ state: "maybe", candidate: "Jan de Vries" });
+    expect(matchSeatName("Oma", guests).state).toBe("unknown");
+  });
+});

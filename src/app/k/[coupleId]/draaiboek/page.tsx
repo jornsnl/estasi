@@ -114,7 +114,7 @@ export default async function RunSheet({
 
       {tab?.kind === "styling" && <StylingTab coupleId={couple.id} isAdmin={isAdmin} />}
 
-      {tab?.kind === "seating" && <SeatingTab coupleId={couple.id} isAdmin={isAdmin} />}
+      {tab?.kind === "seating" && <SeatingTab coupleId={couple.id} isAdmin={isAdmin} layoutId={typeof sp.opstelling === "string" ? sp.opstelling : undefined} />}
 
       {isAdmin && (
         <details className="card p-4">

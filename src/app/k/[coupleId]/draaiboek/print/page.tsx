@@ -31,7 +31,10 @@ export default async function RunSheetPrint({
   const { couple } = await requirePlanning(coupleId);
   const sp = await searchParams;
   const tabs = await tabsFor(couple.id);
-  const wanted = typeof sp.tabs === "string" ? sp.tabs.split(",") : ["cover", "toc", ...tabs.map((t) => t.id), "leveranciers"];
+  const rawTabs = typeof sp.tabs === "string" ? sp.tabs.split(",") : ["cover", "toc", ...tabs.map((t) => t.id), "leveranciers"];
+  // "seating:<plan id>": only that seating plan (the PDF button on the plan itself).
+  const onlyPlan = rawTabs.find((t) => t.startsWith("seating:"))?.split(":")[1];
+  const wanted = onlyPlan ? tabs.filter((t) => t.kind === "seating").map((t) => t.id) : rawTabs;
   const chosen = [...tabs.filter((t) => wanted.includes(t.id)), ...(wanted.includes("leveranciers") ? [{ id: "leveranciers", title: "Leveranciers", kind: "suppliers", position: 999 }] : [])] as (RunsheetTab | { id: string; title: string; kind: "suppliers"; position: number })[];
   const [settings, people] = await Promise.all([getSettings(), peopleFor(couple.id)]);
   const colorOf = (name: string) => people.find((p) => p.name.toLowerCase() === name.toLowerCase())?.color ?? "#ecebe8";
@@ -80,7 +83,7 @@ export default async function RunSheetPrint({
             ) : tab.kind === "styling" ? (
               <StylingPrint coupleId={couple.id} />
             ) : tab.kind === "seating" ? (
-              <SeatingPrint coupleId={couple.id} />
+              <SeatingPrint coupleId={couple.id} layoutId={onlyPlan} />
             ) : (
               <SuppliersPrint coupleId={couple.id} />
             )}
