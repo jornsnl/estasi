@@ -1,8 +1,20 @@
+import type { Metadata, Viewport } from "next";
+import { AdminPwa } from "@/components/AdminPwa";
 import { AppShell } from "@/components/AppShell";
 import { requireOwner } from "@/lib/auth/session";
 import { isLocalMode } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
+
+// Installable as a home screen app (see src/app/beheer.webmanifest). Only here, not for students or couples.
+export const metadata: Metadata = {
+  manifest: "/beheer.webmanifest",
+  appleWebApp: { capable: true, title: "Estasi", statusBarStyle: "default" },
+  applicationName: "Estasi Beheer",
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = { themeColor: "#ffffff" };
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
   const user = await requireOwner();
@@ -33,6 +45,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
         ) : undefined
       }
     >
+      <AdminPwa />
       {children}
     </AppShell>
   );
