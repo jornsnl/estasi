@@ -137,25 +137,26 @@ Er is geen schijf en geen `SESSION_SECRET` nodig. Wil je een demo draaien met `D
 De opvolger van Sabine's Notion-template, op basis van haar document *Reverse engineering: Your Wedding Space* en de schets. Het zit in deze app: één login, één beheer, dezelfde database (eigen schema `wedding_space`, zodat tabellen nooit botsen met de Academy).
 
 **Sabine (beheer, onder "Your Wedding Space" in het menu)**
-* Bruidsparen: aanmaken als concept (gegevens, trouwdatum, pakket, aantal meetings). Het portaal staat meteen klaar met starttaken, meetings, draaiboek-tabbladen en opdrachten, maar het bruidspaar ziet niets totdat Sabine na de betaling op "Maak beschikbaar en deel" klikt. Elke partner krijgt dan een Academy-account met de rol `couple` en een uitnodiging
-* Mijn takenbord (alle taken in de kolom "Sabine") en Mijn agenda (afspraken en deadlines van alle bruidsparen)
-* Pakketten met prijs, richtaantal meetings en starttaken; standaardopdrachten; leverancierscategorieën, contactblok, teksten en haar pasfoto
+* Bruidsparen: aanmaken als concept met één of meer pakketten (Weddingplanner, Ceremoniemeester, Openingsdans). Het portaal staat meteen klaar met starttaken, meetings, draaiboek-tabbladen, RSVP-formulieren voor Daggasten en Avondgasten, meeneemlijsten, stylingplekken, eetmomenten en opdrachten; het bruidspaar ziet niets totdat Sabine op "Maak beschikbaar en deel" klikt. Pakketten later toevoegen of weghalen kan op Gegevens & delen
+* Dashboard met meldingen (opdracht afgerond, nieuwe favorieten bij de aanraders), Mijn takenbord en Mijn agenda
+* Pakketten (met soort: die bepaalt het menu), Opdrachten (ook de delen van Thema & Styling: teksten, vragen, Pinterest-borden, voorbeeld), Aanraders (leveranciers met foto, brochure en haar ervaring), Standaardlijsten (plekken in het stylingplan, eetmomenten, meeneemlijsten, tekst bij de groepsfoto's), Instellingen portaal
 
 **Het portaal (`/k/...`, eigen huisstijl: Playfair Display, goud `#A89650`, bordeaux `#6B1E2E`)**
-* Hoofdpagina: cover met countdown, welkom, tegels, takenbord (Bruidspaar, Sabine, Bruid, Bruidegom) met geschiedenis, vragenblok (antwoord per mail) met geschiedenis, contactkaart met pasfoto
-* Jullie Pakket: meetings met samenvatting (tekst of bestand), Detailbespreking, optioneel Evaluatie
-* Draaiboek: tabbladen (Dagplanning met Tijd, Wie, Wat, Meer info, Waar, Waar bij regen; plus lijsten), verwachte gasten bovenaan, tabblad Leveranciers vult zich vanuit Jullie leveranciers, compacte printversie
-* Jullie leveranciers: alle categorieën, status, contact, notities en documenten
-* Afspraken & deadlines, Kostenoverzicht
-* Gastenlijst & RSVP: per groep een formulier met eigen link en QR-code (kleur en achtergrond instelbaar, download als png of svg), vragenlijst per bruiloft aan te passen (deel van de dag, dieet, dresscode, eigen vragen), bevestigings- of afmeldmail met eigen tekst, melding aan Sabine en het bruidspaar. Ieder persoon een eigen regel in de gastenlijst; wie samen aanmeldt blijft gekoppeld
-* Opdrachten: vragen met notitievelden, tussentijds opslaan, insturen; zichtbaar vanaf een datum; AI-samenvatting na insturen (Sabine kan hem aanpassen)
-* Stylingplan & Moodboard: AI-concept uit de opdracht Thema & Moodboard, door Sabine verfijnd met kleurenpalet en pas zichtbaar na publiceren; moodboard-afbeeldingen
+* Menu per pakket: alleen de openingsdans geeft Overzicht, Afspraken, De openingsdans en Facturen & Offertes; andere pagina's zijn dan ook via een link niet bereikbaar. Sabine ziet altijd alles. Overzicht is een huisje
+* Overzicht: cover, vaste welkomsttekst, tegels, blok Binnenkort (afspraken en "Binnenkort betalen"), takenbord, vragenblok (een antwoord blijft zichtbaar tot het bruidspaar het opent; melding per mail zonder het antwoord), contactkaart
+* Jullie pakket: de pakketten, meetings met samenvatting, extra documenten (vast voor alle bruidsparen of per bruidspaar). Facturen & Offertes: documenten van Sabine
+* Draaiboek: dagplanning met namen in kleur, meegroeiende velden, slepen of pijltjes, rijen van Sabine op slot voor het bruidspaar; opstelling (diner en ceremonie, gasten plaatsen); meeneemlijsten; stylingplan; groepsfoto's; gastenlijst voor op de dag; leveranciers; printen met keuze per tabblad
+* Jullie leveranciers: alles direct invulbaar, vijf statussen, meerdere per categorie, eigen categorieën, aanraders met favorieten
+* Gastenlijst & RSVP: gastenlijst per gastengroep, uitnodigingslijst (Excel importeren en downloaden), formulieren met standaardvragen, eigen vragen (met "alleen tonen als"), headerfoto, bevestigingsmails met alle antwoorden, QR-codes
+* Eten & allergieën: eetmomenten, wie eet er mee (personen, eigen groepen, RSVP-groepen met automatische aantallen), allergielijst (kopiëren of PDF), deel van de dag per gast
+* Stylingplan & Moodboard: plan per plek (wat, wie, klaargezet, afbeeldingen), moodboard, samenvatting met AI als concept dat Sabine vrijgeeft
+* Opdrachten: vragen, of opdrachten in delen met notitievelden en "Opdracht afgerond"; Budgetplanning met de begroting
+* Kosten: begroot, werkelijk, verschil, aanbetaald, resterend, betaaldatum, cirkeldiagram, pakketregels van Estasi
+* De openingsdans: wensen van het bruidspaar (dans, muziek met audiobestand, inspiratie) en notities van Sabine
 
-**Nog niet**: offertes met digitaal ondertekenen, Sabine's aanraders (fotokaarten per categorie), de dagelijkse e-mailsamenvatting van activiteit (de activiteit wordt al vastgelegd).
+**Beveiliging**: elke pagina, actie en elk bestand van een bruidspaar loopt via `requireCouple` (`src/lib/ws/access.ts`): een bruidspaar ziet alleen het eigen, gedeelde portaal. Bestanden staan in Supabase Storage (zie Uploads). RSVP-formulieren zijn openbaar via een moeilijk te raden link, met een limiet per IP en een honeypot. De tabellen hebben row level security aan en geen rechten voor de publieke Supabase API.
 
-**Beveiliging**: elke pagina, actie en elk bestand van een bruidspaar loopt via `requireCouple` (`src/lib/ws/access.ts`): een bruidspaar ziet alleen het eigen, gedeelde portaal. Bestanden staan in de database (max. 10 MB). RSVP-formulieren zijn openbaar via een moeilijk te raden link, met een limiet per IP en een honeypot. De tabellen hebben row level security aan en geen rechten voor de publieke Supabase API.
-
-**AI**: met `ANTHROPIC_API_KEY` worden opdrachten samengevat en kan Sabine een concept-stylingplan laten maken (model Claude Opus 5.5; een samenvatting kost een paar cent). Zonder sleutel schrijft Sabine die zelf.
+**AI**: met `ANTHROPIC_API_KEY` worden opdrachten samengevat en maakt "Samenvatting maken" een concept-stylingplan met voorstellen per plek (model Claude Opus 5.5; een samenvatting kost een paar cent). Zonder sleutel schrijft Sabine die zelf.
 
 **Lokaal**: Your Wedding Space heeft een Postgres-database nodig. Zet `DATABASE_URL` naar een lokale database, draai `node scripts/migrate.mjs` en start de app. Op een lege lokale database heeft migratie 0001 de Supabase-schema's `auth` en `storage` nodig; voor alleen Wedding Space kun je die als lege stubs aanmaken (zie de testopzet in de commitgeschiedenis) of tegen een Supabase-branch werken.
 
