@@ -81,7 +81,7 @@ Hoe het in elkaar zit:
 1. **Migraties**: gaan vanzelf bij elke deploy (zie Deployen). Handmatig kan ook: `npm run db:migrate` met `DATABASE_URL` gezet, of de bestanden uit `supabase/migrations` op volgorde in de SQL editor plakken.
 2. **Authentication, Sign In / Providers**: e-mail aan, **Allow new users to sign up uit** (alleen uitnodigen). Minimale wachtwoordlengte 10. Email OTP Expiration op 86400 (24 uur), zodat een uitnodiging een dag geldig is.
 3. **Authentication, URL Configuration**: Site URL = de `APP_URL`, en bij Redirect URLs `APP_URL/**`.
-4. **Authentication, SMTP**: eigen SMTP instellen (bijvoorbeeld Resend, afzender op het domein van Estasi). De ingebouwde mailer van Supabase mailt alleen naar teamleden en maar een paar keer per uur.
+4. **Authentication, SMTP**: eigen SMTP instellen, met Resend: host `smtp.resend.com`, poort `465`, gebruiker `resend`, wachtwoord = de Resend API key, afzender een adres op het geverifieerde domein (bijvoorbeeld `academy@estasiweddings.nl`). De ingebouwde mailer van Supabase mailt alleen naar teamleden en maar een paar keer per uur.
 5. **Authentication, Email Templates**: zet in de templates de link zo:
    * Invite user: `{{ .SiteURL }}/auth/bevestigen?token_hash={{ .TokenHash }}&type=invite`
    * Reset password: `{{ .SiteURL }}/auth/bevestigen?token_hash={{ .TokenHash }}&type=recovery`
@@ -108,7 +108,8 @@ Er staat een `Dockerfile` (werkt op beide) en een `render.yaml` blueprint. Zet i
 | `SUPABASE_ANON_KEY` | publishable key (`sb_publishable_...`) of de oude anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | secret key (`sb_secret_...`) of de oude service_role key, geheim |
 | `DATABASE_URL` | migraties én Your Wedding Space: in Supabase de knop **Connect**, dan **Session pooler** (poort 5432, niet de transaction pooler), met het databasewachtwoord ingevuld. Geheim |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | e-mail van Your Wedding Space (uitnodigingen, vragen, RSVP). Kan dezelfde SMTP zijn als in Supabase Auth |
+| `RESEND_API_KEY`, `MAIL_FROM` | e-mail van Your Wedding Space (uitnodigingen, vragen, RSVP) via de API van Resend. `MAIL_FROM` moet op het bij Resend geverifieerde domein staan. Geheim |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | alleen als je geen Resend gebruikt: een andere SMTP-server |
 | `ADMIN_NOTIFY_EMAIL` | waar meldingen voor Sabine heen gaan |
 | `ANTHROPIC_API_KEY` | optioneel: AI-samenvattingen en concept-stylingplan |
 
@@ -117,6 +118,16 @@ En in Render bij Settings (met de blueprint staat dit er al in):
 * **Pre-Deploy Command**: `node scripts/migrate.mjs`
 
 Het migratiescript voert alleen de nieuwe bestanden uit `supabase/migrations` uit, op volgorde. Wat al gedaan is staat in de tabel `public.schema_migrations`; migraties die eerder met de hand zijn uitgevoerd worden herkend. Elke migratie loopt in één transactie: mislukt hij, dan wordt alles teruggedraaid, stopt de deploy en blijft de vorige versie draaien. Een nieuwe migratie is dus gewoon een nieuw bestand, bijvoorbeeld `0003_iets.sql`.
+
+### E-mail via Resend
+
+Alle e-mail loopt via Resend: die van Your Wedding Space via de API (`RESEND_API_KEY`), die van inloggen en wachtwoorden (Supabase Auth) via de SMTP van Resend.
+
+1. Account op resend.com; onder **Domains** het domein `estasiweddings.nl` toevoegen en de DNS-records (SPF, DKIM en eventueel DMARC) bij de domeinbeheerder zetten. Wacht tot Resend het domein als *Verified* toont.
+2. Onder **API Keys** een key maken met *Sending access* voor dat domein.
+3. In Render: `RESEND_API_KEY` = de key, `MAIL_FROM` = bijvoorbeeld `Sabine van Estasi Weddings <sabine@estasiweddings.nl>`. `SMTP_*` leeg laten.
+4. In Supabase, Authentication, SMTP: host `smtp.resend.com`, poort `465`, gebruiker `resend`, wachtwoord = dezelfde key.
+5. Test: deel een portaal met een eigen e-mailadres of vul een RSVP in. Lukt het niet, dan staat de reden van Resend in de log van Render (`[mail] versturen mislukt`).
 
 ### Uploads van Your Wedding Space
 

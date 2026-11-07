@@ -109,7 +109,7 @@ export async function answerQuestion(formData: FormData) {
     subject: "Er staat een antwoord voor jullie klaar",
     text: `Hoi ${coupleName(ctx.couple)},\n\nSabine heeft jullie vraag in Your Wedding Space beantwoord. Log in om het antwoord te lezen:\n${appUrl()}${portal(ctx.couple.id, "#vragenblok")}`,
   });
-  done(back, sent ? "Antwoord opgeslagen. Het bruidspaar krijgt een melding per e-mail." : "Antwoord opgeslagen. (Er is geen e-mail verstuurd: SMTP staat niet ingesteld.)");
+  done(back, sent ? "Antwoord opgeslagen. Het bruidspaar krijgt een melding per e-mail." : "Antwoord opgeslagen. (Er is geen e-mail verstuurd: het versturen van e-mail staat niet ingesteld of mislukte.)");
 }
 
 /** The couple opened an answer: from now on it is in the history. Sabine opening it changes nothing. */

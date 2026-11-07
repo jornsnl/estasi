@@ -26,7 +26,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <Notice searchParams={searchParams} />
       {!mailConfigured() && (
         <p className="rounded-xl border border-gold/50 bg-white p-4 text-sm">
-          E-mail staat nog niet aan (SMTP ontbreekt). Uitnodigingen toon ik je als link om zelf door te sturen; meldingen over vragen komen nog niet aan.
+          E-mail staat nog niet aan (RESEND_API_KEY ontbreekt). Uitnodigingen toon ik je als link om zelf door te sturen; meldingen over vragen komen nog niet aan.
         </p>
       )}
 

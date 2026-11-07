@@ -119,7 +119,7 @@ export async function setCouplePackages(formData: FormData) {
   done(back, "Pakketten opgeslagen. Het menu van het bruidspaar past zich aan.");
 }
 
-/** Without SMTP the links are shown to Sabine once, through a short-lived cookie. */
+/** Without e-mail (no Resend key or SMTP) the links are shown to Sabine once, through a short-lived cookie. */
 async function showLinksOnce(links: { email: string; link: string }[]) {
   (await cookies()).set("ws_links", JSON.stringify(links), {
     httpOnly: true,

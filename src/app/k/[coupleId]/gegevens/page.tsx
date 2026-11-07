@@ -48,7 +48,7 @@ export default async function CoupleSettings({
       {links.length > 0 && (
         <section className="card border border-gold/50 p-5">
           <h2 className="text-lg">Stuur deze link zelf door</h2>
-          <p className="mt-1 text-sm text-muted">De e-mail kon niet worden verstuurd{mailConfigured() ? "" : " (SMTP is niet ingesteld)"}. Deze link is persoonlijk en werkt één keer. Hij is hier maar kort zichtbaar.</p>
+          <p className="mt-1 text-sm text-muted">De e-mail kon niet worden verstuurd{mailConfigured() ? "" : " (e-mail staat nog niet ingesteld)"}. Deze link is persoonlijk en werkt één keer. Hij is hier maar kort zichtbaar.</p>
           {links.map((l) => (
             <div key={l.link} className="mt-3">
               <p className="text-sm font-medium">{l.email}</p>
