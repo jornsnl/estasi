@@ -16,6 +16,11 @@ import {
 import { authClient } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/supabase/config";
 
+const safeNext = (value: FormDataEntryValue | null) => {
+  const next = String(value ?? "");
+  return next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : null;
+};
+
 const back = (path: string, error: string) => redirect(`${path}${path.includes("?") ? "&" : "?"}fout=${encodeURIComponent(error)}`);
 
 async function clientIp(): Promise<string> {
@@ -31,7 +36,9 @@ export async function login(formData: FormData) {
   const password = String(formData.get("password") ?? "").slice(0, 200);
   const emailKey = `login:email:${email}`;
   const ipKey = `login:ip:${await clientIp()}`;
-  if (isLimited(emailKey, LOGIN_PER_EMAIL) || isLimited(ipKey, LOGIN_PER_IP)) back("/login", TOO_MANY);
+  const next = safeNext(formData.get("next"));
+  const loginPath = next ? `/login?next=${encodeURIComponent(next)}` : "/login";
+  if (isLimited(emailKey, LOGIN_PER_EMAIL) || isLimited(ipKey, LOGIN_PER_IP)) back(loginPath, TOO_MANY);
 
   const store = getStore();
   let userId: string | null = null;
@@ -51,11 +58,12 @@ export async function login(formData: FormData) {
     }
     hit(emailKey, LOGIN_PER_EMAIL);
     hit(ipKey, LOGIN_PER_IP);
-    back("/login", "Onbekend e-mailadres of onjuist wachtwoord.");
+    back(loginPath, "Onbekend e-mailadres of onjuist wachtwoord.");
   }
   clear(emailKey);
   if (isLocalMode()) await startLocalSession(user!.id);
-  redirect(homeFor(user!));
+  // Back to where the visitor came from (for example the MCP consent screen).
+  redirect(next ?? homeFor(user!));
 }
 
 export async function logout() {
@@ -148,10 +156,7 @@ export async function setNewPassword(formData: FormData) {
   redirect(homeFor(current.user));
 }
 
-const safeNext = (value: FormDataEntryValue | null) => {
-  const next = String(value ?? "");
-  return next.startsWith("/") && !next.startsWith("//") ? next : null;
-};
+
 
 export interface MfaState {
   error?: string;

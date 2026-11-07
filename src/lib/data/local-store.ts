@@ -16,6 +16,7 @@ import type {
   User,
 } from "./types";
 import { createSeed } from "./seed";
+import type { McpSettings, OAuthClient, OAuthCode, OAuthGrant, Passkey } from "@/lib/security/types";
 
 /**
  * Local development storage: one JSON file in DATA_DIR (default ./.data).
@@ -35,6 +36,16 @@ export interface LocalDb {
   audit: AuditEntry[];
   files: StoredFileMeta[];
   settings: Settings;
+  /** Passkeys and the MCP connection (src/lib/security). Missing in older files. */
+  security?: LocalSecurity;
+}
+
+export interface LocalSecurity {
+  passkeys: Passkey[];
+  mcpSettings: McpSettings[];
+  oauthClients: OAuthClient[];
+  oauthCodes: OAuthCode[];
+  oauthGrants: OAuthGrant[];
 }
 
 const dataDir = () => path.resolve(process.env.DATA_DIR ?? ".data");
@@ -66,13 +77,13 @@ async function persist(db: LocalDb) {
   await fs.rename(tmp, dbPath());
 }
 
-function db(): Promise<LocalDb> {
+export function db(): Promise<LocalDb> {
   state.__academyDb ??= load();
   return state.__academyDb;
 }
 
 /** Runs a mutation and writes the file; writes are serialised. */
-async function mutate<T>(fn: (db: LocalDb) => T): Promise<T> {
+export async function mutate<T>(fn: (db: LocalDb) => T): Promise<T> {
   const data = await db();
   const result = fn(data);
   const previous = state.__academyWrite ?? Promise.resolve();

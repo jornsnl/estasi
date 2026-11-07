@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getStore, isSupabaseMode, type User } from "@/lib/data";
 import { adminClient, authClient } from "@/lib/supabase/server";
+import { clearPasskeyMarker, isPasskeySession } from "./passkeys";
 
 /**
  * Who is logged in. Two backends:
@@ -80,11 +81,17 @@ async function session(): Promise<SessionInfo | null> {
   const supabase = await authClient();
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data?.claims?.sub) return null;
+  const sub = data.claims.sub;
+  // A passkey is both factors at once (device plus fingerprint, face or PIN), so a session
+  // started with one counts as checked. The marker is signed and bound to this session id.
+  if (await isPasskeySession(sub, data.claims.session_id as string | undefined)) {
+    return { userId: sub, aal: "aal2", needsCode: false };
+  }
   const aal = data.claims.aal === "aal2" ? "aal2" : "aal1";
   // MFA is optional. Whoever linked an app must still give the code, otherwise the app protects nothing.
   // Whether an app is linked comes from Supabase itself, never from the cookie (which the visitor can edit).
-  const needsCode = aal !== "aal2" && (await hasVerifiedFactor(data.claims.sub));
-  return { userId: data.claims.sub, aal, needsCode };
+  const needsCode = aal !== "aal2" && (await hasVerifiedFactor(sub));
+  return { userId: sub, aal, needsCode };
 }
 
 // Linked authenticator apps, asked from Supabase Auth with the secret key and
@@ -112,6 +119,7 @@ export async function endSession() {
   if (isSupabaseMode()) {
     // Revokes the refresh token at Supabase, so a copied cookie stops working.
     await (await authClient()).auth.signOut({ scope: "local" });
+    await clearPasskeyMarker();
   } else {
     (await cookies()).delete(COOKIE);
   }
