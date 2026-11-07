@@ -75,6 +75,7 @@ Hoe het in elkaar zit:
 * Uitnodiging en herstel: Supabase mailt een link naar `/auth/bevestigen`. De link wordt pas gebruikt als de cursist op Doorgaan drukt, zodat virusscanners in de mail hem niet opmaken. Daarna kiest de cursist een wachtwoord op `/wachtwoord-instellen`
 * Tweestapsverificatie is optioneel. De opleider zet hem aan via Instellingen (aanbevolen). Wie een authenticator app heeft gekoppeld, moet bij elke nieuwe login de code geven
 * Mislukte inlogpogingen worden per e-mailadres en per IP beperkt (`src/lib/auth/rate-limit.ts`)
+* Het beheeraccount kan ook inloggen met een passkey (zie Passkeys en MCP)
 
 ### Eenmalig instellen
 
@@ -94,6 +95,50 @@ Hoe het in elkaar zit:
    Dit controleert de migraties, vult de instellingen, maakt het opleidersaccount en mailt de uitnodiging. Met `--voorbeeldinhoud` laadt het ook de zes voorbeeldmodules (alleen als er nog geen modules zijn). Opnieuw draaien is veilig.
 
 Raakt de opleider de authenticator app kwijt: in Supabase onder Authentication, Users, het account openen en de MFA factor verwijderen. Daarna logt ze weer in met alleen haar wachtwoord en kan ze via Instellingen een nieuwe app koppelen.
+
+## Passkeys en MCP (beheeraccount)
+
+Onder **Beheer, Profiel en beveiliging** (`/beheer/profiel`) staan twee dingen voor het opleidersaccount.
+
+### Passkeys
+
+Inloggen zonder wachtwoord, met vingerafdruk, gezicht of de pincode van het apparaat (WebAuthn, via `@simplewebauthn`). Op het inlogscherm staat de knop *Inloggen met passkey*.
+
+* Alleen het beheeraccount kan passkeys toevoegen (maximaal 10). Ze werken alleen op het domein van `APP_URL`: verandert het domein, dan moeten de passkeys opnieuw worden toegevoegd
+* Een passkey vraagt altijd om vingerafdruk, gezicht of pincode, dus hij telt als beide stappen: na inloggen met een passkey wordt geen authenticator code meer gevraagd. Inloggen met het wachtwoord blijft gewoon werken, met de code als die is gekoppeld
+* Met Supabase controleert de app de passkey zelf en start daarna een gewone Supabase-sessie (een eenmalige inloglink die meteen op de server wordt gebruikt en nooit wordt gemaild). In Supabase hoeft niets te worden ingesteld. Dat de sessie met een passkey is begonnen, staat in een ondertekende cookie die aan die ene sessie vastzit
+* Code: `src/lib/auth/passkeys.ts`, `src/app/actions/passkeys.ts`, tabel `passkeys` (migratie `0016`)
+
+### MCP (Model Context Protocol)
+
+Een AI-assistent zoals Claude kan met toestemming van Sabine in de Academy en Your Wedding Space kijken en, als zij dat toestaat, dingen doen. De server staat op `APP_URL/api/mcp` (Streamable HTTP, JSON-antwoorden, zonder sessiestatus).
+
+Inloggen gaat met **OAuth 2.1**; de app is zelf de autorisatieserver:
+
+| Onderdeel | Adres |
+| --- | --- |
+| Metadata van de resource (RFC 9728) | `/.well-known/oauth-protected-resource` |
+| Metadata van de autorisatieserver (RFC 8414) | `/.well-known/oauth-authorization-server` |
+| Zelf aanmelden van apps (RFC 7591) | `/api/oauth/register` |
+| Toestemmingsscherm | `/oauth/authorize` |
+| Tokens (authorization code met PKCE S256, refresh token) | `/api/oauth/token` |
+| Token intrekken (RFC 7009) | `/api/oauth/revoke` |
+
+Zo werkt het:
+* MCP staat standaard uit. Sabine zet het aan op haar profiel en kiest of apps ook mogen **wijzigen** (scope `write`) of alleen **lezen** (`read`)
+* Claude koppelen: in Claude bij Instellingen, Connectors een aangepaste connector toevoegen met de server-URL. Claude meldt zich zelf aan, stuurt Sabine naar het toestemmingsscherm (inloggen met passkey of wachtwoord plus code) en zij kiest Toestaan. Apps die zich niet zelf kunnen aanmelden maakt ze op het profiel aan, met een client ID en secret
+* Aanmelden alleen geeft geen toegang; elke verbinding moet op het toestemmingsscherm worden goedgekeurd. Zelf aangemelde apps die nooit zijn goedgekeurd verdwijnen na een dag
+* Access tokens zijn een uur geldig, refresh tokens dertig dagen en worden bij elk gebruik vervangen (een oud refresh token werkt niet meer). Tokens, codes en secrets staan alleen als sha256 in de database
+* Op het profiel staan de verbonden apps met laatste gebruik; *Verbreken* trekt de toegang direct in. MCP uitzetten blokkeert alle apps meteen
+* Wijzigingen via MCP komen in het logboek met de naam van de app
+
+Tools (de lijst met uitleg staat ook op het profiel):
+* **Academy, lezen**: overzicht, cursisten (zoeken en filteren op toegang), één cursist met voortgang en notities, openstaande feedback, antwoorden van een cursist, lesinhoud, één les, logboek, instellingen
+* **Academy, wijzigen**: feedback geven, interne notities, toegang (verlengen, einddatum, pauzeren, hervatten, intrekken, herstellen), afronding bevestigen, certificaat vrijgeven en praktijkstatus
+* **Your Wedding Space, lezen** (als `DATABASE_URL` is ingesteld): bruidsparen, één bruidspaar, takenbord (ook Sabine's eigen bord), vragen, agenda (afspraken, deadlines, meetings en bruiloften), meetings, leveranciers, kosten en budget, RSVP, draaiboek, activiteit, pakketten
+* **Your Wedding Space, wijzigen**: taak toevoegen, taak afvinken, vraag beantwoorden (met e-mail aan het bruidspaar), afspraak of deadline toevoegen, meeting bijwerken
+
+Code: `src/lib/oauth/` (autorisatieserver), `src/lib/mcp/` (protocol en tools), `src/app/api/mcp/route.ts`, tabellen `mcp_settings`, `oauth_clients`, `oauth_codes` en `oauth_grants` (migratie `0016`).
 
 ## Deployen (Render of Railway)
 

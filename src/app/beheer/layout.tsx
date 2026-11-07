@@ -16,6 +16,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
         { href: "/beheer/inhoud", label: "Lesinhoud" },
         { href: "/beheer/instellingen", label: "Instellingen" },
         { href: "/beheer/logboek", label: "Logboek" },
+        { href: "/beheer/profiel", label: "Profiel en beveiliging" },
         { href: "/beheer/bruidsparen", label: "Bruidsparen", exact: true, section: "Your Wedding Space" },
         { href: "/beheer/bruidsparen/nieuw", label: "Nieuw bruidspaar" },
         { href: "/beheer/bruidsparen/takenbord", label: "Mijn takenbord" },
