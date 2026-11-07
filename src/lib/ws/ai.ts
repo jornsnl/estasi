@@ -81,3 +81,31 @@ Houd het bij wat het bruidspaar schreef.`,
 }
 
 export { extractColors } from "./pure";
+
+import { parseStylingProposal, type StylingProposal } from "./pure";
+export type { StylingProposal };
+
+/**
+ * "Samenvatting maken" (Thema & Styling): an overview of style, atmosphere,
+ * colours and materials, plus per place of the styling plan a first proposal
+ * of items. It lands as a draft that only Sabine sees until she releases it.
+ */
+export async function stylingSummary(sources: { title: string; items: QA[] }[], places: string[]): Promise<StylingProposal> {
+  const text = await complete(
+    `${sources.map((s) => formatAnswers(s.title, s.items)).join("\n\n")}
+
+<plekken>${places.map((p) => `<plek>${p}</plek>`).join("")}</plekken>
+
+Maak op basis van deze antwoorden een eerste opzet voor het stylingplan. Antwoord met alleen JSON, zonder uitleg eromheen, in deze vorm:
+{"samenvatting": "...", "kleuren": ["#RRGGBB", ...], "items": [{"plek": "...", "wat": "..."}, ...]}
+
+- samenvatting: een overzicht van stijl, sfeer, kleuren en materialen in korte alinea's (gewone tekst, alinea's gescheiden door een lege regel). Eindig met "Open punten:" als er iets ontbreekt.
+- kleuren: 4 tot 6 kleuren uit wat het bruidspaar beschrijft.
+- items: per plek uit <plekken> 2 tot 5 concrete stylingitems (bijvoorbeeld "Welkomstbord op ezel met droogbloemen"), alleen waar de antwoorden aanleiding toe geven. Gebruik precies de namen van de plekken.
+Houd het bij wat het bruidspaar schreef.`,
+    8000,
+  );
+  return parseStylingProposal(text, places);
+}
+
+export { parseStylingProposal } from "./pure";

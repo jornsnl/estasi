@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
 import { markFavoritesSeen } from "@/app/actions/ws-suppliers";
+import { markNoticesSeen } from "@/app/actions/ws-styling";
 import { SubmitButton } from "@/components/SubmitButton";
 import { listCouples } from "@/lib/ws/couples";
 import { query } from "@/lib/ws/db";
@@ -22,6 +23,9 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
        left join supplier_categories sc on sc.id = r.category_id
       where e.seen_at is null order by e.created_at desc limit 30`,
   );
+  const notices = await query<{ id: string; text: string; link: string; created_at: Date }>(
+    "select id, text, link, created_at from admin_notices where seen_at is null order by created_at desc limit 30",
+  );
 
   return (
     <div className="space-y-6">
@@ -39,6 +43,23 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
         <Link href="/beheer/bruidsparen/takenbord" className="card p-4 hover:shadow-md"><p className="text-sm text-muted">Mijn open taken</p><p className={`font-serif text-3xl ${openTasks ? "text-bordeaux" : ""}`}>{openTasks}</p></Link>
         <div className="card p-4"><p className="text-sm text-muted">Onbeantwoorde vragen</p><p className={`font-serif text-3xl ${openQuestions ? "text-bordeaux" : ""}`}>{openQuestions}</p></div>
       </section>
+
+      {notices.length > 0 && (
+        <section className="card border border-success/40 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg">Meldingen</h2>
+            <form action={markNoticesSeen}><SubmitButton className="btn-ghost py-1 text-xs">Gezien</SubmitButton></form>
+          </div>
+          <ul className="mt-2 divide-y divide-line text-sm">
+            {notices.map((n) => (
+              <li key={n.id} className="flex flex-wrap justify-between gap-2 py-2">
+                <Link href={n.link || "#"} className="hover:text-bordeaux">{n.text}</Link>
+                <span className="text-xs text-muted">{formatDateTime(n.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {favorites.length > 0 && (
         <section className="card border border-bordeaux/30 p-5">

@@ -130,10 +130,16 @@ export function FileUpload({
     await Promise.all([0, 1].map(async () => {
       while (queue.length) await queue.shift()!();
     }));
-    if (autoSubmit && itemsRef.current.some((i) => i.state === "done") && !itemsRef.current.some((i) => i.state === "working")) {
-      input.current?.form?.requestSubmit();
-    }
+    if (autoSubmit) setSubmitWhenReady(true);
   }
+
+  // Submit once every upload has finished and its hidden field is on the page.
+  const [submitWhenReady, setSubmitWhenReady] = useState(false);
+  useEffect(() => {
+    if (!submitWhenReady || items.some((i) => i.state === "working")) return;
+    setSubmitWhenReady(false);
+    if (items.some((i) => i.state === "done")) input.current?.form?.requestSubmit();
+  }, [submitWhenReady, items]);
 
   function remove(key: string) {
     setItems((list) => list.filter((i) => i.key !== key));

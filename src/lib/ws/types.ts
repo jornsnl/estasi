@@ -63,6 +63,7 @@ export interface Settings {
   evaluation_guide: string;
   contact_photo_file_id: string | null;
   group_photo_intro: string;
+  default_styling_places: string[];
 }
 
 export interface Task {

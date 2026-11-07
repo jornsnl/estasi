@@ -14,8 +14,34 @@ export interface Assignment {
   ai_summary: string;
   ai_summary_at: Date | null;
   ai_error: string;
+  kind: "questions" | "sections";
+  closing: string;
+  completed_at: Date | null;
+  /** Questions answered, or for an assignment in parts: parts marked done. */
   answered: number;
   total: number;
+}
+
+export interface SectionField {
+  key: string;
+  label: string;
+  prompts: string[];
+}
+
+export interface AssignmentSection {
+  id: string;
+  title: string;
+  intro: string;
+  kind: "notes" | "moodboard";
+  fields: SectionField[];
+  tips: string[];
+  embeds: string[];
+  example_file_id: string | null;
+  notice: string;
+  answers: Record<string, string>;
+  link: string;
+  completed_at: Date | null;
+  position: number;
 }
 
 export interface AssignmentQuestion {
@@ -30,8 +56,12 @@ export interface AssignmentQuestion {
 export async function assignmentsFor(coupleId: string, isAdmin: boolean): Promise<Assignment[]> {
   return query<Assignment>(
     `select a.*,
-            (select count(*)::int from assignment_questions q where q.assignment_id = a.id and q.answer <> '') as answered,
-            (select count(*)::int from assignment_questions q where q.assignment_id = a.id) as total
+            case when a.kind = 'sections'
+                 then (select count(*)::int from assignment_sections s where s.assignment_id = a.id and s.completed_at is not null)
+                 else (select count(*)::int from assignment_questions q where q.assignment_id = a.id and q.answer <> '') end as answered,
+            case when a.kind = 'sections'
+                 then (select count(*)::int from assignment_sections s where s.assignment_id = a.id)
+                 else (select count(*)::int from assignment_questions q where q.assignment_id = a.id) end as total
        from assignments a
       where a.couple_id = $1 and ($2 or a.visible_from is null or a.visible_from <= $3)
       order by a.position`,
@@ -41,3 +71,22 @@ export async function assignmentsFor(coupleId: string, isAdmin: boolean): Promis
 
 export const questionsFor = (assignmentId: string) =>
   query<AssignmentQuestion>("select id, prompt, help, answer, position from assignment_questions where assignment_id = $1 order by position", [assignmentId]);
+
+export const sectionsFor = (assignmentId: string) =>
+  query<AssignmentSection>(
+    `select id, title, intro, kind, fields, tips, embeds, example_file_id, notice, answers, link, completed_at, position
+       from assignment_sections where assignment_id = $1 order by position`,
+    [assignmentId],
+  );
+
+/** Everything filled in, as question and answer pairs (for the summary and the AI). */
+export function sectionQA(sections: AssignmentSection[]): { prompt: string; answer: string }[] {
+  return sections.flatMap((s) =>
+    s.kind === "moodboard"
+      ? [{ prompt: `${s.title}: link naar moodboard`, answer: s.link }]
+      : s.fields.map((f) => ({
+          prompt: `${s.title}${f.label ? `, ${f.label}` : ""}: ${f.prompts.join(" ")}`,
+          answer: s.answers?.[f.key] ?? "",
+        })),
+  );
+}

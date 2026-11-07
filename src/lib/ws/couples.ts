@@ -150,6 +150,13 @@ export async function createCouple(input: NewCouple, createdBy: string): Promise
       [coupleId, input.partner1_first, input.partner2_first],
       db,
     );
+    // The standard places of the styling plan (Sabine keeps the list in Beheer).
+    await query(
+      `insert into styling_places (couple_id, name, position)
+       select $1, p.name, p.ord from jsonb_array_elements_text($2::jsonb) with ordinality as p (name, ord)`,
+      [coupleId, JSON.stringify(settings.default_styling_places ?? [])],
+      db,
+    );
     // Standard packing lists, with both first names as "who takes it".
     await query(
       `insert into packing_items (couple_id, list_kind, what, who, is_default, position)
@@ -166,8 +173,8 @@ export async function createCouple(input: NewCouple, createdBy: string): Promise
 /** Copies one of Sabine's assignment templates into a couple's portal. */
 export async function copyAssignmentTemplate(coupleId: string, templateId: string, db?: Parameters<typeof query>[2]) {
   const assignment = await one<{ id: string }>(
-    `insert into assignments (couple_id, template_id, title, intro, styling_source, position)
-     select $1, t.id, t.title, t.intro, t.styling_source,
+    `insert into assignments (couple_id, template_id, title, intro, styling_source, kind, closing, position)
+     select $1, t.id, t.title, t.intro, t.styling_source, t.kind, t.closing,
             (select coalesce(max(position), 0) + 1 from assignments where couple_id = $1)
        from assignment_templates t where t.id = $2 returning id`,
     [coupleId, templateId],
@@ -177,6 +184,12 @@ export async function copyAssignmentTemplate(coupleId: string, templateId: strin
   await query(
     `insert into assignment_questions (assignment_id, prompt, help, position)
      select $1, prompt, help, position from assignment_template_questions where template_id = $2`,
+    [assignment.id, templateId],
+    db,
+  );
+  await query(
+    `insert into assignment_sections (assignment_id, title, intro, kind, fields, tips, embeds, example_file_id, notice, position)
+     select $1, title, intro, kind, fields, tips, embeds, example_file_id, notice, position from assignment_template_sections where template_id = $2`,
     [assignment.id, templateId],
     db,
   );

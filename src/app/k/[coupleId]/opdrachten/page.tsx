@@ -41,7 +41,7 @@ export default async function Assignments({
                 <div>
                   <h2 className="text-lg">{a.title}</h2>
                   <p className="text-sm text-muted">
-                    {a.answered} van {a.total} vragen ingevuld
+                    {a.answered} van {a.total} {a.kind === "sections" ? "opdrachten afgerond" : "vragen ingevuld"}
                     {isAdmin && hidden ? ` · zichtbaar vanaf ${formatDate(a.visible_from)}` : ""}
                   </p>
                 </div>

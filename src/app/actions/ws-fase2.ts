@@ -202,7 +202,9 @@ export async function saveStylingPlan(formData: FormData) {
 
 export async function stylingImage(formData: FormData) {
   const ctx = await ctxFrom(formData);
-  const back = portal(ctx.couple.id, "/styling");
+  // Also used from the moodboard part of the assignment; only back to a page of this couple.
+  const wanted = str(formData, "back", 300);
+  const back = wanted.startsWith(portal(ctx.couple.id, "/")) ? wanted : portal(ctx.couple.id, "/styling#moodboard");
   const imageId = id(formData, "imageId");
   if (imageId) {
     await deleteFiles(

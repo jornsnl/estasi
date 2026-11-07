@@ -129,3 +129,29 @@ export function timeOutOfOrder(rows: { at_time: string }[], index: number): bool
   const after = rows.slice(index + 1).map((r) => timeKey(r.at_time)).filter((k) => k !== Number.MAX_SAFE_INTEGER);
   return (before.length > 0 && before[before.length - 1] > key) || (after.length > 0 && after[0] < key);
 }
+
+export interface StylingProposal {
+  summary: string;
+  colors: string[];
+  items: { place: string; what: string }[];
+}
+
+/** Reads the JSON answer forgivingly (a code fence or text around it is fine). */
+export function parseStylingProposal(text: string, places: string[]): StylingProposal {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  let data: { samenvatting?: unknown; kleuren?: unknown; items?: unknown } = {};
+  try {
+    data = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return { summary: text.trim(), colors: extractColors(text), items: [] };
+  }
+  const known = new Map(places.map((p) => [p.toLowerCase(), p]));
+  const items = (Array.isArray(data.items) ? data.items : [])
+    .map((i: { plek?: unknown; wat?: unknown }) => ({ place: known.get(String(i?.plek ?? "").trim().toLowerCase()) ?? "", what: String(i?.wat ?? "").trim().slice(0, 300) }))
+    .filter((i) => i.place && i.what)
+    .slice(0, 60);
+  const colors = (Array.isArray(data.kleuren) ? data.kleuren : []).map(String).filter((c) => /^#[0-9a-fA-F]{6}$/.test(c)).map((c) => c.toLowerCase()).slice(0, 8);
+  return { summary: String(data.samenvatting ?? "").trim(), colors, items };
+}
+

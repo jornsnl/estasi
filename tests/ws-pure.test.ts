@@ -96,3 +96,15 @@ describe("Dagplanning", () => {
     expect(timeOutOfOrder([{ at_time: "12:00" }, { at_time: "" }], 1)).toBe(false);
   });
 });
+
+import { parseStylingProposal } from "@/lib/ws/pure";
+
+describe("AI-samenvatting stylingplan", () => {
+  it("reads the JSON and keeps only known places", () => {
+    const text = 'Hier is het:\n```json\n{"samenvatting":"Romantisch.","kleuren":["#AABBCC","rood"],"items":[{"plek":"diner","wat":"Kaarsen"},{"plek":"Tuin","wat":"x"}]}\n```';
+    expect(parseStylingProposal(text, ["Diner", "Entree"])).toEqual({ summary: "Romantisch.", colors: ["#aabbcc"], items: [{ place: "Diner", what: "Kaarsen" }] });
+  });
+  it("falls back to the plain text", () => {
+    expect(parseStylingProposal("Geen JSON, wel #112233", ["Diner"])).toEqual({ summary: "Geen JSON, wel #112233", colors: ["#112233"], items: [] });
+  });
+});

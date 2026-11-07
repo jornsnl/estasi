@@ -27,7 +27,9 @@ async function isSharedDocument(fileId: string) {
   return Boolean(
     await one(
       `select 1 where exists (select 1 from documents where file_id = $1 and couple_id is null)
-                   or exists (select 1 from recommendations where (photo_file_id = $1 or brochure_file_id = $1) and not archived)`,
+                   or exists (select 1 from recommendations where (photo_file_id = $1 or brochure_file_id = $1) and not archived)
+                   or exists (select 1 from assignment_template_sections where example_file_id = $1)
+                   or exists (select 1 from assignment_sections where example_file_id = $1)`,
       [fileId],
     ),
   );
