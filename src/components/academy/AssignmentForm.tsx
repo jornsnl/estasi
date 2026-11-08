@@ -86,7 +86,7 @@ function wire(assignment: AssignmentBlock, answers: AssignmentAnswers): Assignme
  * the meantime the student chooses which version to keep.
  */
 export function AssignmentForm(props: Props) {
-  const { assignment, lessonId } = props;
+  const { assignment, lessonId, preview } = props;
   const router = useRouter();
   const [answers, setAnswers] = useState<AssignmentAnswers>(props.initial?.draft ?? {});
   const [status, setStatus] = useState(props.initial?.status ?? "concept");
@@ -136,7 +136,7 @@ export function AssignmentForm(props: Props) {
   const save = useCallback(
     (force = false) =>
       enqueue(async () => {
-        if (props.preview || (!dirty.current && !force)) return;
+        if (preview || (!dirty.current && !force)) return;
         if (timer.current) clearTimeout(timer.current);
         dirty.current = false;
         setSaveState("saving");
@@ -163,7 +163,7 @@ export function AssignmentForm(props: Props) {
           setSaveState("error");
         }
       }),
-    [apply, enqueue, request],
+    [apply, enqueue, preview, request],
   );
 
   const touch = useCallback(() => {
