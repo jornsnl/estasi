@@ -3,6 +3,7 @@ import { AdminPwa } from "@/components/AdminPwa";
 import { AppShell } from "@/components/AppShell";
 import { requireOwner } from "@/lib/auth/session";
 import { kickNotifications } from "@/lib/community/notify";
+import { kickExpiryNotices } from "@/lib/academy-expiry";
 import { menuCounts, viewerFor } from "@/lib/community/server";
 import { devAuthAllowed } from "@/lib/auth/dev-mode";
 
@@ -22,6 +23,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
   const user = await requireOwner();
   const counts = await menuCounts(await viewerFor(user));
   kickNotifications();
+  kickExpiryNotices();
   return (
     <AppShell
       userName={user.name}

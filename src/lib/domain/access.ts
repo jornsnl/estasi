@@ -2,7 +2,17 @@ import type { Enrollment } from "@/lib/data/types";
 
 export type AccessStatus = "active" | "paused" | "expired" | "revoked";
 
+/** Standard term of access for a new student (Academy 12). */
 export const ACCESS_MONTHS = 12;
+
+/** Terms Sabine can choose when she adds a student; 12 months is the default. */
+export const ACCESS_TERM_MONTHS = [3, 6, 12, 18, 24] as const;
+
+/** The term from the form; anything unknown falls back to the standard 12 months. */
+export function accessTermMonths(input: unknown): number {
+  const n = Number(input);
+  return (ACCESS_TERM_MONTHS as readonly number[]).includes(n) ? n : ACCESS_MONTHS;
+}
 
 /** Choices for "Verlengen", the same on the overview and on the student page. */
 export const EXTEND_MONTHS = [1, 2, 3, 6, 12] as const;

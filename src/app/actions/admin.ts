@@ -8,7 +8,7 @@ import { requireOwner } from "@/lib/auth/session";
 import { deleteAccount, inviteAccount, resendAccess } from "@/lib/auth/supabase-auth";
 import { supabaseEnabled } from "@/lib/supabase/config";
 import { getStore, type Enrollment, type PackageType, type PracticalStatus } from "@/lib/data";
-import { accessStatus, addMonths, ACCESS_MONTHS, pause, resume } from "@/lib/domain/access";
+import { accessStatus, accessTermMonths, addMonths, pause, resume } from "@/lib/domain/access";
 import { LIMITS } from "@/lib/domain/input";
 import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
 import { addAssignmentFeedback, getSubmissionById, getVersion, relockModule, unlockModule } from "@/lib/data/assignments";
@@ -32,6 +32,7 @@ export async function createStudent(formData: FormData) {
   const email = str(formData, "email", LIMITS.email).toLowerCase();
   const pkg = (str(formData, "package") === "B" ? "B" : "A") as PackageType;
   const purchasedInput = str(formData, "purchasedAt");
+  const months = accessTermMonths(str(formData, "accessMonths"));
   // Midday in Amsterdam, so the day is the same in every time zone the date is shown in.
   const purchasedAt = purchasedInput ? fromDateInput(purchasedInput, "12:00") : new Date().toISOString();
 
@@ -80,7 +81,7 @@ export async function createStudent(formData: FormData) {
       userId,
       package: pkg,
       purchasedAt,
-      endsAt: addMonths(purchasedAt, ACCESS_MONTHS),
+      endsAt: addMonths(purchasedAt, months),
       pausedAt: null,
       pauses: [],
       revokedAt: null,
@@ -96,7 +97,12 @@ export async function createStudent(formData: FormData) {
     await (supabase ? deleteAccount(userId) : deleteDevAccount(userId)).catch(() => undefined);
     throw err;
   }
-  await audit(owner, "Cursist aangemaakt", `Pakket ${pkg} · ${PACKAGE_LABELS[pkg]}, aankoopdatum ${formatDate(purchasedAt)}`, userId);
+  await audit(
+    owner,
+    "Cursist aangemaakt",
+    `Pakket ${pkg} · ${PACKAGE_LABELS[pkg]}, aankoopdatum ${formatDate(purchasedAt)}, toegang ${plural(months, "maand", "maanden")}`,
+    userId,
+  );
   done(
     studentPath(userId),
     supabase

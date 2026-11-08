@@ -1,4 +1,5 @@
 import { saveProfile } from "@/app/actions/profile";
+import { PrivacyNotice } from "@/components/academy/PrivacyNotice";
 import { NotificationSettings } from "@/components/community/NotificationSettings";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -10,7 +11,7 @@ export const metadata = { title: "Mijn profiel" };
 
 export default async function ProfilePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireStudent();
-  const profile = await getStore().getProfile(user.id);
+  const [profile, settings] = await Promise.all([getStore().getProfile(user.id), getStore().getSettings()]);
 
   const text = (name: string, label: string, value: string | undefined, maxLength: number, type = "text", autoComplete?: string) => (
     <div>
@@ -97,6 +98,10 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
       <div className="mt-8">
         <NotificationSettings userId={user.id} />
+      </div>
+
+      <div className="mt-8">
+        <PrivacyNotice contactEmail={settings.contactEmail} />
       </div>
     </div>
   );
