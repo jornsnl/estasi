@@ -1,5 +1,7 @@
 import "server-only";
 import { one, query } from "./db";
+import type { RowSeats } from "./seating-geometry";
+import type { ObjectKind } from "./seating-moves";
 
 export interface Layout {
   id: string;
@@ -9,6 +11,8 @@ export interface Layout {
   shape: "rows" | "half" | "circle";
   rows: number;
   seats_per_row: number;
+  /** Rows with an aisle: chairs per row and side. */
+  row_seats: RowSeats[];
   side_left: string;
   side_right: string;
 }
@@ -16,8 +20,14 @@ export interface Layout {
 export interface SeatingState {
   layout: Layout;
   tables: { id: string; shape: "round" | "square" | "long"; name: string; x: number; y: number; rotation: number; seats: number; long_sides: "both" | "one"; head_seats: boolean }[];
-  seats: { seat_key: string; guest_id: string | null; name: string }[];
-  blocks: { id: string; styling_item_id: string; what: string; x: number; y: number }[];
+  /** Chairs with a guest, a typed name or an object on them. */
+  seats: { seat_key: string; guest_id: string | null; name: string; object_id: string | null }[];
+  /**
+   * Objects on the plan: a styling item from the styling plan (styling_item_id),
+   * an own styling object or a ceremony element. On a chair when a seat points
+   * to it, otherwise loose at x, y.
+   */
+  blocks: { id: string; styling_item_id: string | null; kind: ObjectKind; name: string; what: string; x: number; y: number }[];
   /** Guests of the chosen groups who are coming (for dinner: not those who skip the dinner). */
   candidates: { id: string; name: string; relation: string; diet: string; partial: string; group: string }[];
   /** Everyone, to recognise typed names. */
@@ -34,9 +44,10 @@ export async function seatingState(coupleId: string, layoutId: string): Promise<
   if (!layout) return null;
   const [tables, seats, blocks, candidates, everyone, styling] = await Promise.all([
     query<SeatingState["tables"][number]>("select id, shape, name, x, y, rotation, seats, long_sides, head_seats from seating_tables where layout_id = $1 order by created_at", [layout.id]),
-    query<SeatingState["seats"][number]>("select seat_key, guest_id, name from seating_seats where layout_id = $1", [layout.id]),
+    query<SeatingState["seats"][number]>("select seat_key, guest_id, name, object_id from seating_seats where layout_id = $1", [layout.id]),
     query<SeatingState["blocks"][number]>(
-      "select b.id, b.styling_item_id, i.what, b.x, b.y from seating_blocks b join styling_items i on i.id = b.styling_item_id where b.layout_id = $1",
+      `select b.id, b.styling_item_id, b.kind, b.name, coalesce(i.what, b.name) as what, b.x, b.y
+         from seating_blocks b left join styling_items i on i.id = b.styling_item_id where b.layout_id = $1 order by b.created_at`,
       [layout.id],
     ),
     query<SeatingState["candidates"][number]>(
