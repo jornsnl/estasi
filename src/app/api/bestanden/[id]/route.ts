@@ -1,6 +1,7 @@
 import { currentSession } from "@/lib/auth/session";
 import { getFiles, getStore } from "@/lib/data";
 import { hasLessonAccess } from "@/lib/domain/access";
+import { fileAccess } from "@/lib/domain/privacy";
 import { lessonFileIds, visibleCourse } from "@/lib/domain/visibility";
 
 /** Serves uploads after checking that the viewer may see them. */
@@ -15,8 +16,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!file) return new Response("Niet gevonden", { status: 404 });
 
   const { meta } = file;
-  let allowed = user.role === "owner" || meta.belongsTo === user.id;
-  if (!allowed && meta.belongsTo === null && user.role === "student") {
+  // Owner: everything; a student: own files only (src/lib/domain/privacy.ts), course material below.
+  const decision = fileAccess(user, meta.belongsTo);
+  let allowed = decision === "allow";
+  if (decision === "course") {
     // Course material: only for students whose access is active, and only when a lesson they
     // can see uses it. A file in a concept, a hidden module or a module of the other package
     // stays closed, also through a direct link.

@@ -53,6 +53,7 @@ export const MAIL_KINDS = {
   meekijker_toegang: "Draaiboektoegang cursist",
   community: "Academy community",
   privebericht: "Academy privébericht",
+  toegang: "Academy toegang loopt af",
   overig: "Overig",
 } as const;
 export type MailKind = keyof typeof MAIL_KINDS;

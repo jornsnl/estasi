@@ -92,6 +92,20 @@ npx web-push generate-vapid-keys
 
 Code: `src/lib/community/rules.ts` (wie mag wat, tekst, bundelvensters; getest in `tests/community.test.ts`), `server.ts` (queries), `notify.ts` (mail), `push.ts`, `src/app/actions/community.ts`, `src/components/community/`. Tabellen (migratie `0026`): `community_posts`, `community_comments`, `community_reports`, `private_messages`, `community_attachments`, `community_members` (gezien, mail aan/uit, bundeling) en `push_subscriptions`. Met `TEST_DATABASE_URL` test `tests/community-db.test.ts` de queries en de bundeling tegen een database.
 
+## Portfolio, toegangstermijn en privacy (Academy)
+
+**Portfolio** (`/portfolio` voor de cursist, `/beheer/cursisten/[id]/portfolio` voor Sabine): vult zich vanzelf met elke opdracht waar iets in staat, ook zonder feedbackverzoek, per module en les. Per opdracht alle ingediende versies met de vragen zoals ze toen waren (de kopie in `submission_versions`), antwoorden, bestanden met voorbeeld van afbeeldingen, verstuurde feedback (Sabine ziet ook haar concepten) en een concept dat nog niet (opnieuw) is ingediend. Werk uit lessen die later zijn verwijderd blijft staan onder "Lessen die niet meer bestaan". **Exporteren**: `/api/portfolio` geeft een zip (zonder extra pakket, `src/lib/zip.ts`) met `portfolio.html` (opent in elke browser, af te drukken als pdf) en de map `bestanden`; daarnaast een printknop op de pagina. Een cursist krijgt altijd alleen het eigen portfolio, ook na het einde van de toegang.
+
+**Toegangstermijn**: standaard 12 maanden (bij Cursist toevoegen te kiezen: 3, 6, 12, 18 of 24). Einddatum in het overzicht en per cursist, met "verloopt binnenkort" in de laatste 30 dagen; verlengen en einddatum zetten per cursist (en verlengen vanuit het overzicht bij verlopen toegang). De cursist krijgt een mail 30 en 7 dagen voor het einde (eenmalig per drempel en per einddatum, `public.access_notices`; na verlengen kan het opnieuw) en ziet in de laatste 30 dagen een balk met een knop naar het portfolio. Geen cron: de mails gaan bij paginaweergaven in Academy en beheer (hoogstens eens per uur, met een slot in Postgres, `src/lib/academy-expiry.ts`) of via
+
+```bash
+curl -H "Authorization: Bearer $COMMUNITY_CRON_SECRET" https://academy.estasiweddings.nl/api/academy/toegang-meldingen
+```
+
+(zelfde geheim als de community; bijvoorbeeld eens per dag).
+
+**Privacy (AVG)**: cursisten zien alleen hun eigen opdrachten, portfolio, feedback en bestanden (`src/lib/domain/privacy.ts`, getest). Per cursist onder Privacy: **Alle gegevens downloaden** (`/api/beheer/inzage/[id]`, zip met `overzicht.html`, `gegevens.json`, `portfolio.html` en alle bestanden; zonder wachtwoorden, sleutels of codes) en **Definitief verwijderen** (vinkje plus het e-mailadres overtypen plus bevestigen). Verwijderen haalt alles weg: account en login (Supabase Auth via de admin-client, lokaal `auth.users`), profiel, inschrijving, opdrachten, versies, feedback, bestanden (Postgres of Supabase Storage), privéberichten, meekijktoegang, pushabonnementen, meldingen, mails in de mailgeschiedenis en logboekregels over de persoon. Community-berichten en reacties van de cursist worden **verwijderd** (niet geanonimiseerd), met de reacties van anderen onder die berichten. In het logboek blijft één regel "Cursist definitief verwijderd" zonder naam of e-mailadres. Onder Mijn profiel staat een korte privacytekst (`src/components/academy/PrivacyNotice.tsx`).
+
 ## Opbouw
 
 ```

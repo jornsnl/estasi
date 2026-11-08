@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/AppShell";
+import { ExpiryBanner } from "@/components/academy/ExpiryBanner";
+import { kickExpiryNotices } from "@/lib/academy-expiry";
 import { kickNotifications } from "@/lib/community/notify";
 import { menuCounts, viewerFor } from "@/lib/community/server";
 import { PACKAGE_LABELS } from "@/lib/domain/labels";
@@ -21,6 +23,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
   const [settings, enrollment] = await Promise.all([getStore().getSettings(), getStore().getEnrollmentForUser(user.id)]);
   const counts = await menuCounts(await viewerFor(user));
   kickNotifications();
+  kickExpiryNotices();
 
   return (
     <AppShell
@@ -29,6 +32,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
       items={[
         { href: "/dashboard", label: "Dashboard" },
         { href: "/opleiding", label: "Mijn opleiding" },
+        { href: "/portfolio", label: "Mijn portfolio" },
         { href: "/community", label: "Community", badge: counts.community },
         { href: "/prive-chat", label: "Privéchat", badge: counts.private },
         { href: "/profiel", label: "Mijn profiel" },
@@ -43,6 +47,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
         </div>
       }
     >
+      <ExpiryBanner enrollment={enrollment} contactEmail={settings.contactEmail} />
       {children}
     </AppShell>
   );

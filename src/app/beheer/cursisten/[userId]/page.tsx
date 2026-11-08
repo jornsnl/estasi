@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { changeAccess, changeCompletion, changeModuleUnlock, giveFeedback, newSetupLink, updateStudentDetails } from "@/app/actions/admin";
 import { AnswersView } from "@/components/academy/AnswersView";
 import { ScanComparisonTable } from "@/components/academy/ScanComparisonTable";
+import { StudentAdminSummary } from "@/components/academy/StudentAdminSummary";
+import { StudentPrivacyPanel } from "@/components/academy/StudentPrivacyPanel";
 import { Badge } from "@/components/Badge";
 import { Notice } from "@/components/Notice";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -91,6 +93,8 @@ export default async function StudentDetail({
           </p>
         </section>
       )}
+
+      <StudentAdminSummary overview={o} lessons={lessons} feedback={feedback} />
 
       {e && (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -393,6 +397,8 @@ export default async function StudentDetail({
           </ul>
         </section>
       </div>
+
+      <StudentPrivacyPanel user={user} />
     </div>
   );
 }
