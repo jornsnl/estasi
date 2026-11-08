@@ -1,6 +1,7 @@
 import { currentSession } from "@/lib/auth/session";
 import { getFiles, getStore } from "@/lib/data";
 import { hasLessonAccess } from "@/lib/domain/access";
+import { lessonFileIds, visibleCourse } from "@/lib/domain/visibility";
 
 /** Serves uploads after checking that the viewer may see them. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -15,9 +16,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const { meta } = file;
   let allowed = user.role === "owner" || meta.belongsTo === user.id;
-  if (!allowed && meta.belongsTo === null) {
-    // Course material: only for students whose access is active.
-    allowed = hasLessonAccess(await getStore().getEnrollmentForUser(user.id));
+  if (!allowed && meta.belongsTo === null && user.role === "student") {
+    // Course material: only for students whose access is active, and only when a lesson they
+    // can see uses it. A file in a concept, a hidden module or a module of the other package
+    // stays closed, also through a direct link.
+    const store = getStore();
+    const enrollment = await store.getEnrollmentForUser(user.id);
+    if (hasLessonAccess(enrollment)) {
+      const [modules, lessons] = await Promise.all([store.listModules(), store.listLessons()]);
+      const id = meta.id.toLowerCase();
+      allowed = visibleCourse(modules, lessons, enrollment).lessons.some((l) => lessonFileIds(l).has(id));
+    }
   }
   if (!allowed) return new Response("Geen toegang", { status: 403 });
 

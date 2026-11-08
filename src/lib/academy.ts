@@ -10,6 +10,7 @@ import {
   type CourseStatus,
   type ModuleProgress,
 } from "@/lib/domain/progress";
+import { visibleCourse } from "@/lib/domain/visibility";
 import { newId } from "@/lib/util/id";
 
 export interface StudentOverview {
@@ -33,7 +34,9 @@ export async function studentOverview(user: User): Promise<StudentOverview> {
     store.listAnswers({ userId: user.id }),
     store.listFeedback({ userId: user.id }),
   ]);
-  const progress = moduleProgress(modules, lessons, completions);
+  // Only the published modules of the student's own package count (and can be opened).
+  const course = visibleCourse(modules, lessons, enrollment);
+  const progress = moduleProgress(course.modules, course.lessons, completions);
   const percent = overallPercent(progress);
   const access = enrollment ? accessStatus(enrollment) : "none";
   return {

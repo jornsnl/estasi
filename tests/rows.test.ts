@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
 import { createSeed } from "@/lib/data/seed";
@@ -101,8 +101,11 @@ describe("database rows", () => {
 // Every domain field must have a column, and every column must exist in the
 // migrations; otherwise the database silently drops (or rejects) a field.
 
-const sql = ["0001_init.sql", "0002_supabase_auth.sql"]
-  .map((f) => readFileSync(path.join(__dirname, "..", "supabase", "migrations", f), "utf8"))
+const migrationsDir = path.join(__dirname, "..", "supabase", "migrations");
+const sql = readdirSync(migrationsDir)
+  .filter((f) => f.endsWith(".sql"))
+  .sort()
+  .map((f) => readFileSync(path.join(migrationsDir, f), "utf8"))
   .join("\n");
 
 function migrationColumns(table: string): Set<string> {
@@ -114,7 +117,10 @@ function migrationColumns(table: string): Set<string> {
     if (!line || line.startsWith("--") || /^(unique|primary key|check|constraint)\b/.test(line)) continue;
     columns.add(line.split(/\s+/)[0]);
   }
-  for (const m of sql.matchAll(new RegExp(`alter table public\\.${table} add column if not exists (\\w+)`, "g"))) columns.add(m[1]);
+  // "alter table public.x add column if not exists a, add column if not exists b;", also over several lines.
+  for (const statement of sql.matchAll(new RegExp(`alter table public\\.${table}\\s([^;]*);`, "g"))) {
+    for (const m of statement[1].matchAll(/add column if not exists (\w+)/g)) columns.add(m[1]);
+  }
   return columns;
 }
 
@@ -169,7 +175,12 @@ describe("database rows match the domain and the schema", () => {
         { id: "4", type: "question", kind: "reflection", prompt: "p", helpText: "", required: false, feedback: true },
         { id: "5", type: "choice", prompt: "p", helpText: "h", options: ["a", "b"], required: true, feedback: false },
         { id: "6", type: "upload", prompt: "p", helpText: "", required: false, feedback: true },
+        { id: "7", type: "text", markdown: "", html: "<p><strong>Vet</strong></p>" },
+        { id: "8", type: "image", file: { id: "g", name: "a.png", size: 5, mime: "image/png" }, alt: "Bloemen", caption: "" },
       ],
+      status: "published",
+      draft: { title: "Nieuw", summary: "", blocks: [{ id: "1", type: "video", url: "https://vimeo.com/2", caption: "" }] },
+      publishedAt: "2026-03-01T10:00:00.000Z",
     };
     // Postgres hands jsonb back as a fresh object.
     const row = JSON.parse(JSON.stringify(toRow("lessons", lesson)));

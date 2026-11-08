@@ -224,8 +224,9 @@ export function createSeed(): SeedData {
       enrollment("enr-noor", noor.id, "B", 120),
       enrollment("enr-eva", eva.id, "A", 400),
     ],
-    modules,
-    lessons,
+    // The example course is published and meant for both packages.
+    modules: modules.map((m) => ({ ...m, status: "published" as const, packages: "AB" as const })),
+    lessons: lessons.map((l) => ({ ...l, status: "published" as const, draft: null, publishedAt: null })),
     answers: [
       ...lotteAnswers,
       answer(noor.id, "les-2-1", "b-2-1-4", "Stellen die een stijlvolle stadsbruiloft willen en weinig tijd hebben om alles zelf te regelen.", 90),

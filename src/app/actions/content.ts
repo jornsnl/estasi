@@ -3,17 +3,21 @@
 import { redirect } from "next/navigation";
 import { audit } from "@/lib/academy";
 import { requireOwner } from "@/lib/auth/session";
-import { getStore, type Block, type BlockType, type QuestionKind } from "@/lib/data";
+import { getStore, type Block, type ContentStatus, type Lesson } from "@/lib/data";
+import { emptyBlock } from "@/lib/domain/blocks";
 import { LIMITS, normaliseUrl } from "@/lib/domain/input";
-import { storeUpload, UploadError } from "@/lib/uploads";
+import { applyEdit, copyLesson as copyOf, discardDraft, editableContent, orderBlocks, publishLesson, unpublishLesson } from "@/lib/domain/publishing";
+import { isPublished, parseModulePackages } from "@/lib/domain/visibility";
+import { readBlock } from "@/lib/lesson-blocks";
+import { storeImageUpload, UploadError } from "@/lib/uploads";
 import { newId } from "@/lib/util/id";
 
 const str = (formData: FormData, name: string, max = 500) => String(formData.get(name) ?? "").trim().slice(0, max);
-/** Markdown keeps its leading spaces (indented lists); only trailing blank lines go. */
-const text = (formData: FormData, name: string, max: number) => String(formData.get(name) ?? "").replace(/\s+$/, "").slice(0, max);
+const statusOf = (formData: FormData): ContentStatus => (str(formData, "status") === "published" ? "published" : "draft");
 
 function done(path: string, message: string, isError = false): never {
-  redirect(`${path}${path.includes("?") ? "&" : "?"}${isError ? "fout" : "melding"}=${encodeURIComponent(message)}`);
+  const [base, anchor = ""] = path.split("#");
+  redirect(`${base}${base.includes("?") ? "&" : "?"}${isError ? "fout" : "melding"}=${encodeURIComponent(message)}${anchor ? `#${anchor}` : ""}`);
 }
 
 /** Swaps an item with its neighbour and rewrites positions 1..n. */
@@ -33,27 +37,47 @@ export async function createModule(formData: FormData) {
   const title = str(formData, "title", LIMITS.moduleTitle);
   if (!title) done("/beheer/inhoud", "Geef de module een titel.", true);
   const modules = await store.listModules();
-  await store.saveModule({
+  const created = await store.saveModule({
     id: newId(),
     title,
     description: str(formData, "description", LIMITS.moduleDescription),
     position: modules.length + 1,
+    packages: parseModulePackages(str(formData, "packages")),
+    status: statusOf(formData),
   });
-  await audit(owner, "Module toegevoegd", title);
-  done("/beheer/inhoud", "Module toegevoegd.");
+  await audit(owner, "Module toegevoegd", `${title} (${created.status === "published" ? "gepubliceerd" : "concept"}, pakket ${created.packages})`);
+  done(`/beheer/inhoud#${created.id}`, created.status === "published" ? "Module toegevoegd en gepubliceerd." : "Module toegevoegd als concept.");
 }
 
 export async function updateModule(formData: FormData) {
-  await requireOwner();
+  const owner = await requireOwner();
   const store = getStore();
   const existing = await store.getModule(str(formData, "id"));
   if (!existing) done("/beheer/inhoud", "Module niet gevonden.", true);
+  const packages = parseModulePackages(str(formData, "packages"));
   await store.saveModule({
     ...existing,
     title: str(formData, "title", LIMITS.moduleTitle) || existing.title,
     description: str(formData, "description", LIMITS.moduleDescription),
+    packages,
   });
+  if ((existing.packages ?? "AB") !== packages) await audit(owner, "Pakket van module gewijzigd", `${existing.title}: ${packages}`);
   done(`/beheer/inhoud#${existing.id}`, "Module opgeslagen.");
+}
+
+/** Publish a module, or put it back to concept (hidden for students). */
+export async function setModuleStatus(formData: FormData) {
+  const owner = await requireOwner();
+  const store = getStore();
+  const existing = await store.getModule(str(formData, "id"));
+  if (!existing) done("/beheer/inhoud", "Module niet gevonden.", true);
+  const status = statusOf(formData);
+  await store.saveModule({ ...existing, status });
+  await audit(owner, status === "published" ? "Module gepubliceerd" : "Module teruggezet naar concept", existing.title);
+  done(
+    `/beheer/inhoud#${existing.id}`,
+    status === "published" ? `Module "${existing.title}" is gepubliceerd.` : `Module "${existing.title}" is weer een concept en niet meer zichtbaar voor cursisten.`,
+  );
 }
 
 export async function moveModule(formData: FormData) {
@@ -84,6 +108,7 @@ export async function createLesson(formData: FormData) {
   const moduleId = str(formData, "moduleId");
   const title = str(formData, "title", LIMITS.lessonTitle);
   if (!title) done("/beheer/inhoud", "Geef de les een titel.", true);
+  if (!(await store.getModule(moduleId))) done("/beheer/inhoud", "Module niet gevonden.", true);
   const lessons = await store.listLessons(moduleId);
   const lesson = await store.saveLesson({
     id: newId(),
@@ -92,9 +117,13 @@ export async function createLesson(formData: FormData) {
     summary: "",
     position: lessons.length + 1,
     blocks: [],
+    // New lessons start as a concept: students see them once they are published.
+    status: "draft",
+    draft: null,
+    publishedAt: null,
   });
   await audit(owner, "Les toegevoegd", title);
-  done(`/beheer/inhoud/les/${lesson.id}`, "Les aangemaakt. Voeg nu blokken toe.");
+  done(`/beheer/inhoud/les/${lesson.id}`, "Les aangemaakt als concept. Voeg nu blokken toe.");
 }
 
 export async function moveLesson(formData: FormData) {
@@ -116,153 +145,128 @@ export async function deleteLesson(formData: FormData) {
   await store.deleteLesson(lesson.id);
   for (const l of reorder(await store.listLessons(lesson.moduleId), "", "")) await store.saveLesson(l);
   await audit(owner, "Les verwijderd", lesson.title);
-  done("/beheer/inhoud", `Les "${lesson.title}" verwijderd.`);
+  done(`/beheer/inhoud#${lesson.moduleId}`, `Les "${lesson.title}" verwijderd.`);
 }
-
-// Blocks
-
-function emptyBlock(type: BlockType): Block {
-  const id = newId();
-  switch (type) {
-    case "video":
-      return { id, type, url: "", caption: "" };
-    case "text":
-      return { id, type, markdown: "" };
-    case "download":
-      return { id, type, label: "", description: "", url: "", file: null };
-    case "choice":
-      return { id, type, prompt: "", helpText: "", options: ["", ""], required: true, feedback: false };
-    case "upload":
-      return { id, type, prompt: "", helpText: "", required: false, feedback: true };
-    case "question":
-    default:
-      return { id, type: "question", kind: "open", prompt: "", helpText: "", required: true, feedback: false };
-  }
-}
-
-const BLOCK_TYPES: BlockType[] = ["video", "text", "download", "question", "choice", "upload"];
 
 /**
- * Reads one block's fields from the lesson editor form (field names start
- * with "b.<blockId>."). A rejected upload does not stop the rest: the block
- * keeps its current file and the problem is reported in uploadErrors.
+ * Copies a lesson (as it is in the editor) into the same or another module,
+ * as a new concept. Only the definition: answers, submissions and feedback
+ * belong to the original's blocks and never come along.
  */
-async function readBlock(current: Block, formData: FormData, ownerId: string, uploadErrors: string[]): Promise<Block> {
-  const f = (name: string, max: number) => str(formData, `b.${current.id}.${name}`, max);
-  const checked = (name: string) => formData.get(`b.${current.id}.${name}`) === "on";
-  switch (current.type) {
-    case "video":
-      return { ...current, url: normaliseUrl(f("url", LIMITS.url)), caption: f("caption", LIMITS.caption) };
-    case "text":
-      return { ...current, markdown: text(formData, `b.${current.id}.markdown`, LIMITS.markdown) };
-    case "download": {
-      let file = null;
-      try {
-        file = await storeUpload(formData.get(`b.${current.id}.file`), { belongsTo: null, uploadedBy: ownerId });
-      } catch (err) {
-        if (!(err instanceof UploadError)) throw err;
-        uploadErrors.push(err.message);
-      }
-      return {
-        ...current,
-        label: f("label", LIMITS.downloadLabel),
-        description: f("description", LIMITS.downloadDescription),
-        url: normaliseUrl(f("url", LIMITS.url)),
-        file: file ?? (checked("removeFile") ? null : current.file),
-      };
-    }
-    case "question": {
-      const kind = f("kind", 20);
-      return {
-        ...current,
-        kind: (["open", "reflection", "practice"].includes(kind) ? kind : "open") as QuestionKind,
-        prompt: f("prompt", LIMITS.prompt),
-        helpText: f("helpText", LIMITS.helpText),
-        required: checked("required"),
-        feedback: checked("feedback"),
-      };
-    }
-    case "choice":
-      return {
-        ...current,
-        prompt: f("prompt", LIMITS.prompt),
-        helpText: f("helpText", LIMITS.helpText),
-        options: f("options", LIMITS.options)
-          .split("\n")
-          .map((o) => o.trim())
-          .filter(Boolean),
-        required: checked("required"),
-        feedback: checked("feedback"),
-      };
-    case "upload":
-      return {
-        ...current,
-        prompt: f("prompt", LIMITS.prompt),
-        helpText: f("helpText", LIMITS.helpText),
-        required: checked("required"),
-        feedback: checked("feedback"),
-      };
+export async function copyLesson(formData: FormData) {
+  const owner = await requireOwner();
+  const store = getStore();
+  const lesson = await store.getLesson(str(formData, "id"));
+  if (!lesson) done("/beheer/inhoud", "Les niet gevonden.", true);
+  const target = (await store.getModule(str(formData, "moduleId"))) ?? (await store.getModule(lesson.moduleId));
+  if (!target) done("/beheer/inhoud", "Module niet gevonden.", true);
+  const position = (await store.listLessons(target.id)).length + 1;
+  const copy = await store.saveLesson(copyOf(lesson, { id: newId(), moduleId: target.id, position }, newId));
+  await audit(owner, "Les gekopieerd", `${lesson.title} → ${target.title}`);
+  done(`/beheer/inhoud/les/${copy.id}`, `Kopie gemaakt in "${target.title}". De kopie is een concept.`);
+}
+
+/** Moves a lesson to the end of another module. */
+async function moveToModule(lesson: Lesson, moduleId: string): Promise<Lesson> {
+  const store = getStore();
+  if (moduleId === lesson.moduleId || !(await store.getModule(moduleId))) return lesson;
+  const moved = await store.saveLesson({ ...lesson, moduleId, position: (await store.listLessons(moduleId)).length + 1 });
+  // Close the gap the lesson left in its old module.
+  for (const l of reorder(await store.listLessons(lesson.moduleId), "", "")) await store.saveLesson(l);
+  return moved;
+}
+
+export async function moveLessonToModule(formData: FormData) {
+  const owner = await requireOwner();
+  const store = getStore();
+  const lesson = await store.getLesson(str(formData, "id"));
+  if (!lesson) done("/beheer/inhoud", "Les niet gevonden.", true);
+  const moved = await moveToModule(lesson, str(formData, "moduleId"));
+  if (moved.moduleId !== lesson.moduleId) await audit(owner, "Les verplaatst", lesson.title);
+  done(`/beheer/inhoud#${moved.moduleId}`, moved.moduleId !== lesson.moduleId ? `Les "${lesson.title}" verplaatst.` : "De les staat al in deze module.");
+}
+
+// Lesson editor
+
+/** Upload of a picture inside lesson text (from the text editor). Only image types. */
+export async function uploadLessonImage(formData: FormData): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const owner = await requireOwner();
+  try {
+    const file = await storeImageUpload(formData.get("file"), owner.id);
+    if (!file) return { ok: false, error: "Kies een afbeelding." };
+    return { ok: true, url: `/api/bestanden/${file.id}` };
+  } catch (err) {
+    if (err instanceof UploadError) return { ok: false, error: err.message };
+    throw err;
   }
 }
 
 /**
  * The whole lesson editor is one form. Every button submits all fields, so
- * saving, adding, moving or deleting a block never throws away edits made
- * elsewhere on the page. The pressed button says what else to do ("intent").
+ * saving, adding or deleting a block never throws away edits made elsewhere
+ * on the page. The pressed button says what else to do ("intent").
+ * A lesson in concept is changed directly. In a published lesson the edits go
+ * into its draft; students keep seeing the live version until "Publiceren".
  */
 export async function saveLessonEditor(formData: FormData) {
   const owner = await requireOwner();
   const store = getStore();
-  const lesson = await store.getLesson(str(formData, "lessonId"));
+  let lesson = await store.getLesson(str(formData, "lessonId"));
   if (!lesson) redirect("/beheer/inhoud");
   const path = `/beheer/inhoud/les/${lesson.id}`;
+  const [action, arg = "", extra = ""] = str(formData, "intent").split(":");
 
-  // 1. Everything typed on the page. Blocks without fields in the form are left as they are.
+  if (action === "discard") {
+    await store.saveLesson(discardDraft(lesson));
+    await audit(owner, "Conceptwijzigingen weggegooid", lesson.title);
+    done(path, "De wijzigingen zijn weggegooid. De les is weer zoals cursisten hem zien.");
+  }
+
+  // 1. Everything typed on the page, in the order of the editor. Blocks without fields in the form stay as they are.
+  const content = editableContent(lesson);
   const uploadErrors: string[] = [];
   let blocks: Block[] = [];
-  for (const b of lesson.blocks) {
-    blocks.push(formData.has(`b.${b.id}.present`) ? await readBlock(b, formData, owner.id, uploadErrors) : b);
-  }
-  const requestedModule = str(formData, "moduleId");
-  const moduleId = requestedModule && (await store.getModule(requestedModule)) ? requestedModule : lesson.moduleId;
-  const moved = moduleId !== lesson.moduleId;
+  for (const b of content.blocks) blocks.push(await readBlock(b, formData, owner.id, uploadErrors));
+  blocks = orderBlocks(blocks, str(formData, "blockOrder", 20_000).split(",").filter(Boolean));
 
   // 2. What the pressed button asks for.
-  const [action, arg, extra] = str(formData, "intent").split(":");
-  let message = "Les opgeslagen.";
+  let message = isPublished(lesson) ? "Wijzigingen opgeslagen als concept. Cursisten zien ze pas na publiceren." : "Les opgeslagen.";
   let anchor = "";
-  if (action === "add" && BLOCK_TYPES.includes(arg as BlockType)) {
-    const block = emptyBlock(arg as BlockType);
-    if (block.type === "question" && ["open", "reflection", "practice"].includes(extra)) block.kind = extra as QuestionKind;
-    blocks.push(block);
-    message = "Les opgeslagen en blok toegevoegd.";
-    anchor = `#blok-${block.id}`;
-  } else if (action === "move") {
-    const i = blocks.findIndex((b) => b.id === arg);
-    const j = extra === "up" ? i - 1 : i + 1;
-    if (i !== -1 && j >= 0 && j < blocks.length) [blocks[i], blocks[j]] = [blocks[j], blocks[i]];
-    message = "Les opgeslagen en blok verplaatst.";
-    anchor = `#blok-${arg}`;
+  if (action === "add") {
+    const block = emptyBlock(arg, extra, newId());
+    if (block) {
+      blocks.push(block);
+      message = "Opgeslagen en blok toegevoegd.";
+      anchor = `#blok-${block.id}`;
+    }
   } else if (action === "delete") {
     blocks = blocks.filter((b) => b.id !== arg);
-    message = "Les opgeslagen en blok verwijderd. Eerder gegeven antwoorden blijven bewaard.";
+    message = "Opgeslagen en blok verwijderd. Eerder gegeven antwoorden blijven bewaard.";
   }
 
-  await store.saveLesson({
-    ...lesson,
-    title: str(formData, "title", LIMITS.lessonTitle) || lesson.title,
-    summary: str(formData, "summary", LIMITS.lessonSummary),
-    moduleId,
-    position: moved ? (await store.listLessons(moduleId)).length + 1 : lesson.position,
+  lesson = applyEdit(lesson, {
+    title: str(formData, "title", LIMITS.lessonTitle) || content.title,
+    summary: formData.has("summary") ? str(formData, "summary", LIMITS.lessonSummary) : content.summary,
     blocks,
   });
-  // Close the gap the lesson left in its old module.
-  if (moved) for (const l of reorder(await store.listLessons(lesson.moduleId), "", "")) await store.saveLesson(l);
+  if (action === "publish") {
+    lesson = publishLesson(lesson);
+    message = "De les is gepubliceerd en zichtbaar voor cursisten (als de module ook gepubliceerd is).";
+  } else if (action === "unpublish") {
+    lesson = unpublishLesson(lesson);
+    message = "De les is weer een concept en niet meer zichtbaar voor cursisten.";
+  }
+  await store.saveLesson(lesson);
+  if (action === "publish") await audit(owner, "Les gepubliceerd", lesson.title);
+  if (action === "unpublish") await audit(owner, "Les teruggezet naar concept", lesson.title);
+  // Moving to another module is part of the structure, not of the content: it applies straight away.
+  lesson = await moveToModule(lesson, str(formData, "moduleId"));
 
   if (uploadErrors.length > 0) {
     const error = `Je wijzigingen zijn opgeslagen, maar een bestand is niet geüpload: ${uploadErrors.join(" ")}`;
     redirect(`${path}?fout=${encodeURIComponent(error)}${anchor}`);
   }
+  if (action === "preview") redirect(`${path}/voorbeeld`);
   redirect(`${path}?melding=${encodeURIComponent(message)}${anchor}`);
 }
 

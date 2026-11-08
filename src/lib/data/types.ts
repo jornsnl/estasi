@@ -76,7 +76,21 @@ export interface VideoBlock extends BlockBase {
 
 export interface TextBlock extends BlockBase {
   type: "text";
+  /** Older text blocks: Markdown. Shown as long as there is no html. */
   markdown: string;
+  /**
+   * Text from the lesson editor (TipTap): HTML, sanitised on the server when
+   * saved and again when shown (src/lib/domain/html.ts).
+   */
+  html?: string;
+}
+
+/** A picture on its own, uploaded through FileStorage (course material). */
+export interface ImageBlock extends BlockBase {
+  type: "image";
+  file: FileRef | null;
+  alt: string;
+  caption: string;
 }
 
 export interface DownloadBlock extends BlockBase {
@@ -118,6 +132,7 @@ export interface UploadBlock extends BlockBase {
 export type Block =
   | VideoBlock
   | TextBlock
+  | ImageBlock
   | DownloadBlock
   | QuestionBlock
   | ChoiceBlock
@@ -127,11 +142,28 @@ export type BlockType = Block["type"];
 
 export type AnswerableBlock = QuestionBlock | ChoiceBlock | UploadBlock;
 
+/** "draft" (concept): only the owner sees it. */
+export type ContentStatus = "draft" | "published";
+
+/** For which packages a module is meant: only A, only B or both. */
+export type ModulePackages = "A" | "B" | "AB";
+
 export interface Module {
   id: string;
   title: string;
   description: string;
   position: number;
+  /** Absent (older data, tests) means published. */
+  status?: ContentStatus;
+  /** Absent means both packages. */
+  packages?: ModulePackages;
+}
+
+/** Unpublished changes to a published lesson. */
+export interface LessonDraft {
+  title: string;
+  summary: string;
+  blocks: Block[];
 }
 
 export interface Lesson {
@@ -140,7 +172,13 @@ export interface Lesson {
   title: string;
   summary: string;
   position: number;
+  /** What students see (only when the lesson and its module are published). */
   blocks: Block[];
+  /** Absent means published. */
+  status?: ContentStatus;
+  /** Only on a published lesson: edits that go live with "Publiceren". */
+  draft?: LessonDraft | null;
+  publishedAt?: string | null;
 }
 
 export interface Answer {

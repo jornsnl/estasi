@@ -7,6 +7,7 @@ import { hasLessonAccess } from "@/lib/domain/access";
 import { LIMITS } from "@/lib/domain/input";
 import { plural } from "@/lib/domain/labels";
 import { canOpenLesson, isAnswerable, missingRequired, moduleProgress } from "@/lib/domain/progress";
+import { visibleCourse } from "@/lib/domain/visibility";
 import { storeUpload, UploadError } from "@/lib/uploads";
 import { newId } from "@/lib/util/id";
 
@@ -30,7 +31,9 @@ export async function saveLesson(formData: FormData) {
   ]);
   if (!lesson) redirect("/opleiding");
   if (!hasLessonAccess(enrollment)) redirect("/dashboard");
-  if (!canOpenLesson(moduleProgress(modules, lessons, completions), lessonId)) redirect("/opleiding");
+  // Concept, hidden or other-package content cannot be answered, whatever the form says.
+  const course = visibleCourse(modules, lessons, enrollment);
+  if (!canOpenLesson(moduleProgress(course.modules, course.lessons, completions), lessonId)) redirect("/opleiding");
 
   const existing = new Map((await store.listAnswers({ userId: user.id, lessonId })).map((a) => [a.blockId, a]));
   const now = new Date().toISOString();

@@ -51,7 +51,9 @@ const blockSummary = (b: Block) => {
     case "video":
       return { id: b.id, type: b.type, url: b.url, caption: b.caption };
     case "text":
-      return { id: b.id, type: b.type, markdown: b.markdown };
+      return b.html ? { id: b.id, type: b.type, html: b.html } : { id: b.id, type: b.type, markdown: b.markdown };
+    case "image":
+      return { id: b.id, type: b.type, file: b.file?.name ?? null, alt: b.alt, caption: b.caption };
     case "download":
       return { id: b.id, type: b.type, label: b.label, description: b.description, url: b.url, file: b.file?.name ?? null };
     case "question":
@@ -260,7 +262,7 @@ export const academyTools = [
   defineTool({
     name: "academy_get_lesson",
     title: "Academy: les",
-    description: "Eén les met alle blokken: video's, tekst (markdown), downloads en vragen (open, reflectie, praktijk, meerkeuze, bestand), inclusief of ze verplicht zijn en of het een feedbackopdracht is.",
+    description: "Eén les met alle blokken: video's, tekst (html of markdown), afbeeldingen, downloads en vragen (open, reflectie, praktijk, meerkeuze, bestand), inclusief of ze verplicht zijn en of het een feedbackopdracht is.",
     scope: "read",
     input: z.object({ lessonId: id }),
     async run({ lessonId }) {

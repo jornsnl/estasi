@@ -22,8 +22,8 @@ const COLUMNS = {
     "practicalStatus",
     "ownerNotes",
   ],
-  modules: ["id", "title", "description", "position"],
-  lessons: ["id", "moduleId", "title", "summary", "position", "blocks"],
+  modules: ["id", "title", "description", "position", "status", "packages"],
+  lessons: ["id", "moduleId", "title", "summary", "position", "blocks", "status", "draft", "publishedAt"],
   answers: ["id", "userId", "lessonId", "blockId", "text", "choice", "files", "version", "createdAt", "updatedAt"],
   feedback: ["id", "answerId", "userId", "authorId", "text", "attachment", "answerVersion", "createdAt"],
   lesson_completions: ["userId", "lessonId", "completedAt"],
@@ -104,7 +104,7 @@ export const columnsOf = (table: Table): string[] => COLUMNS[table].map(toSnake)
 /** jsonb columns. pg would send a JS array as a Postgres array, so these go as JSON text. */
 const JSON_COLUMNS: Partial<Record<Table, string[]>> = {
   enrollments: ["pauses"],
-  lessons: ["blocks"],
+  lessons: ["blocks", "draft"],
   answers: ["files"],
   feedback: ["attachment"],
 };

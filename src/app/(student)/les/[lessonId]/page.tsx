@@ -5,17 +5,17 @@ import { AccessNotice } from "@/components/AccessNotice";
 import { Badge } from "@/components/Badge";
 import { DirtyGuard } from "@/components/DirtyGuard";
 import { FeedbackList } from "@/components/FeedbackList";
-import { Markdown } from "@/components/Markdown";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { VideoEmbed } from "@/components/VideoEmbed";
+import { ContentBlock } from "@/components/academy/ContentBlock";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore, type Answer, type Block, type Feedback } from "@/lib/data";
 import { hasLessonAccess } from "@/lib/domain/access";
 import { canOpenLesson, isAnswerable, moduleProgress } from "@/lib/domain/progress";
 import { LIMITS } from "@/lib/domain/input";
+import { visibleCourse } from "@/lib/domain/visibility";
 import { ACCEPT_ATTR } from "@/lib/uploads";
-import { formatBytes, formatDateTime } from "@/lib/util/format";
+import { formatDateTime } from "@/lib/util/format";
 
 const KIND_LABEL = { open: "Open vraag", reflection: "Reflectie", practice: "Praktijkopdracht" } as const;
 
@@ -41,7 +41,11 @@ export default async function LessonPage({
   if (!hasLessonAccess(enrollment)) {
     return <AccessNotice enrollment={enrollment} contactEmail={settings.contactEmail} />;
   }
-  const progress = moduleProgress(modules, lessons, completions);
+  // A concept, a hidden module or a module of the other package does not exist for this student,
+  // also not through a direct link.
+  const course = visibleCourse(modules, lessons, enrollment);
+  if (!course.lessons.some((l) => l.id === lesson.id)) notFound();
+  const progress = moduleProgress(course.modules, course.lessons, completions);
   if (!canOpenLesson(progress, lesson.id)) redirect("/opleiding");
 
   const [answers, feedback] = await Promise.all([
@@ -49,8 +53,8 @@ export default async function LessonPage({
     store.listFeedback({ userId: user.id }),
   ]);
   const byBlock = new Map(answers.map((a) => [a.blockId, a]));
-  const moduleIndex = modules.findIndex((m) => m.id === lesson.moduleId);
-  const currentModule = modules[moduleIndex];
+  const moduleIndex = course.modules.findIndex((m) => m.id === lesson.moduleId);
+  const currentModule = course.modules[moduleIndex];
 
   // Previous/next within the open part of the course.
   const ordered = progress.filter((p) => p.state !== "locked").flatMap((p) => p.lessons);
@@ -129,27 +133,10 @@ export default async function LessonPage({
 function BlockView({ block, answer, feedback }: { block: Block; answer: Answer | undefined; feedback: Feedback[] }) {
   switch (block.type) {
     case "video":
-      return (
-        <figure>
-          <VideoEmbed url={block.url} title={block.caption || "Lesvideo"} />
-          {block.caption && <figcaption className="mt-2 text-sm text-muted">{block.caption}</figcaption>}
-        </figure>
-      );
     case "text":
-      return <Markdown>{block.markdown}</Markdown>;
-    case "download": {
-      const href = block.file ? `/api/bestanden/${block.file.id}` : block.url;
-      return (
-        <a href={href} target="_blank" rel="noopener noreferrer" className="card flex items-center gap-4 p-4 hover:border-gold">
-          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-gold-soft text-gold-ink" aria-hidden>↓</span>
-          <span className="flex-1">
-            <span className="block font-medium">{block.label || "Download"}</span>
-            {block.description && <span className="block text-sm text-muted">{block.description}</span>}
-          </span>
-          {block.file && <span className="text-sm text-muted">{formatBytes(block.file.size)}</span>}
-        </a>
-      );
-    }
+    case "image":
+    case "download":
+      return <ContentBlock block={block} />;
     case "question":
       return (
         <QuestionShell label={KIND_LABEL[block.kind]} prompt={block.prompt} help={block.helpText} required={block.required} answer={answer} feedback={feedback} feedbackBlock={block.feedback}>

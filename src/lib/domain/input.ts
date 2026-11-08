@@ -24,6 +24,8 @@ export const LIMITS = {
   helpText: 3000,
   options: 5000,
   markdown: 50_000,
+  html: 200_000,
+  alt: 300,
   welcomeText: 5000,
   contactEmail: 200,
   practicalSpotsNote: 2000,
