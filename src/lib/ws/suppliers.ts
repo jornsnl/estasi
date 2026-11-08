@@ -43,6 +43,7 @@ export async function suppliersFor(coupleId: string) {
   return query<CoupleSupplier & { documents: number; category_couple_id: string | null }>(
     `select s.id, c.id as category_id, c.name as category_name, c.couple_id as category_couple_id, s.status,
             s.name, s.contact_person, s.phone, s.email, s.website, s.address, s.notes, s.recommendation_id,
+            s.present_from, s.present_until,
             (select count(*)::int from supplier_documents d where d.supplier_id = s.id) as documents
        from couple_suppliers s
        join supplier_categories c on c.id = s.category_id

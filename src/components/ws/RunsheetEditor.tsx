@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { deletePerson, deleteRow, moveRunsheetRow, saveRow, setPersonColor, type RowInput } from "@/app/actions/ws-runsheet";
 import { AutoTextarea } from "@/components/ws/AutoTextarea";
 import { timeOutOfOrder } from "@/lib/ws/pure";
+import { isRowSource, SOURCE_LABEL } from "@/lib/ws/runsheet-pure";
 
 export interface EditorRow {
   id: string;
@@ -15,6 +16,8 @@ export interface EditorRow {
   rain_location: string;
   by_admin: boolean;
   created_by_name: string;
+  /** From Eten en allergieën or Leveranciers: time and text are changed there, notes here. */
+  source?: string | null;
 }
 export interface EditorPerson {
   id: string;
@@ -26,8 +29,8 @@ type Field = "at_time" | "what" | "info" | "location" | "rain_location";
 const SCHEDULE: [Field | "people", string][] = [["at_time", "Tijd"], ["people", "Wie"], ["what", "Wat"], ["info", "Meer info"], ["location", "Waar"], ["rain_location", "Waar (regen)"]];
 const LIST: [Field | "people", string][] = [["what", "Wat"], ["people", "Wie"], ["info", "Meer info"]];
 const GRID = {
-  schedule: "sm:grid-cols-[2.25rem_4.5rem_minmax(8rem,1fr)_minmax(9rem,1.4fr)_minmax(9rem,1.4fr)_minmax(6rem,1fr)_minmax(6rem,1fr)_2rem]",
-  list: "sm:grid-cols-[2.25rem_minmax(10rem,1.6fr)_minmax(8rem,1fr)_minmax(10rem,1.8fr)_2rem]",
+  schedule: "sm:grid-cols-[4rem_4.5rem_minmax(8rem,1fr)_minmax(9rem,1.4fr)_minmax(9rem,1.4fr)_minmax(6rem,1fr)_minmax(6rem,1fr)_2rem]",
+  list: "sm:grid-cols-[4rem_minmax(10rem,1.6fr)_minmax(8rem,1fr)_minmax(10rem,1.8fr)_2rem]",
 };
 
 /**
@@ -43,6 +46,7 @@ export function RunsheetEditor({
   initialRows,
   initialPeople,
   palette,
+  duplicates = [],
 }: {
   coupleId: string;
   tabId: string;
@@ -51,6 +55,8 @@ export function RunsheetEditor({
   initialRows: EditorRow[];
   initialPeople: EditorPerson[];
   palette: string[];
+  /** Typed rows that look like a row from elsewhere: only pointed out, never removed. */
+  duplicates?: { id: string; label: string; what: string }[];
 }) {
   const [rows, setRows] = useState(initialRows);
   const [people, setPeople] = useState(initialPeople);
@@ -94,6 +100,21 @@ export function RunsheetEditor({
       {/* Legend: who has which colour. */}
       <Legend coupleId={coupleId} people={people} palette={palette} isAdmin={isAdmin} onChange={setPeople} />
 
+      {duplicates.some((d) => rows.some((r) => r.id === d.id)) && (
+        <div role="note" className="rounded-xl border border-gold/40 bg-gold-soft/40 p-3 text-sm">
+          <p className="font-medium">Mogelijk dubbel</p>
+          <p className="mt-0.5 text-xs text-muted">
+            Deze regels staan er nu ook automatisch in. Kijk of jullie de eigen regel nog nodig hebben; er wordt niets vanzelf verwijderd.
+          </p>
+          <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-xs">
+            {duplicates.filter((d) => rows.some((r) => r.id === d.id)).map((d) => {
+              const row = rows.find((r) => r.id === d.id)!;
+              return <li key={d.id}>&quot;{[row.at_time, row.what].filter(Boolean).join(" ")}&quot; lijkt op &quot;{d.what}&quot; ({d.label})</li>;
+            })}
+          </ul>
+        </div>
+      )}
+
       <div className="card p-3 sm:p-4">
         <div className={`hidden gap-2 px-1 pb-2 text-xs font-medium text-bordeaux sm:grid ${GRID[kind]}`}>
           <span />
@@ -129,6 +150,7 @@ export function RunsheetEditor({
                 editable={canEdit(row)}
                 isAdmin={isAdmin}
                 badTime={kind === "schedule" && timeOutOfOrder(rows, i)}
+                duplicate={duplicates.some((d) => d.id === row.id)}
                 colorOf={colorOf}
                 people={people}
                 palette={palette}
@@ -178,6 +200,7 @@ function Row(props: {
   editable: boolean;
   isAdmin: boolean;
   badTime: boolean;
+  duplicate: boolean;
   colorOf: (name: string) => string | undefined;
   people: EditorPerson[];
   palette: string[];
@@ -195,6 +218,7 @@ function Row(props: {
     if (!dirty.current) setDraft(row);
   }, [row]);
   const stripe = props.colorOf(draft.people[0] ?? "") ?? "transparent";
+  const source = isRowSource(row.source) ? row.source : null;
   const columns = kind === "schedule" ? SCHEDULE : LIST;
 
   const set = (patch: Partial<EditorRow>) => {
@@ -212,7 +236,13 @@ function Row(props: {
     );
   };
   const text = (field: Field, label: string) =>
-    editable ? (
+    source && (field === "at_time" || field === "what") ? (
+      // Time and name come from the source; the row only shows them.
+      <p className="min-h-9 flex-1 rounded-lg bg-gold-soft/40 px-2 py-1.5 text-sm" title={`Pas dit aan ${SOURCE_LABEL[source].replace(/^uit /, "bij ")}`}>
+        {draft[field] || "–"}
+        {field === "what" && <span className="ml-1.5 inline-block text-[11px] text-gold-ink">{SOURCE_LABEL[source]}</span>}
+      </p>
+    ) : editable ? (
       <AutoTextarea
         value={draft[field]}
         onChange={(e) => set({ [field]: e.target.value })}
@@ -232,7 +262,8 @@ function Row(props: {
       className={`mb-2 grid items-stretch gap-2 rounded-xl border-l-4 bg-cream/50 p-2 sm:mb-1.5 sm:bg-transparent sm:p-1 ${GRID[kind]}`}
       style={{ borderLeftColor: stripe }}
     >
-      <div className="flex items-start gap-0.5 sm:flex-col">
+      {/* Grip and arrows side by side, so a row with one line of text stays one line high. */}
+      <div className="flex items-start gap-0.5 sm:pt-1.5">
         {editable ? (
           <>
             <span
@@ -244,7 +275,7 @@ function Row(props: {
               }}
               title="Slepen om te verplaatsen"
               aria-hidden="true"
-              className="hidden cursor-grab px-1 text-muted select-none sm:block"
+              className="hidden cursor-grab px-0.5 text-muted select-none sm:block"
             >
               ⋮⋮
             </span>
@@ -274,9 +305,10 @@ function Row(props: {
         ),
       )}
       <div className="flex flex-col items-end justify-between">
-        {editable && (
+        {editable && !source && (
           <button type="button" onClick={() => confirm("Deze regel verwijderen?") && props.onDelete()} className="px-1 text-sm text-muted hover:text-bordeaux" aria-label="Regel verwijderen">×</button>
         )}
+        {props.duplicate && <span className="rounded-full bg-gold-soft px-1.5 text-[10px] whitespace-nowrap text-gold-ink" title="Deze regel staat er mogelijk ook automatisch in">Mogelijk dubbel</span>}
         {props.isAdmin && row.created_by_name && <span className="text-[10px] whitespace-nowrap text-muted" title="Toegevoegd door">{row.created_by_name}</span>}
       </div>
     </div>

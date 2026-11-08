@@ -5,7 +5,9 @@ import { requirePlanning } from "@/lib/ws/access";
 import { dayGuests } from "@/lib/ws/dayguests";
 import { query } from "@/lib/ws/db";
 import { coupleName, formatDate } from "@/lib/ws/format";
+import { mealsFor } from "@/lib/ws/meals";
 import { peopleFor, rowsFor, supplierContacts, tabsFor, type RunsheetTab } from "@/lib/ws/runsheet";
+import { withVirtualTabs } from "@/lib/ws/runsheet-pure";
 import { getSettings } from "@/lib/ws/settings";
 import { SUPPLIER_STATUS } from "@/lib/ws/suppliers";
 import { SeatingPrint } from "../SeatingTab";
@@ -31,11 +33,13 @@ export default async function RunSheetPrint({
   const { couple } = await requirePlanning(coupleId);
   const sp = await searchParams;
   const tabs = await tabsFor(couple.id);
-  const rawTabs = typeof sp.tabs === "string" ? sp.tabs.split(",") : ["cover", "toc", ...tabs.map((t) => t.id), "leveranciers"];
+  // Same order as on screen, with Leveranciers and Eten & allergieën in between.
+  const shown = withVirtualTabs(tabs);
+  const rawTabs = typeof sp.tabs === "string" ? sp.tabs.split(",") : ["cover", "toc", ...shown.map((t) => t.id)];
   // "seating:<plan id>": only that seating plan (the PDF button on the plan itself).
   const onlyPlan = rawTabs.find((t) => t.startsWith("seating:"))?.split(":")[1];
   const wanted = onlyPlan ? tabs.filter((t) => t.kind === "seating").map((t) => t.id) : rawTabs;
-  const chosen = [...tabs.filter((t) => wanted.includes(t.id)), ...(wanted.includes("leveranciers") ? [{ id: "leveranciers", title: "Leveranciers", kind: "suppliers", position: 999 }] : [])] as (RunsheetTab | { id: string; title: string; kind: "suppliers"; position: number })[];
+  const chosen = shown.filter((t) => wanted.includes(t.id)) as (RunsheetTab | { id: string; title: string; kind: "suppliers" | "meals"; position: number })[];
   const [settings, people] = await Promise.all([getSettings(), peopleFor(couple.id)]);
   const colorOf = (name: string) => people.find((p) => p.name.toLowerCase() === name.toLowerCase())?.color ?? "#ecebe8";
 
@@ -83,7 +87,12 @@ export default async function RunSheetPrint({
             ) : tab.kind === "styling" ? (
               <StylingPrint coupleId={couple.id} />
             ) : tab.kind === "seating" ? (
-              <SeatingPrint coupleId={couple.id} layoutId={onlyPlan} />
+              <>
+                <SeatingPrint coupleId={couple.id} layoutId={onlyPlan} />
+                {!onlyPlan && <SeatingNotesPrint coupleId={couple.id} tab={tab as RunsheetTab} colorOf={colorOf} />}
+              </>
+            ) : tab.kind === "meals" ? (
+              <MealsPrint coupleId={couple.id} />
             ) : (
               <SuppliersPrint coupleId={couple.id} />
             )}
@@ -193,16 +202,45 @@ async function GuestsPrint({ coupleId }: { coupleId: string }) {
   );
 }
 
+/** Notes from the old "Opstelling" list, when there are any. */
+async function SeatingNotesPrint({ coupleId, tab, colorOf }: { coupleId: string; tab: RunsheetTab; colorOf: (n: string) => string }) {
+  const rows = await rowsFor(coupleId, tab.id);
+  if (rows.length === 0) return null;
+  return (
+    <div className="mt-4">
+      <h3 className="mb-1 text-base">Notities bij de opstelling</h3>
+      <RowsPrint coupleId={coupleId} tab={{ ...tab, kind: "list" }} colorOf={colorOf} />
+    </div>
+  );
+}
+
+async function MealsPrint({ coupleId }: { coupleId: string }) {
+  const { moments, totals } = await mealsFor(coupleId);
+  return (
+    <table className="w-full border-collapse">
+      <thead><tr>{["Eetmoment", "Tijd", "Cateraar", "Personen"].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
+      <tbody>
+        {moments.filter((m) => m.active).map((m) => (
+          <tr key={m.id} className="border-b border-line">
+            <td className={td}>{m.name}</td><td className={td}>{m.at_time}</td><td className={td}>{m.caterer}</td><td className={td}>{totals[m.id] ?? 0}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 async function SuppliersPrint({ coupleId }: { coupleId: string }) {
   const suppliers = await supplierContacts(coupleId);
   return (
     <table className="w-full border-collapse">
-      <thead><tr>{["Categorie", "Leverancier", "Contact", "Telefoon", "E-mail"].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
+      <thead><tr>{["Categorie", "Leverancier", "Contact", "Telefoon", "E-mail", "Aanwezig"].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
       <tbody>
         {suppliers.map((s) => (
           <tr key={s.id} className="border-b border-line">
             <td className={td}>{s.category_name}<span className="block text-[10px] text-muted">{SUPPLIER_STATUS[s.status]}</span></td>
             <td className={td}>{s.name}</td><td className={td}>{s.contact_person}</td><td className={td}>{s.phone}</td><td className={td}>{s.email}</td>
+            <td className={td}>{[s.present_from, s.present_until].filter(Boolean).join(" – ")}</td>
           </tr>
         ))}
       </tbody>

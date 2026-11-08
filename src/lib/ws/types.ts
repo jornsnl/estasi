@@ -138,6 +138,9 @@ export interface CoupleSupplier {
   website: string;
   address: string;
   notes: string;
+  /** "Aanwezig op locatie vanaf / tot", "13:30" or "". */
+  present_from: string;
+  present_until: string;
 }
 
 export interface FileRef {

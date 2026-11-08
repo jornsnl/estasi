@@ -6,6 +6,8 @@ import { logActivity } from "@/lib/ws/couples";
 import { isUuid, one, query, tx } from "@/lib/ws/db";
 import { deleteFiles, storeUpload, UploadError } from "@/lib/ws/files";
 import { done, str } from "@/lib/ws/redirect";
+import { syncAfterSave } from "@/lib/ws/runsheet";
+import { cleanTime } from "@/lib/ws/runsheet-pure";
 import { isSupplierStatus, recordFavorite } from "@/lib/ws/suppliers";
 import type { Recommendation } from "@/lib/ws/types";
 
@@ -26,7 +28,9 @@ const FIELDS = {
   address: 300,
   notes: 5000,
 } as const;
-export type SupplierField = keyof typeof FIELDS | "status";
+/** "Aanwezig op locatie vanaf / tot": rows in the day planning. */
+const TIMES = ["present_from", "present_until"] as const;
+export type SupplierField = keyof typeof FIELDS | "status" | (typeof TIMES)[number];
 
 /** Saves one field of one row, straight from the table (no page reload). */
 export async function saveSupplierField(
@@ -41,8 +45,12 @@ export async function saveSupplierField(
   if (field === "status") {
     if (!isSupplierStatus(value)) return { ok: false, error: "Onbekende status." };
     clean = value;
+  } else if ((TIMES as readonly string[]).includes(field)) {
+    const time = cleanTime(value);
+    if (time === null) return { ok: false, error: "Vul een tijd in als 13:30." };
+    clean = time;
   } else if (field in FIELDS) {
-    clean = String(value ?? "").trim().slice(0, FIELDS[field]);
+    clean = String(value ?? "").trim().slice(0, FIELDS[field as keyof typeof FIELDS]);
   } else {
     return { ok: false, error: "Onbekend veld." };
   }
@@ -53,6 +61,8 @@ export async function saveSupplierField(
   );
   if (!updated) return { ok: false, error: "Niet gevonden." };
   if (field === "status") await note(ctx, "Status van een leverancier gewijzigd");
+  // Name, status and times make the arrival and departure rows in the day planning.
+  if (field === "name" || field === "status" || (TIMES as readonly string[]).includes(field)) await syncAfterSave(ctx.couple.id);
   return { ok: true };
 }
 
@@ -83,6 +93,7 @@ export async function deleteSupplierRow(formData: FormData) {
     );
     await query("delete from couple_suppliers where id = $1 and couple_id = $2", [id, ctx.couple.id]);
     if (files.length) await deleteFiles("delete from files where id = any($1::uuid[])", [files.map((f) => f.file_id)]);
+    await syncAfterSave(ctx.couple.id);
   }
   done(list(ctx.couple.id), "Leverancier verwijderd.");
 }
@@ -109,6 +120,7 @@ export async function deleteCoupleCategory(formData: FormData) {
   const ctx = await requireCouple(str(formData, "coupleId", 40));
   const id = str(formData, "categoryId", 40);
   if (isUuid(id)) await query("delete from supplier_categories where id = $1 and couple_id = $2", [id, ctx.couple.id]);
+  await syncAfterSave(ctx.couple.id);
   done(list(ctx.couple.id), "Categorie verwijderd.");
 }
 
@@ -138,6 +150,7 @@ export async function saveSupplierDetails(formData: FormData) {
     throw err;
   }
   await note(ctx, "Leverancier bijgewerkt");
+  await syncAfterSave(ctx.couple.id);
   done(back, "Opgeslagen.");
 }
 

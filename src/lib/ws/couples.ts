@@ -6,6 +6,7 @@ import { getStore } from "@/lib/data";
 import { isActivated } from "@/lib/domain/account";
 import type { Couple, Package } from "./types";
 import { ensureCoupleUser, loginLink } from "./logins";
+import { DEFAULT_TABS } from "./runsheet";
 import { getSettings } from "./settings";
 
 export interface CoupleListRow extends Couple {
@@ -136,10 +137,9 @@ export async function createCouple(input: NewCouple, createdBy: string): Promise
       );
     }
     await query(
-      `insert into runsheet_tabs (couple_id, title, kind, position) values
-         ($1, 'Dagplanning', 'schedule', 1), ($1, 'Opstelling', 'seating', 2), ($1, 'Meeneemlijst', 'packing', 3),
-         ($1, 'Stylingplan', 'styling', 4), ($1, 'Groepsfoto''s', 'photos', 5), ($1, 'Gastenlijst', 'guests', 6)`,
-      [coupleId],
+      `insert into runsheet_tabs (couple_id, title, kind, position)
+       select $1, t.title, t.kind, t.ord from unnest($2::text[], $3::text[]) with ordinality as t (title, kind, ord)`,
+      [coupleId, DEFAULT_TABS.map(([title]) => title), DEFAULT_TABS.map(([, kind]) => kind)],
       db,
     );
     // The partners' names, each with an own colour, for "Wie" in the day planning.
