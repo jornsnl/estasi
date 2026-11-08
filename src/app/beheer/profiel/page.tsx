@@ -4,6 +4,7 @@ import { removePasskey, renamePasskey } from "@/app/actions/passkeys";
 import { Badge } from "@/components/Badge";
 import { CopyField } from "@/components/CopyField";
 import { InstallApp } from "@/components/InstallApp";
+import { NotificationSettings } from "@/components/community/NotificationSettings";
 import { ManualClientForm } from "@/components/ManualClientForm";
 import { Notice } from "@/components/Notice";
 import { PasskeyRegister } from "@/components/PasskeyRegister";
@@ -50,6 +51,8 @@ export default async function OwnerProfilePage({ searchParams }: { searchParams:
         <p className="mt-2 text-sm text-muted">{owner.name} · {owner.email}</p>
       </div>
       <Notice searchParams={searchParams} />
+
+      <NotificationSettings userId={owner.id} owner />
 
       <section id="app" className="card scroll-mt-6 space-y-4 p-6">
         <div>

@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { AdminPwa } from "@/components/AdminPwa";
 import { AppShell } from "@/components/AppShell";
 import { requireOwner } from "@/lib/auth/session";
+import { kickNotifications } from "@/lib/community/notify";
+import { menuCounts, viewerFor } from "@/lib/community/server";
 import { devAuthAllowed } from "@/lib/auth/dev-mode";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +20,8 @@ export const viewport: Viewport = { themeColor: "#ffffff" };
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
   const user = await requireOwner();
+  const counts = await menuCounts(await viewerFor(user));
+  kickNotifications();
   return (
     <AppShell
       userName={user.name}
@@ -26,6 +30,8 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
         { href: "/beheer", label: "Cursisten", exact: true, section: "Academy" },
         { href: "/beheer/cursisten/nieuw", label: "Cursist toevoegen" },
         { href: "/beheer/inhoud", label: "Lesinhoud" },
+        { href: "/beheer/community", label: "Community", badge: counts.community },
+        { href: "/beheer/berichten", label: "Privéberichten", badge: counts.private },
         { href: "/beheer/instellingen", label: "Instellingen" },
         { href: "/beheer/logboek", label: "Logboek" },
         { href: "/beheer/profiel", label: "Profiel en beveiliging" },

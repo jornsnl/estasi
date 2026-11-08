@@ -10,6 +10,8 @@ export interface NavItem {
   exact?: boolean;
   /** Starts a new group in the menu with this heading. */
   section?: string;
+  /** Unread count, shown as a small badge (not on the page you are on). */
+  badge?: number;
 }
 
 export function NavLinks({ items }: { items: NavItem[] }) {
@@ -44,7 +46,15 @@ export function NavLinks({ items }: { items: NavItem[] }) {
                   : "border-transparent text-ink hover:bg-cream"
               }`}
             >
-              {item.label}
+              <span className="flex items-center justify-between gap-2">
+                {item.label}
+                {!active && item.badge ? (
+                  <span className="min-w-5 rounded-full bg-bordeaux px-1.5 text-center text-[11px] leading-5 font-semibold text-white">
+                    <span className="sr-only">, ongelezen: </span>
+                    {item.badge > 9 ? "9+" : item.badge}
+                  </span>
+                ) : null}
+              </span>
             </Link>
           </li>
         );
