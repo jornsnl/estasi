@@ -69,13 +69,20 @@ describe.skipIf(!url)("Postgres stores", () => {
   });
 
   it("content, answers, feedback and completions", async () => {
-    await store.saveModule({ id: moduleId, title: "M", description: "", position: 99 });
+    // Without the newer fields a module is published and for both packages.
+    expect(await store.saveModule({ id: moduleId, title: "M", description: "", position: 99 })).toMatchObject({ status: "published", packages: "AB" });
+    expect(await store.saveModule({ id: moduleId, title: "M", description: "", position: 99, status: "draft", packages: "B" })).toMatchObject({ status: "draft", packages: "B" });
     const lesson: Lesson = {
       id: lessonId, moduleId, title: "L", summary: "", position: 1,
       blocks: [{ id: "b1", type: "question", kind: "open", prompt: "?", helpText: "", required: true, feedback: true }],
+      status: "published", draft: null, publishedAt: null,
     };
     expect(await store.saveLesson(lesson)).toEqual(lesson);
     expect(await store.saveLesson({ ...lesson, title: "L2" })).toEqual({ ...lesson, title: "L2" });
+    // A draft of a published lesson is stored next to the live blocks.
+    const draft = { title: "L3", summary: "", blocks: [{ id: "b2", type: "text" as const, markdown: "", html: "<p>x</p>" }] };
+    expect((await store.saveLesson({ ...lesson, draft, publishedAt: now })).draft).toEqual(draft);
+    expect((await store.getLesson(lessonId))?.publishedAt).toBe(now);
     expect((await store.listLessons(moduleId)).map((l) => l.id)).toEqual([lessonId]);
     expect(await store.listLessons("geen-uuid")).toEqual([]);
 

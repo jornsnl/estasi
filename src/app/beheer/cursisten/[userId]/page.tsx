@@ -225,7 +225,18 @@ export default async function StudentDetail({
               </Row>
             </div>
             {e.package === "B" && (
-              <p className="mt-3 text-xs text-muted">Het praktijkcertificaat verstuur je zelf buiten het platform.</p>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted">Het praktijkcertificaat verstuur je zelf buiten het platform.</p>
+                <ActionForm
+                  action={changeCompletion}
+                  userId={userId}
+                  op="downgrade"
+                  small
+                  confirm="Terugzetten naar pakket A? Modules die alleen voor pakket B zijn, verdwijnen dan voor deze cursist. De voortgang blijft bewaard."
+                >
+                  Terug naar pakket A
+                </ActionForm>
+              </div>
             )}
           </section>
         </div>

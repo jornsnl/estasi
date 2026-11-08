@@ -153,7 +153,8 @@ export class PgDataStore implements DataStore {
     return this.sql.first<Module>("modules", "id = $1", [id]);
   }
   async saveModule(module: Module) {
-    return this.sql.upsert<Module>("modules", module, ["id"]);
+    // Objects built without the newer fields keep the meaning they had before: published, both packages.
+    return this.sql.upsert<Module>("modules", { ...module, status: module.status ?? "published", packages: module.packages ?? "AB" }, ["id"]);
   }
   async deleteModule(id: string) {
     // Lessons go with it (on delete cascade); answers stay.
@@ -169,7 +170,7 @@ export class PgDataStore implements DataStore {
     return this.sql.first<Lesson>("lessons", "id = $1", [id]);
   }
   async saveLesson(lesson: Lesson) {
-    return this.sql.upsert<Lesson>("lessons", lesson, ["id"]);
+    return this.sql.upsert<Lesson>("lessons", { ...lesson, status: lesson.status ?? "published", draft: lesson.draft ?? null, publishedAt: lesson.publishedAt ?? null }, ["id"]);
   }
   async deleteLesson(id: string) {
     if (isUuid(id)) await this.sql.exec("delete from public.lessons where id = $1", [id]);

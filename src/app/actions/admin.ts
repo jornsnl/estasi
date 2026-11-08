@@ -241,6 +241,12 @@ export async function changeCompletion(formData: FormData) {
       patch = { package: "B" };
       log = `Upgrade naar pakket B · ${PACKAGE_LABELS.B}`;
       break;
+    case "downgrade":
+      // Progress is never removed: the B-only modules are hidden again and come back after a new upgrade.
+      if (enrollment.package === "A") done(path, "Deze cursist heeft al pakket A.", true);
+      patch = { package: "A" };
+      log = `Pakket gewijzigd naar A · ${PACKAGE_LABELS.A}`;
+      break;
     case "notes":
       patch = { ownerNotes: str(formData, "ownerNotes", LIMITS.ownerNotes) };
       log = "Notities bijgewerkt";
