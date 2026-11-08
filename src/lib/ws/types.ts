@@ -65,6 +65,9 @@ export interface Settings {
   contact_photo_file_id: string | null;
   group_photo_intro: string;
   default_styling_places: string[];
+  /** The opening dance video for couples without the dance: a link, or an upload. */
+  dance_video_url: string;
+  dance_video_file_id: string | null;
 }
 
 export interface Task {

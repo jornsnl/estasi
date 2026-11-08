@@ -11,7 +11,7 @@ const STATUS = { concept: "Concept: nog niet gedeeld", active: "Gedeeld met het 
 
 export default async function PortalLayout({ children, params }: { children: React.ReactNode; params: Promise<{ coupleId: string }> }) {
   const { coupleId } = await params;
-  const { couple, isAdmin, account, planning, dance } = await requireCouple(coupleId);
+  const { couple, isAdmin, account, planning } = await requireCouple(coupleId);
   if (!isAdmin) await touchActivity(account);
   const base = `/k/${couple.id}`;
   // Only the opening dance: overview, appointments, the dance and invoices. Sabine always sees everything.
@@ -29,7 +29,8 @@ export default async function PortalLayout({ children, params }: { children: Rea
           { href: `${base}/kosten`, label: "Kosten" },
         ]
       : []),
-    ...(dance ? [{ href: `${base}/openingsdans`, label: "De openingsdans" }] : []),
+    // Always there: without the dance in the package it is the information page (feedback 9.1).
+    { href: `${base}/openingsdans`, label: "De openingsdans" },
     { href: `${base}/facturen`, label: "Facturen & Offertes" },
     ...(isAdmin ? [{ href: `${base}/gegevens`, label: "Gegevens & delen" }] : []),
   ];

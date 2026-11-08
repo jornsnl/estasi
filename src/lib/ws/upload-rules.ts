@@ -6,7 +6,7 @@
  * kinds below stay under it.
  */
 
-export type UploadKind = "image" | "document" | "audio";
+export type UploadKind = "image" | "document" | "audio" | "video";
 
 const MB = 1024 * 1024;
 
@@ -28,6 +28,9 @@ const MIME: Record<string, string> = {
   m4a: "audio/mp4",
   aac: "audio/aac",
   wav: "audio/wav",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
 };
 
 export const UPLOAD_KINDS: Record<UploadKind, { extensions: string[]; maxBytes: number; label: string }> = {
@@ -40,6 +43,7 @@ export const UPLOAD_KINDS: Record<UploadKind, { extensions: string[]; maxBytes: 
     label: "document",
   },
   audio: { extensions: ["mp3", "m4a", "aac", "wav"], maxBytes: 45 * MB, label: "audiobestand" },
+  video: { extensions: ["mp4", "webm", "mov"], maxBytes: 45 * MB, label: "video" },
 };
 
 /** Photos the browser may decode and shrink (HEIC only works in Safari). */
