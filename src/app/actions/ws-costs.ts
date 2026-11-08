@@ -50,6 +50,33 @@ export async function setPlanned(coupleId: string, itemId: string, value: string
   return { ok: true };
 }
 
+/**
+ * Own part from the budget table in the assignment: returns instead of
+ * redirecting, so amounts typed there but not saved yet stay on screen.
+ */
+export async function addBudgetPart(coupleId: string, nameInput: string, amount: string): Promise<Ok> {
+  const ctx = await requireCouple(coupleId);
+  const name = String(nameInput).trim().slice(0, 200);
+  if (!name) return { ok: false, error: "Vul het onderdeel in, bijvoorbeeld Trouwkaarten." };
+  const cents = money(String(amount).slice(0, 30));
+  if (cents === "bad") return { ok: false, error: "Vul een geldig bedrag in, bijvoorbeeld 1.250 of 1250,50." };
+  await query(
+    `insert into budget_items (couple_id, kind, name, category, budget_cents, position)
+     values ($1, 'own', $2, $2, $3, coalesce((select max(position) + 1 from budget_items where couple_id = $1), 1))`,
+    [ctx.couple.id, name, cents ?? 0],
+  );
+  await note(ctx, `Begroting: ${name} toegevoegd`);
+  return { ok: true };
+}
+
+export async function deleteBudgetPart(coupleId: string, itemId: string): Promise<Ok> {
+  const ctx = await requireCouple(coupleId);
+  const line = await lineOf(ctx, itemId);
+  if (!line || line.kind !== "own") return { ok: false, error: "Deze regel kan niet verwijderd worden." };
+  await query("delete from budget_items where id = $1", [line.id]);
+  return { ok: true };
+}
+
 export async function addOwnPart(formData: FormData) {
   const ctx = await requireCouple(str(formData, "coupleId", 40));
   const back = str(formData, "back", 300).startsWith(`/k/${ctx.couple.id}/`) ? str(formData, "back", 300) : `/k/${ctx.couple.id}/kosten`;

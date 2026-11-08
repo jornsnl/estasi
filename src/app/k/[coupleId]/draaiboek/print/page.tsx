@@ -135,7 +135,8 @@ async function PackingPrint({ coupleId }: { coupleId: string }) {
       {lists.map(([kind, title]) => (
         <div key={kind}>
           <h3 className="mb-1 text-sm font-semibold">{title}</h3>
-          <table className="w-full border-collapse">
+          <table className="w-full table-fixed border-collapse break-words">
+            <colgroup><col /><col className="w-[34%]" /><col className="w-20" /></colgroup>
             <thead><tr><th className={th}>Wat moet er mee</th><th className={th}>Wie neemt het mee</th><th className={th}>Ingepakt</th></tr></thead>
             <tbody>
               {items.filter((i) => i.list_kind === kind).map((i, n) => (
@@ -163,6 +164,9 @@ async function PhotosPrint({ coupleId }: { coupleId: string }) {
   );
 }
 
+/** The same column widths for every group, so the columns line up from block to block. */
+const GUEST_COLS = ["w-[6%]", "w-[10%]", "w-[20%]", "w-[18%]", "w-[14%]", "w-[18%]", "w-[14%]"];
+
 async function GuestsPrint({ coupleId }: { coupleId: string }) {
   const { groups, guests } = await dayGuests(coupleId);
   return (
@@ -173,7 +177,8 @@ async function GuestsPrint({ coupleId }: { coupleId: string }) {
         return (
           <div key={group}>
             <h3 className="mb-1 text-sm font-semibold">{group} ({rows.length} aanwezig, waarvan {rows.filter((g) => g.is_kid).length} kinderen)</h3>
-            <table className="w-full border-collapse">
+            <table className="w-full table-fixed border-collapse break-words">
+              <colgroup>{GUEST_COLS.map((w, i) => <col key={i} className={w} />)}</colgroup>
               <thead><tr>{["Nr.", "Aanwezig", "Naam", "Relatie", "Mobiel", "Allergieën / dieet", "Deel van de dag"].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
               <tbody>
                 {rows.map((g, i) => (

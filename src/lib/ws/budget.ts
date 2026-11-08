@@ -1,3 +1,4 @@
+import { parseMoney } from "./format";
 import { costRemaining } from "./pure";
 import type { BudgetItem } from "./types";
 
@@ -34,3 +35,39 @@ export function costsByCategory(items: Pick<BudgetItem, "category" | "actual_cen
 }
 
 export { costRemaining };
+
+export interface BudgetForm {
+  /** Undefined: the total was not in the form; null: emptied. */
+  total?: number | null;
+  lines: { id: string; cents: number }[];
+  errors: string[];
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The budget table as it comes in with "Tussentijds opslaan" / "Opnieuw
+ * versturen": `budgetTotal` and one `budget-<id>` per line. Amounts in Dutch
+ * notation; an empty amount is 0 (the total: no total).
+ */
+export function readBudgetForm(entries: Iterable<[string, unknown]>, names: Record<string, string> = {}): BudgetForm {
+  const result: BudgetForm = { lines: [], errors: [] };
+  for (const [key, raw] of entries) {
+    const value = typeof raw === "string" ? raw.slice(0, 30) : "";
+    if (key === "budgetTotal") {
+      try {
+        result.total = parseMoney(value);
+      } catch {
+        result.errors.push(`Totaalbudget "${value}"`);
+      }
+    } else if (key.startsWith("budget-") && UUID.test(key.slice(7))) {
+      const id = key.slice(7);
+      try {
+        result.lines.push({ id, cents: parseMoney(value) ?? 0 });
+      } catch {
+        result.errors.push(`${names[id] ?? "Onderdeel"} "${value}"`);
+      }
+    }
+  }
+  return result;
+}

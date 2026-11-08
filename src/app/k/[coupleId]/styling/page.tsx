@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { saveStylingPlan, stylingImage } from "@/app/actions/ws-fase2";
-import { makeStylingSummary, releaseStylingPlan, savePlace } from "@/app/actions/ws-styling";
+import { releaseStylingPlan, savePlace } from "@/app/actions/ws-styling";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { AutoTextarea } from "@/components/ws/AutoTextarea";
+import { ColorPalette } from "@/components/ws/ColorPalette";
 import { FileUpload } from "@/components/ws/FileUpload";
 import { StylingPlaces } from "@/components/ws/StylingPlaces";
+import { StylingSummaryButton } from "@/components/ws/StylingSummaryButton";
 import { requirePlanning } from "@/lib/ws/access";
 import { aiConfigured } from "@/lib/ws/ai";
+import { readPalette } from "@/lib/ws/color";
 import { one, query } from "@/lib/ws/db";
 import { directUploads } from "@/lib/ws/files";
 import { formatDateTime } from "@/lib/ws/format";
@@ -19,7 +22,9 @@ export const metadata = { title: "Stylingplan & Moodboard" };
 interface Plan {
   concept: string;
   colors: string[];
+  color_names: Record<string, string>;
   ai_draft: string;
+  ai_error: string;
   ai_draft_at: Date | null;
   published: boolean;
   updated_at: Date;
@@ -47,7 +52,8 @@ export default async function Styling({
     stylingPlaces(couple.id, isAdmin),
     peopleFor(couple.id),
   ]);
-  const showConcept = (isAdmin || plan?.published) && plan && (plan.concept || plan.colors.length > 0);
+  const palette = readPalette(plan?.colors, plan?.color_names);
+  const showConcept = (isAdmin || plan?.published) && plan && (plan.concept || palette.length > 0);
   const drafts = places.reduce((n, p) => n + p.items.filter((i) => i.draft).length, 0);
   const direct = directUploads();
 
@@ -69,12 +75,13 @@ export default async function Styling({
         <section className="card space-y-4 p-6">
           {!plan.published && <p className="rounded-lg bg-cream px-3 py-2 text-xs text-gold-ink">Nog niet zichtbaar voor het bruidspaar.</p>}
           {plan.concept && <p className="text-[15px] leading-7 whitespace-pre-line">{plan.concept}</p>}
-          {plan.colors.length > 0 && (
+          {palette.length > 0 && (
             <div className="flex flex-wrap gap-3">
-              {plan.colors.map((c) => (
-                <div key={c} className="text-center text-xs text-muted">
-                  <div className="h-12 w-12 rounded-lg border border-line" style={{ background: c }} />
-                  <span className="mt-1 block font-mono">{c}</span>
+              {palette.map((c) => (
+                <div key={c.hex} className="w-16 text-center text-xs text-muted">
+                  <div className="mx-auto h-12 w-12 rounded-lg border border-line" style={{ background: c.hex }} />
+                  {c.name && <span className="mt-1 block truncate text-ink">{c.name}</span>}
+                  <span className="block font-mono text-[11px]">{c.hex}</span>
                 </div>
               ))}
             </div>
@@ -85,7 +92,10 @@ export default async function Styling({
           <section className="card p-6 text-sm text-muted">
             {source && !source.completed_at
               ? <>Sabine maakt jullie stylingplan op basis van de opdracht <Link className="text-bordeaux underline" href={`/k/${couple.id}/opdrachten/${source.id}`}>{source.title}</Link>. Vul die eerst in.</>
-              : "Sabine werkt jullie stylingplan uit en zet het hier neer."}
+              : <>
+                  <span className="block font-medium text-ink">De samenvatting is binnenkort beschikbaar.</span>
+                  <span className="mt-1 block">Sabine maakt op basis van jullie antwoorden een overzicht van jullie stijl, sfeer en kleuren, en zet het hier neer.</span>
+                </>}
           </section>
         )
       )}
@@ -149,12 +159,9 @@ export default async function Styling({
               {source?.kind === "sections" && source.done < source.total ? ` Let op: nog ${source.total - source.done} van de ${source.total} opdrachten open.` : ""}
             </p>
             {aiConfigured() ? (
-              <form action={makeStylingSummary} className="mt-3">
-                <input type="hidden" name="coupleId" value={couple.id} />
-                <SubmitButton className="btn-secondary" pendingText="Samenvatting maken… (kan een halve minuut duren)">Samenvatting maken</SubmitButton>
-              </form>
+              <StylingSummaryButton coupleId={couple.id} hasSummary={Boolean(plan?.ai_draft)} lastError={plan?.ai_error || undefined} />
             ) : (
-              <p className="mt-2 text-xs text-bordeaux">Staat uit: zet ANTHROPIC_API_KEY in de hosting om dit te gebruiken.</p>
+              <p className="mt-2 text-xs text-bordeaux">Staat uit: zet ANTHROPIC_API_KEY in de hosting om dit te gebruiken. Het bruidspaar ziet intussen &quot;De samenvatting is binnenkort beschikbaar.&quot;</p>
             )}
           </div>
           {plan?.ai_draft && (
@@ -170,9 +177,8 @@ export default async function Styling({
               <AutoTextarea id="concept" name="concept" defaultValue={plan?.concept || plan?.ai_draft || ""} className="input min-h-40" />
             </div>
             <div>
-              <label className="label" htmlFor="colors">Kleurenpalet</label>
-              <input id="colors" name="colors" defaultValue={(plan?.colors ?? []).join(" ")} placeholder="#c98b6b #7e9c86 #f5f0e8" className="input font-mono" />
-              <p className="hint">Hexcodes, gescheiden door spaties.</p>
+              <p className="label">Kleurenpalet</p>
+              <ColorPalette initial={palette} />
             </div>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="published" defaultChecked={plan?.published ?? false} className="accent-[#6B1E2E]" /> Zichtbaar voor het bruidspaar</label>
             <SubmitButton className="btn-primary" pendingText="Opslaan…">Opslaan</SubmitButton>
