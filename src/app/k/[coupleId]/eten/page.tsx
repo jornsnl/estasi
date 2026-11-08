@@ -2,7 +2,7 @@ import { addMealRow, addMoment, moveMoment } from "@/app/actions/ws-meals";
 import { MoveButtons } from "@/components/MoveButtons";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { CopyButton, MealTable, MenuBlocks, PartOfDayList } from "@/components/ws/MealsBoard";
+import { CopyButton, MealTable, MenuBlocks } from "@/components/ws/MealsBoard";
 import { MomentToggle } from "@/components/ws/MomentToggle";
 import { requirePlanning } from "@/lib/ws/access";
 import { allergyList } from "@/lib/ws/allergies";
@@ -21,12 +21,11 @@ export default async function MealsPage({
 }) {
   const { coupleId } = await params;
   const { couple } = await requirePlanning(coupleId);
-  const [{ moments, rows, guests, totals }, suppliers] = await Promise.all([
+  const [{ moments, rows, guests, partial }, suppliers] = await Promise.all([
     mealsFor(couple.id),
     query<{ name: string }>("select distinct name from couple_suppliers where couple_id = $1 and name <> '' order by name", [couple.id]),
   ]);
   const allergies = allergyList(guests, rows);
-  const partial = guests.filter((g) => g.attendance === "partial");
   const copyText = [
     `Allergieën en dieetwensen, bruiloft ${coupleName(couple)}${couple.wedding_date ? ` op ${formatDate(couple.wedding_date)}` : ""}`,
     "",
@@ -43,7 +42,7 @@ export default async function MealsPage({
       <header>
         <p className="eyebrow">Onderdeel</p>
         <h1 className="mt-1 text-3xl">Eten & allergieën</h1>
-        <p className="mt-1 text-sm text-muted">Wat wordt er wanneer gegeten, en wie eet er mee. De aantallen van de RSVP-groepen en de allergieën uit de RSVP vullen zich vanzelf.</p>
+        <p className="mt-1 text-sm text-muted">Wat wordt er wanneer gegeten, en wie eet er mee. De aantallen van de RSVP-groepen en de allergieën uit de RSVP vullen zich vanzelf. Wie een deel van de dag komt, staat onder de daggasten: vink per gast aan bij welke maaltijden die er is.</p>
       </header>
       <Notice searchParams={searchParams} />
 
@@ -53,12 +52,15 @@ export default async function MealsPage({
       </section>
 
       <section id="tabel" className="scroll-mt-6 space-y-3">
-        <h2 className="section-title">Wie eet er mee</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="section-title">Wie eet er mee</h2>
+          <a href={`/k/${couple.id}/eten/print?print=1`} target="_blank" rel="noopener" className="btn-secondary py-1.5 text-xs">Printen of PDF</a>
+        </div>
         <MealTable
           coupleId={couple.id}
           moments={plainMoments}
-          totals={totals}
-          rows={rows.map((r) => ({ id: r.id, kind: r.kind, name: r.name, role: r.role, diet: r.diet, summary: r.summary, cells: r.cells }))}
+          rows={rows.map((r) => ({ id: r.id, kind: r.kind, name: r.name, role: r.role, group_kind: r.group_kind, diet: r.diet, summary: r.summary, cells: r.cells }))}
+          partial={partial.map((g) => ({ id: g.id, name: g.name, group: g.group, is_kid: g.is_kid, diet: g.diet, partial_note: g.partial_note, reviewed: g.meals_reviewed, excluded: g.excluded }))}
         />
         <div className="flex flex-wrap gap-4">
           <form action={addMealRow} className="flex flex-wrap gap-2">
@@ -92,20 +94,6 @@ export default async function MealsPage({
           ))}
           {allergies.length === 0 && <li className="py-2 text-muted">Nog geen allergieën of dieetwensen.</li>}
         </ul>
-      </details>
-
-      <details className="card p-5" open={partial.some((g) => !g.meals_reviewed)}>
-        <summary className="cursor-pointer section-title">Deel van de dag aanwezig (uit de RSVP) ({partial.length})</summary>
-        <p className="mt-2 text-sm text-muted">Vink per gast uit bij welke eetmomenten hij of zij er niet is: het aantal van de groep en de allergieën passen zich vanzelf aan.</p>
-        {partial.length > 0 ? (
-          <PartOfDayList
-            coupleId={couple.id}
-            moments={plainMoments}
-            guests={partial.map((g) => ({ id: g.id, name: g.name, group: g.group, is_kid: g.is_kid, partial_note: g.partial_note, reviewed: g.meals_reviewed, excluded: g.excluded }))}
-          />
-        ) : (
-          <p className="mt-2 text-sm text-muted">Niemand.</p>
-        )}
       </details>
 
       <section id="momenten" className="card scroll-mt-6 p-5">
