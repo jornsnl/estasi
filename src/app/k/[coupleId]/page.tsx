@@ -5,6 +5,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { dismissTourWelcome } from "@/app/actions/ws-tour";
 import { AnswerReveal } from "@/components/ws/AnswerReveal";
 import { hasSettingVideo } from "@/components/ws/SettingVideo";
+import { StudentAccessCouple } from "@/components/ws/StudentAccessCouple";
 import { TourButton } from "@/components/ws/TourButton";
 import { requireCouple } from "@/lib/ws/access";
 import { one, query } from "@/lib/ws/db";
@@ -73,6 +74,9 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
   return (
     <div className="space-y-10">
       <Notice searchParams={searchParams} />
+
+      {/* Feedback 13.2: Sabine's question about a student who walks along, and "Meekijkers". */}
+      <StudentAccessCouple couple={couple} isAdmin={isAdmin} />
 
       {tour && (
         <div className="flex justify-end">

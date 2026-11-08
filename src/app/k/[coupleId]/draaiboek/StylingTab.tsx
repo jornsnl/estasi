@@ -18,7 +18,8 @@ export async function StylingTab({ coupleId, isAdmin }: { coupleId: string; isAd
   );
 }
 
-export async function StylingPrint({ coupleId }: { coupleId: string }) {
+/** fileBase: where the images are served; the student's view has its own checked route (feedback 13.5). */
+export async function StylingPrint({ coupleId, fileBase = "/api/ws-bestanden/" }: { coupleId: string; fileBase?: string }) {
   const places = await stylingPlaces(coupleId, false);
   const th = "border-b border-ink py-1 pr-2 text-left font-semibold";
   return (
@@ -41,7 +42,7 @@ export async function StylingPrint({ coupleId }: { coupleId: string }) {
           {p.images.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element -- uploaded images behind a login check */}
-              {p.images.map((img) => <img key={img.id} src={`/api/ws-bestanden/${img.file_id}`} alt="" className="max-h-56 max-w-[48%] rounded object-contain" />)}
+              {p.images.map((img) => <img key={img.id} src={`${fileBase}${img.file_id}`} alt="" className="max-h-56 max-w-[48%] rounded object-contain" />)}
             </div>
           )}
         </div>

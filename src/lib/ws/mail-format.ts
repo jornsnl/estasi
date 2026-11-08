@@ -49,6 +49,8 @@ export const MAIL_KINDS = {
   opdracht: "Opdracht ingestuurd",
   favorieten: "Nieuwe favorieten",
   openingsdans: "Aanvraag openingsdans",
+  meekijker_vraag: "Vraag meelopende cursist",
+  meekijker_toegang: "Draaiboektoegang cursist",
   overig: "Overig",
 } as const;
 export type MailKind = keyof typeof MAIL_KINDS;

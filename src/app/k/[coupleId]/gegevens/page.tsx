@@ -8,6 +8,7 @@ import { coupleMembers, couplePackages } from "@/lib/ws/couples";
 import { query } from "@/lib/ws/db";
 import type { Package } from "@/lib/ws/types";
 import { FileUpload } from "@/components/ws/FileUpload";
+import { StudentAccessAdmin } from "@/components/ws/StudentAccessAdmin";
 import { directUploads } from "@/lib/ws/files";
 import { formatDateTime } from "@/lib/ws/format";
 import { mailConfigured } from "@/lib/ws/mail";
@@ -104,6 +105,8 @@ export default async function CoupleSettings({
           </form>
         )}
       </section>
+
+      <StudentAccessAdmin couple={couple} />
 
       <form id="pakketten" action={setCouplePackages} className="card space-y-3 p-5">
         <input type="hidden" name="coupleId" value={couple.id} />
