@@ -202,8 +202,9 @@ const MB = 1024 * 1024;
 /**
  * Within the existing Academy upload limit (10 MB per file, the form limit of
  * the server). Photos are made smaller in the browser first (as in Your
- * Wedding Space), so they are far below it; a short own video must fit too,
- * longer videos go as a YouTube or Vimeo link.
+ * Wedding Space), so they are far below it. Videos are never uploaded: they
+ * go as a YouTube or Vimeo link. "video" stays a kind only so attachments
+ * uploaded before that rule still show.
  */
 export const ATTACHMENT_RULES = {
   image: { extensions: ["jpg", "jpeg", "png", "webp", "gif"], maxBytes: 10 * MB, label: "foto" },
@@ -234,7 +235,10 @@ const MIME: Record<string, string> = {
   txt: "text/plain",
 };
 
-export const ACCEPT_ATTACHMENTS = Object.values(ATTACHMENT_RULES)
+/** Kinds that can still be uploaded. */
+const UPLOADABLE: AttachmentKind[] = ["image", "file"];
+
+export const ACCEPT_ATTACHMENTS = UPLOADABLE.map((k) => ATTACHMENT_RULES[k])
   .flatMap((r) => r.extensions)
   .map((e) => `.${e}`)
   .join(",");
@@ -251,15 +255,13 @@ export function classifyAttachment(name: string, size: number): { ok: true; kind
     (ATTACHMENT_RULES[k].extensions as readonly string[]).includes(ext),
   );
   if (!kind) return { ok: false, error: ext ? `Bestandstype .${ext} kan niet in de community.` : "Dit bestand heeft geen herkenbaar type." };
+  if (kind === "video") return { ok: false, error: "Video's kun je niet uploaden. Zet de video op YouTube of Vimeo en plak de link bij Video." };
   if (size <= 0) return { ok: false, error: "Dit bestand is leeg." };
   const rules = ATTACHMENT_RULES[kind];
   if (size > rules.maxBytes) {
     return {
       ok: false,
-      error:
-        kind === "video"
-          ? "Deze video is groter dan 10 MB. Zet hem op YouTube of Vimeo en plak de link bij Video."
-          : `Dit ${rules.label} is groter dan 10 MB.`,
+      error: `Dit ${rules.label} is groter dan 10 MB.`,
     };
   }
   return { ok: true, kind, mime: MIME[ext] };

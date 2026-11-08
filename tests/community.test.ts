@@ -125,7 +125,7 @@ describe("attachments follow their parent", () => {
 
   it("type by extension and the 10 MB limit", () => {
     expect(classifyAttachment("foto.JPG", 1000)).toEqual({ ok: true, kind: "image", mime: "image/jpeg" });
-    expect(classifyAttachment("clip.mp4", 5_000_000)).toMatchObject({ ok: true, kind: "video" });
+    expect(classifyAttachment("clip.mp4", 5_000_000)).toMatchObject({ ok: false });
     expect(classifyAttachment("plan.docx", 1000)).toMatchObject({ ok: true, kind: "file" });
     expect(classifyAttachment("lang.mp4", 11 * 1024 * 1024)).toMatchObject({ ok: false });
     expect(classifyAttachment("script.html", 10)).toMatchObject({ ok: false });

@@ -85,7 +85,7 @@ export function AttachmentPicker({ conversation = "", compact = false }: { conve
         <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
         </svg>
-        {busy ? "Bezig met uploaden…" : compact ? "Bijlage" : "Foto, video of bestand"}
+        {busy ? "Bezig met uploaden…" : compact ? "Bijlage" : "Foto of bestand"}
       </label>
       <input ref={input} id={inputId} type="file" multiple accept={`${ACCEPT_ATTACHMENTS},.heic`} onChange={onChange} className="sr-only" />
       {items.length > 0 && (

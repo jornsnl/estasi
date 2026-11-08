@@ -103,7 +103,7 @@ export function Feed({
             <AttachmentPicker />
             <SubmitButton pendingText="Plaatsen…">Plaatsen</SubmitButton>
           </div>
-          <p className="hint">Foto&apos;s, korte video&apos;s en bestanden tot 10 MB per stuk, maximaal 6 per bericht. Langere video&apos;s via een link.</p>
+          <p className="hint">Foto&apos;s en bestanden tot 10 MB per stuk, maximaal 6 per bericht. Video&apos;s via een YouTube- of Vimeo-link.</p>
         </form>
       )}
 
