@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AccessNotice } from "@/components/AccessNotice";
+import { NewFeedbackNotice } from "@/components/academy/NewFeedbackNotice";
 import { Badge } from "@/components/Badge";
 import { ModuleCard } from "@/components/ModuleCard";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -47,6 +48,7 @@ export default async function Dashboard() {
       )}
 
       {!active && <AccessNotice enrollment={o.enrollment} contactEmail={settings.contactEmail} />}
+      {active && <NewFeedbackNotice userId={user.id} />}
 
       {active && o.enrollment && (
         <section className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">

@@ -1,5 +1,6 @@
 import type { AssignmentAnswers, AssignmentBlock, AssignmentField, FieldAnswer } from "@/lib/data/types";
 import { allFields, isFieldAnswered } from "@/lib/domain/assignment";
+import { VideoLinkEmbed } from "./VideoLinkEmbed";
 
 /**
  * An assignment with the answers to it, read only: for the owner (student
@@ -70,6 +71,13 @@ function FieldAnswerView({ field, answer }: { field: AssignmentField; answer: Fi
           </tbody>
         </table>
       );
+    case "video_link":
+      return (
+        <div className="mt-1 space-y-2">
+          <VideoLinkEmbed url={answer?.url ?? ""} title={field.label || "Video"} />
+          <a href={answer?.url} target="_blank" rel="noopener noreferrer" className="text-sm break-all text-bordeaux underline">{answer?.url}</a>
+        </div>
+      );
     case "upload":
       return (
         <ul className="mt-1 space-y-1">
@@ -90,6 +98,7 @@ function Loose({ answer }: { answer: FieldAnswer }) {
       {answer.choice && <p>{answer.choice}</p>}
       {answer.choices && answer.choices.length > 0 && <p>{answer.choices.join(", ")}</p>}
       {typeof answer.score === "number" && <p>Score: {answer.score}</p>}
+      {answer.url && <p className="break-all">{answer.url}</p>}
       {(answer.files ?? []).map((f) => (
         <a key={f.id} href={`/api/bestanden/${f.id}`} className="block text-bordeaux underline">{f.name}</a>
       ))}

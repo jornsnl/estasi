@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Certificate } from "@/components/Certificate";
 import { PrintButton } from "@/components/PrintButton";
@@ -10,7 +11,9 @@ export default async function CertificatePage() {
   const user = await requireStudent();
   const enrollment = await getStore().getEnrollmentForUser(user.id);
   // Only visible after the owner personally released it.
-  if (!enrollment?.certificateReleasedAt || !enrollment.certificateCode) redirect("/dashboard");
+  if (!enrollment?.certificateReleasedAt || !enrollment.certificateCode) {
+    redirect(enrollment?.practicalCertificateReleasedAt ? "/certificaat/praktijk" : "/dashboard");
+  }
 
   return (
     <div>
@@ -21,6 +24,11 @@ export default async function CertificatePage() {
         </div>
         <PrintButton />
       </div>
+      {enrollment.practicalCertificateReleasedAt && (
+        <p className="no-print mb-4 text-sm">
+          Je hebt ook een praktijkcertificaat: <Link href="/certificaat/praktijk" className="text-bordeaux underline">bekijk en bewaar het hier</Link>.
+        </p>
+      )}
       <Certificate name={user.name} date={enrollment.certificateReleasedAt} code={enrollment.certificateCode} />
       <p className="no-print mt-4 text-sm text-muted">Tip: kies bij het printen voor &quot;Opslaan als pdf&quot; en liggende oriëntatie.</p>
     </div>

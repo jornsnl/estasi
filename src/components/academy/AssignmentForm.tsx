@@ -9,13 +9,14 @@ import {
   type DraftRequest,
   type DraftState,
 } from "@/app/actions/assignment";
-import type { AssignmentAnswers, AssignmentBlock, AssignmentField, FieldAnswer, FileRef } from "@/lib/data/types";
+import type { Assessment, AssignmentAnswers, AssignmentBlock, AssignmentField, FieldAnswer, FileRef } from "@/lib/data/types";
 import {
   acceptFor,
   allFields,
   ASSIGNMENT_LIMITS,
   compareScans,
   FEEDBACK_LIMIT,
+  invalidVideoLink,
   isFieldAnswered,
   isSubmitted,
   sameAnswers,
@@ -23,7 +24,9 @@ import {
   UPLOAD_KINDS,
   uploadProblem,
 } from "@/lib/domain/assignment";
+import { ASSESSMENT_LABELS, feedbackSlots, slotsText } from "@/lib/domain/feedback";
 import { ScanComparisonTable } from "./ScanComparisonTable";
+import { VideoLinkEmbed } from "./VideoLinkEmbed";
 
 export interface FeedbackItem {
   id: string;
@@ -31,6 +34,10 @@ export interface FeedbackItem {
   text: string;
   attachment: FileRef | null;
   sentAt: string;
+  /** Assessment of a final assignment that came with this feedback. */
+  assessment: Assessment | null;
+  /** Not opened before this page view. */
+  isNew: boolean;
 }
 
 export interface VersionItem {
@@ -48,8 +55,8 @@ interface Props {
   lastSubmitted: AssignmentAnswers | null;
   versions: VersionItem[];
   feedback: FeedbackItem[];
-  /** Feedback requests still free in this module (this assignment not counted). */
-  feedbackSlotsLeft: number;
+  /** Other assignments in this module with a feedback request (this one not counted). */
+  otherFeedbackRequests: number;
   /** The first measurement when this assignment repeats an earlier one. */
   firstMeasurement: { assignment: AssignmentBlock; answers: AssignmentAnswers; submittedAt: string | null } | null;
   ownerName?: string;
@@ -148,7 +155,7 @@ export function AssignmentForm(props: Props) {
             setConflict(null);
             if (result.feedbackRefused) {
               setFeedbackRequested(false);
-              setMessage({ tone: "error", text: `Je hebt in deze module al ${FEEDBACK_LIMIT} feedbackverzoeken gedaan. Je antwoorden zijn wel opgeslagen.` });
+              setMessage({ tone: "error", text: `Je hebt in deze module al ${FEEDBACK_LIMIT} van ${FEEDBACK_LIMIT} feedbackverzoeken gebruikt, dus hier kan geen verzoek meer bij. Je antwoorden zijn wel opgeslagen.` });
             }
           } else if (result.conflict) {
             setConflict(result.state);
@@ -280,7 +287,7 @@ export function AssignmentForm(props: Props) {
           setMessage({
             tone: "ok",
             text: `Ingediend als versie ${result.version}.${result.lessonCompleted ? " De les is hiermee afgerond." : ""}${
-              result.feedbackRefused ? ` Feedback aanvragen kon niet meer: je hebt in deze module al ${FEEDBACK_LIMIT} verzoeken gedaan.` : ""
+              result.feedbackRefused ? ` Feedback aanvragen kon niet meer: je hebt in deze module al ${FEEDBACK_LIMIT} van ${FEEDBACK_LIMIT} feedbackverzoeken gebruikt.` : ""
             }`,
           });
           if (result.feedbackRefused) setFeedbackRequested(false);
@@ -330,7 +337,9 @@ export function AssignmentForm(props: Props) {
   const fields = allFields(assignment);
   const requiredOpen = fields.filter((f) => f.required && !isFieldAnswered(f, answers[f.id])).length;
   const lastVersion = props.versions.at(-1);
-  const feedbackLocked = !feedbackRequested && props.feedbackSlotsLeft <= 0;
+  // This assignment holds a request when it is checked now or was asked for with an earlier version.
+  const slots = feedbackSlots(props.otherFeedbackRequests, feedbackRequested || props.versions.some((v) => v.feedbackRequested));
+  const feedbackLocked = !feedbackRequested && slots.blocked;
   const comparison = useMemo(
     () => (props.firstMeasurement ? compareScans(props.firstMeasurement, { assignment, answers }) : []),
     [props.firstMeasurement, assignment, answers],
@@ -363,6 +372,18 @@ export function AssignmentForm(props: Props) {
         {props.preview ? <span className="text-sm text-muted">Voorbeeld, er wordt niets opgeslagen</span> : <SaveIndicator state={saveState} savedAt={savedAt} onRetry={() => void save(true)} />}
       </header>
       {assignment.intro && <p className="mb-4 whitespace-pre-wrap text-[15px]">{assignment.intro}</p>}
+
+      {status === "verbetering_nodig" && (
+        <div role="alert" className="mb-4 rounded-lg border border-bordeaux/30 bg-bordeaux-soft p-4 text-sm">
+          <p className="font-medium text-bordeaux">Sabine vraagt je om een aangepaste versie in te leveren.</p>
+          <p className="mt-1">Lees haar feedback hieronder, pas je antwoorden aan en dien de opdracht opnieuw in. Je vorige versie blijft bewaard.</p>
+        </div>
+      )}
+      {status === "voldoende" && assignment.graded && (
+        <div role="status" className="mb-4 rounded-lg border border-success/30 bg-success-soft p-4 text-sm text-success">
+          <p className="font-medium">Beoordeeld als voldoende. Gefeliciteerd!</p>
+        </div>
+      )}
 
       {conflict && (
         <div role="alert" className="mb-4 rounded-lg border border-bordeaux/30 bg-bordeaux-soft p-4 text-sm">
@@ -410,13 +431,22 @@ export function AssignmentForm(props: Props) {
         </div>
       )}
 
-      {assignment.feedbackAllowed && (
+      {/* Closing reflections and other assignments without feedbackAllowed get no checkbox (Academy 8). */}
+      {assignment.feedbackAllowed && feedbackLocked && (
+        <div role="note" className="mt-8 rounded-lg border border-line bg-cream p-4 text-sm">
+          <p className="font-medium">Persoonlijke feedback kan bij deze opdracht niet meer worden aangevraagd.</p>
+          <p className="mt-1 text-muted">
+            Je hebt in deze module al {slots.limit} van {slots.limit} feedbackverzoeken gebruikt (bij andere opdrachten). Je kunt deze opdracht gewoon
+            indienen. Heb je toch een vraag? Stel hem gerust in de privéchat.
+          </p>
+        </div>
+      )}
+      {assignment.feedbackAllowed && !feedbackLocked && (
         <div className="mt-8 rounded-lg border border-gold/40 bg-gold-soft/40 p-4">
-          <label className={`flex items-start gap-3 ${feedbackLocked ? "opacity-60" : "cursor-pointer"}`}>
+          <label className="flex cursor-pointer items-start gap-3">
             <input
               type="checkbox"
               checked={feedbackRequested}
-              disabled={feedbackLocked}
               onChange={(e) => {
                 setFeedbackRequested(e.target.checked);
                 touch();
@@ -426,9 +456,8 @@ export function AssignmentForm(props: Props) {
             <span>
               <span className="font-medium">Ik wil graag persoonlijke feedback ontvangen op deze opdracht.</span>
               <span className="block text-sm text-muted">
-                {feedbackLocked
-                  ? `Je hebt in deze module al ${FEEDBACK_LIMIT} feedbackverzoeken gedaan.`
-                  : `Je kunt per module bij maximaal ${FEEDBACK_LIMIT} opdrachten feedback vragen${feedbackRequested ? "" : ` (nog ${props.feedbackSlotsLeft} over in deze module)`}. Je kunt gewoon verder terwijl je op feedback wacht.`}
+                {slotsText(slots.left, slots.limit)} Je kunt per module bij maximaal {slots.limit} opdrachten feedback vragen
+                {submitted ? "" : " en dit nog wijzigen tot je indient"}. Je kunt gewoon verder terwijl je op feedback wacht.
               </span>
             </span>
           </label>
@@ -464,7 +493,7 @@ export function AssignmentForm(props: Props) {
           disabled={saveState === "saving" || uploading !== null || status === "voldoende" || (submitted && !changedSinceSubmit && status !== "verbetering_nodig")}
           onClick={() => void submit()}
         >
-          {submitted ? "Opnieuw indienen" : "Opdracht indienen"}
+          {status === "verbetering_nodig" ? "Aangepaste versie indienen" : submitted ? "Opnieuw indienen" : "Opdracht indienen"}
         </button>
         <button type="button" className="btn-secondary" disabled={saveState === "saving"} onClick={() => void save(true)}>
           Concept bewaren
@@ -472,8 +501,12 @@ export function AssignmentForm(props: Props) {
         <span className="text-sm text-muted">
           {requiredOpen > 0
             ? `Nog ${requiredOpen === 1 ? "1 verplicht veld" : `${requiredOpen} verplichte velden`} in te vullen voor je kunt indienen.`
-            : submitted && !changedSinceSubmit
-              ? "Ingediend. Pas je iets aan, dan kun je een nieuwe versie indienen."
+            : status === "voldoende"
+              ? "Beoordeeld als voldoende; een nieuwe versie is niet nodig."
+              : status === "verbetering_nodig"
+                ? "Pas je antwoorden aan en dien de aangepaste versie in."
+                : submitted && !changedSinceSubmit
+                  ? "Ingediend. Pas je iets aan, dan kun je een nieuwe versie indienen."
               : "Alles wat verplicht is, is ingevuld."}
         </span>
       </div>
@@ -486,11 +519,17 @@ export function AssignmentForm(props: Props) {
             </p>
           )}
           {props.feedback.map((f) => (
-            <div key={f.id} className="mt-3 rounded-lg border-l-2 border-gold bg-gold-soft/60 p-4">
+            <div key={f.id} className={`mt-3 rounded-lg border-l-2 p-4 ${f.isNew ? "border-bordeaux bg-gold-soft" : "border-gold bg-gold-soft/60"}`}>
               <p className="text-xs font-semibold tracking-wide text-gold-ink uppercase">
-                Feedback van {props.ownerName ?? "je opleider"} op versie {f.version} · {dateTime(f.sentAt)}
+                {f.isNew && <span className="mr-2 rounded-full bg-bordeaux px-2 py-0.5 text-[10px] text-white normal-case">Nieuw</span>}
+                Feedback van {props.ownerName ?? "Sabine"} op versie {f.version} · {dateTime(f.sentAt)}
               </p>
-              <p className="mt-1.5 whitespace-pre-wrap text-[15px]">{f.text}</p>
+              {f.assessment && (
+                <p className={`mt-1.5 text-sm font-medium ${f.assessment === "voldoende" ? "text-success" : "text-bordeaux"}`}>
+                  Beoordeling: {ASSESSMENT_LABELS[f.assessment]}
+                </p>
+              )}
+              {f.text && <p className="mt-1.5 whitespace-pre-wrap text-[15px]">{f.text}</p>}
               {f.attachment && (
                 <a href={`/api/bestanden/${f.attachment.id}`} className="mt-2 inline-block text-sm text-bordeaux underline">
                   Bijlage: {f.attachment.name}
@@ -516,6 +555,7 @@ function wireFree(answers: AssignmentAnswers): AssignmentAnswers {
     if (typeof a.score === "number") clean.score = a.score;
     if (a.rows && Object.keys(a.rows).length) clean.rows = a.rows;
     if (a.files?.length) clean.files = a.files.map((f) => ({ id: f.id }) as FileRef);
+    if (a.url?.trim()) clean.url = a.url.trim();
     if (Object.keys(clean).length) out[id] = clean;
   }
   return out;
@@ -587,8 +627,28 @@ function FieldInput({
     <div id={`veld-${field.id}`} className={`scroll-mt-24 ${missing ? "rounded-lg border border-bordeaux/50 bg-bordeaux-soft/30 p-3" : ""}`}>
       {group ? <p className="mb-1">{label}</p> : <label htmlFor={inputId} className="mb-1 block">{label}</label>}
       {field.help && <p className="hint mb-2 whitespace-pre-wrap">{field.help}</p>}
-      {missing && <p className="mb-2 text-sm text-bordeaux">Dit veld is verplicht.</p>}
+      {missing && !invalidVideoLink(field, answer) && <p className="mb-2 text-sm text-bordeaux">Dit veld is verplicht.</p>}
 
+      {field.type === "video_link" && (
+        <div className="space-y-3">
+          <input
+            id={inputId}
+            type="url"
+            inputMode="url"
+            value={answer?.url ?? ""}
+            maxLength={ASSIGNMENT_LIMITS.url}
+            className="input"
+            placeholder="https://www.youtube.com/watch?v=… of https://vimeo.com/…"
+            onChange={(e) => onChange({ url: e.target.value })}
+          />
+          {invalidVideoLink(field, answer) ? (
+            <p className="text-sm text-bordeaux">Deze link werkt niet. Plak een link van YouTube of Vimeo (een niet-openbare video kan ook).</p>
+          ) : (
+            !answer?.url && <p className="hint">Zet je video eerst op YouTube of Vimeo (bijvoorbeeld als niet-openbare video) en plak hier de link.</p>
+          )}
+          {answer?.url && <VideoLinkEmbed url={answer.url} title={field.label || "Video"} />}
+        </div>
+      )}
       {field.type === "short" && (
         <input id={inputId} value={answer?.text ?? ""} maxLength={ASSIGNMENT_LIMITS.shortAnswer} className="input" onChange={(e) => onChange({ text: e.target.value })} />
       )}

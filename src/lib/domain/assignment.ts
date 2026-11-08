@@ -20,6 +20,7 @@ import type {
   SubmissionStatus,
   UploadKind,
 } from "@/lib/data/types";
+import { videoEmbed } from "@/lib/util/video";
 
 // Limits ----------------------------------------------------------------------
 
@@ -38,6 +39,7 @@ export const ASSIGNMENT_LIMITS = {
   comment: 5000,
   rowText: 2000,
   question: 2000,
+  url: 500,
   maxFiles: 20,
   scaleMin: 0,
   scaleMax: 10,
@@ -46,7 +48,7 @@ export const ASSIGNMENT_LIMITS = {
 /** Max personal feedback requests per student per module (Academy 8). */
 export const FEEDBACK_LIMIT = 2;
 
-export const FIELD_TYPES: FieldType[] = ["short", "long", "single", "multi", "scale", "scale_rows", "upload"];
+export const FIELD_TYPES: FieldType[] = ["short", "long", "single", "multi", "scale", "scale_rows", "upload", "video_link"];
 
 export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   short: "Kort antwoord",
@@ -56,6 +58,7 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   scale: "Schaalvraag",
   scale_rows: "Schaal per onderwerp",
   upload: "Bestand uploaden",
+  video_link: "Videolink (YouTube of Vimeo)",
 };
 
 export const STATUS_LABELS: Record<SubmissionStatus, string> = {
@@ -79,13 +82,13 @@ export const UPLOAD_KINDS: Record<UploadKind, { label: string; extensions: strin
   pptx: { label: "PowerPoint (.pptx)", extensions: ["pptx", "ppt"], maxBytes: 10 * MB },
   jpg: { label: "Afbeelding (.jpg)", extensions: ["jpg", "jpeg"], maxBytes: 10 * MB },
   png: { label: "Afbeelding (.png)", extensions: ["png"], maxBytes: 10 * MB },
-  mp4: { label: "Video (.mp4)", extensions: ["mp4", "m4v"], maxBytes: 50 * MB },
-  audio: { label: "Audio (.mp3, .m4a, .wav)", extensions: ["mp3", "m4a", "wav", "aac", "ogg"], maxBytes: 25 * MB },
+  // No video files: a video is handed in as a YouTube or Vimeo link (field type video_link).
+  audio: { label: "Audio (.mp3, .m4a, .wav)", extensions: ["mp3", "m4a", "wav", "aac", "ogg"], maxBytes: 10 * MB },
 };
 
 export const ALL_UPLOAD_KINDS = Object.keys(UPLOAD_KINDS) as UploadKind[];
 
-/** Largest upload any field allows; next.config.mjs leaves room for it. */
+/** Largest upload any field allows (10 MB); next.config.mjs (12mb) leaves room for it and the rest of the form. */
 export const MAX_ASSIGNMENT_UPLOAD_BYTES = Math.max(...Object.values(UPLOAD_KINDS).map((k) => k.maxBytes));
 
 export const extensionOf = (name: string) => (name.includes(".") ? name.split(".").pop()!.toLowerCase() : "");
@@ -139,6 +142,8 @@ export function newField(type: FieldType, id: string): AssignmentField {
       return { ...base, type, ...DEFAULT_SCALE, rows: [], mode: "score" };
     case "upload":
       return { ...base, type, required: false, accept: ["pdf", "docx", "jpg", "png"], maxFiles: 1 };
+    case "video_link":
+      return { ...base, type };
     case "short":
     case "long":
     default:
@@ -213,6 +218,7 @@ function cleanField(raw: unknown, makeId: () => string): AssignmentField | null 
   switch (type) {
     case "short":
     case "long":
+    case "video_link":
       return { ...base, type };
     case "single":
     case "multi": {
@@ -309,6 +315,11 @@ function cleanFieldAnswer(field: AssignmentField, value: Record<string, unknown>
       const text = rawText("text", field.type === "short" ? ASSIGNMENT_LIMITS.shortAnswer : ASSIGNMENT_LIMITS.answer);
       return text === undefined ? (before.text !== undefined ? { text: before.text } : null) : { text };
     }
+    case "video_link": {
+      // Kept as typed (also a half-pasted link in a draft); submitting checks that it is a YouTube or Vimeo link.
+      const url = rawText("url", ASSIGNMENT_LIMITS.url)?.trim();
+      return url === undefined ? (before.url !== undefined ? { url: before.url } : null) : { url };
+    }
     case "single":
     case "multi": {
       const comment = field.allowComment ? rawText("comment", ASSIGNMENT_LIMITS.comment) : undefined;
@@ -374,12 +385,18 @@ export function isFieldAnswered(field: AssignmentField, answer: FieldAnswer | un
       });
     case "upload":
       return (answer.files ?? []).length > 0;
+    case "video_link":
+      return videoEmbed(answer.url ?? "") !== null;
   }
 }
 
 /** Required fields without an answer: submitting waits for these, saving a draft never does. */
 export const missingRequiredFields = (assignment: AssignmentBlock, answers: AssignmentAnswers): AssignmentField[] =>
-  allFields(assignment).filter((f) => f.required && !isFieldAnswered(f, answers[f.id]));
+  allFields(assignment).filter((f) => (f.required && !isFieldAnswered(f, answers[f.id])) || invalidVideoLink(f, answers[f.id]));
+
+/** A video link that was filled in but is not a YouTube or Vimeo link (also blocks submitting an optional field). */
+export const invalidVideoLink = (field: AssignmentField, answer: FieldAnswer | undefined) =>
+  field.type === "video_link" && !!answer?.url?.trim() && videoEmbed(answer.url) === null;
 
 /** Answered fields out of all fields, for "3 van 5 ingevuld". */
 export function answeredCount(assignment: AssignmentBlock, answers: AssignmentAnswers) {
@@ -506,9 +523,30 @@ export function legacyToAssignment(block: LegacyBlock): AssignmentBlock {
 const isLegacy = (block: StoredBlock): block is LegacyBlock =>
   block.type === "question" || block.type === "choice" || block.type === "upload";
 
-/** Lesson blocks as stored to the blocks the app works with: legacy answer blocks become assignments. */
+/**
+ * Upload kinds that no longer exist (video files, "mp4", before videos became
+ * links) are dropped from a stored assignment; an upload field left without
+ * any kind accepts pdf, as cleanAssignment does.
+ */
+export function withKnownUploadKinds(assignment: AssignmentBlock): AssignmentBlock {
+  const stale = (f: AssignmentField) => f.type === "upload" && (!Array.isArray(f.accept) || f.accept.some((k) => !ALL_UPLOAD_KINDS.includes(k)));
+  if (!assignment.parts?.some((p) => p.fields?.some(stale))) return assignment;
+  return {
+    ...assignment,
+    parts: assignment.parts.map((p) => ({
+      ...p,
+      fields: p.fields.map((f) => {
+        if (!stale(f) || f.type !== "upload") return f;
+        const accept = (Array.isArray(f.accept) ? f.accept : []).filter((k) => ALL_UPLOAD_KINDS.includes(k));
+        return { ...f, accept: accept.length ? accept : (["pdf"] as UploadKind[]) };
+      }),
+    })),
+  };
+}
+
+/** Lesson blocks as stored to the blocks the app works with: legacy answer blocks become assignments, stale upload kinds go. */
 export const normaliseBlocks = (blocks: StoredBlock[]): Block[] =>
-  (Array.isArray(blocks) ? blocks : []).map((b) => (isLegacy(b) ? legacyToAssignment(b) : b));
+  (Array.isArray(blocks) ? blocks : []).map((b) => (isLegacy(b) ? legacyToAssignment(b) : b.type === "assignment" ? withKnownUploadKinds(b) : b));
 
 // Plain text --------------------------------------------------------------------------
 
@@ -545,6 +583,9 @@ export function answersAsText(assignment: AssignmentBlock, answers: AssignmentAn
           break;
         case "upload":
           answer = (a.files ?? []).map((f) => f.name).join(", ");
+          break;
+        case "video_link":
+          answer = a.url ?? "";
           break;
       }
       return { part: part.title, question: field.label, required: field.required, answer, files: a.files ?? [] };

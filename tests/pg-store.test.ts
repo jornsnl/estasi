@@ -62,7 +62,8 @@ describe.skipIf(!url)("Postgres stores", () => {
 
     const enrollment = await store.createEnrollment({
       id: randomUUID(), userId, package: "A", purchasedAt: now, endsAt: "2027-05-01T10:00:00.000Z", pausedAt: null, pauses: [],
-      revokedAt: null, onlineCompletedAt: null, certificateReleasedAt: null, certificateCode: null, practicalStatus: "none", ownerNotes: "",
+      revokedAt: null, onlineCompletedAt: null, certificateReleasedAt: null, certificateCode: null, practicalStatus: "none",
+      practicalCertificateReleasedAt: null, practicalCertificateCode: null, ownerNotes: "",
     });
     const paused = await store.updateEnrollment(enrollment.id, { pausedAt: now, pauses: [{ pausedAt: now, resumedAt: null }] });
     expect(paused.pauses).toEqual([{ pausedAt: now, resumedAt: null }]);

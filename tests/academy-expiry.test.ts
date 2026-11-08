@@ -10,6 +10,8 @@ const base: Enrollment = {
   purchasedAt: "2026-01-01T12:00:00.000Z",
   endsAt: "2027-01-01T12:00:00.000Z",
   pausedAt: null,
+  practicalCertificateReleasedAt: null,
+  practicalCertificateCode: null,
   pauses: [],
   revokedAt: null,
   onlineCompletedAt: null,

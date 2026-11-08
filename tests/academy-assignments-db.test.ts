@@ -245,11 +245,11 @@ describe.skipIf(!url)("opdrachten in de database", () => {
 
   it("feedback hangt aan een versie en sluit het verzoek af", async () => {
     const [version] = (await data.listVersions({ userId: student })).filter((v) => v.feedbackStatus === "nieuw");
-    const draft = await data.addAssignmentFeedback({ version, authorId: owner, text: "Concept", attachment: null, send: false });
-    expect(draft.sentAt).toBeNull();
+    const draft = await data.saveFeedback({ version, authorId: owner, text: "Concept", attachment: null, send: false });
+    expect(draft.ok && draft.feedback.sentAt).toBeNull();
     expect((await data.getVersion(version.id))?.feedbackStatus).toBe("in_behandeling");
     expect(await data.listAssignmentFeedback({ userId: student, sentOnly: true })).toHaveLength(0);
-    await data.addAssignmentFeedback({ version, authorId: owner, text: "Mooi", attachment: null, send: true });
+    await data.saveFeedback({ version, authorId: owner, text: "Mooi", attachment: null, send: true });
     expect((await data.getVersion(version.id))?.feedbackStatus).toBe("afgerond");
     expect((await data.listAssignmentFeedback({ userId: student, sentOnly: true })).map((f) => f.text)).toEqual(["Mooi"]);
   });

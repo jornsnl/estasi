@@ -1,5 +1,4 @@
 import type { Block, LessonDraft } from "@/lib/data";
-import { FEEDBACK_LIMIT } from "@/lib/domain/assignment";
 import { isContentBlock } from "@/lib/domain/blocks";
 import { AssignmentForm } from "./AssignmentForm";
 import { ContentBlock } from "./ContentBlock";
@@ -15,7 +14,7 @@ const PREVIEWS: Partial<Record<Block["type"], (block: Block) => React.ReactNode>
   // The student's own form, in preview mode: it can be tried out, nothing is saved or handed in.
   assignment: (block) =>
     block.type === "assignment" && (
-      <AssignmentForm lessonId="" assignment={block} initial={null} lastSubmitted={null} versions={[]} feedback={[]} feedbackSlotsLeft={FEEDBACK_LIMIT} firstMeasurement={null} preview />
+      <AssignmentForm lessonId="" assignment={block} initial={null} lastSubmitted={null} versions={[]} feedback={[]} otherFeedbackRequests={0} firstMeasurement={null} preview />
     ),
 };
 

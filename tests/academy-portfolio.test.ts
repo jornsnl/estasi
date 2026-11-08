@@ -66,8 +66,8 @@ const versions: SubmissionVersion[] = [
   { id: "v9", submissionId: "s9", userId: "s", version: 1, answers: { "x-f": { text: "Weg" } }, assignment: assignment("x", "Les bestaat niet meer"), feedbackRequested: false, questionForSabine: "", feedbackStatus: null, submittedAt: "2026-04-01T10:00:00Z" },
 ];
 const feedback: AssignmentFeedback[] = [
-  { id: "fb1", versionId: "v1", submissionId: "s1", userId: "s", authorId: "o", text: "Goed!", attachment: { id: "f3", name: "tips.pdf", size: 1, mime: "application/pdf" }, sentAt: "2026-05-02T10:00:00Z", createdAt: "2026-05-02T09:00:00Z", updatedAt: "2026-05-02T10:00:00Z" },
-  { id: "fb2", versionId: "v2", submissionId: "s1", userId: "s", authorId: "o", text: "Concept", attachment: null, sentAt: null, createdAt: "2026-05-04T09:00:00Z", updatedAt: "2026-05-04T09:00:00Z" },
+  { id: "fb1", versionId: "v1", submissionId: "s1", userId: "s", authorId: "o", text: "Goed!", attachment: { id: "f3", name: "tips.pdf", size: 1, mime: "application/pdf" }, sentAt: "2026-05-02T10:00:00Z", createdAt: "2026-05-02T09:00:00Z", updatedAt: "2026-05-02T10:00:00Z", assessment: null, seenAt: null },
+  { id: "fb2", versionId: "v2", submissionId: "s1", userId: "s", authorId: "o", text: "Concept", attachment: null, sentAt: null, createdAt: "2026-05-04T09:00:00Z", updatedAt: "2026-05-04T09:00:00Z", assessment: null, seenAt: null },
 ];
 const submissions = [
   sub("s1", "l1", "a1"),

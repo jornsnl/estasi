@@ -52,6 +52,9 @@ export interface Enrollment {
   certificateReleasedAt: string | null;
   certificateCode: string | null;
   practicalStatus: PracticalStatus;
+  /** Practical certificate (package B, after the shadow wedding), released by hand by the owner. */
+  practicalCertificateReleasedAt: string | null;
+  practicalCertificateCode: string | null;
   ownerNotes: string;
 }
 
@@ -138,9 +141,10 @@ export type LegacyBlock = LegacyQuestionBlock | LegacyChoiceBlock | LegacyUpload
 // Assignments ----------------------------------------------------------------
 
 /** File types a student may upload in an upload field. */
-export type UploadKind = "pdf" | "docx" | "xlsx" | "pptx" | "jpg" | "png" | "mp4" | "audio";
+/** No video files: a video is handed in as a YouTube or Vimeo link (field type video_link). */
+export type UploadKind = "pdf" | "docx" | "xlsx" | "pptx" | "jpg" | "png" | "audio";
 
-export type FieldType = "short" | "long" | "single" | "multi" | "scale" | "scale_rows" | "upload";
+export type FieldType = "short" | "long" | "single" | "multi" | "scale" | "scale_rows" | "upload" | "video_link";
 
 interface FieldBase {
   id: string;
@@ -197,7 +201,12 @@ export interface UploadField extends FieldBase {
   maxFiles: number;
 }
 
-export type AssignmentField = ShortField | LongField | ChoiceField | ScaleField | ScaleRowsField | UploadField;
+/** A YouTube or Vimeo link the student pastes; shown embedded. */
+export interface VideoLinkField extends FieldBase {
+  type: "video_link";
+}
+
+export type AssignmentField = ShortField | LongField | ChoiceField | ScaleField | ScaleRowsField | UploadField | VideoLinkField;
 
 export interface AssignmentPart {
   id: string;
@@ -232,6 +241,8 @@ export interface FieldAnswer {
   /** scale_rows: per row id a score (mode score) or a text (mode text). */
   rows?: Record<string, number | string>;
   files?: FileRef[];
+  /** video_link: the YouTube or Vimeo link as the student pasted it. */
+  url?: string;
 }
 
 /** Answers per field id. */
@@ -256,6 +267,9 @@ export interface Submission {
 }
 
 export type FeedbackStatus = "nieuw" | "in_behandeling" | "afgerond";
+
+/** Assessment of a final assignment (graded). */
+export type Assessment = Extract<SubmissionStatus, "voldoende" | "verbetering_nodig">;
 
 /** A fixed copy made at every submit: answers, files and the assignment as it was then. */
 export interface SubmissionVersion {
@@ -282,6 +296,10 @@ export interface AssignmentFeedback {
   attachment: FileRef | null;
   /** Null while it is a draft only the owner sees. */
   sentAt: string | null;
+  /** Assessment of a graded assignment that goes along with this feedback (applied when sent). */
+  assessment: Assessment | null;
+  /** When the student saw the sent feedback (badge in the Academy). */
+  seenAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

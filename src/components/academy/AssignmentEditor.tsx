@@ -359,6 +359,13 @@ function FieldSettings({ field, onChange }: { field: AssignmentField; onChange: 
           </div>
         </div>
       )}
+
+      {field.type === "video_link" && (
+        <p className="hint">
+          De cursist plakt hier een link van YouTube of Vimeo (bijvoorbeeld een niet-openbare video) en ziet de video meteen ingesloten.
+          Videobestanden uploaden kan niet; alles bij elkaar blijft zo klein en snel.
+        </p>
+      )}
     </div>
   );
 }

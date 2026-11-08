@@ -128,6 +128,7 @@ export async function submitAssignment(req: DraftRequest): Promise<SubmitRespons
     const ctx = await context(req?.lessonId, req?.blockId);
     const result = await submitInDb(draftInput(ctx, req));
     if (!result.ok && result.reason === "conflict") return { ok: false, conflict: true, state: toState(result.submission) };
+    if (!result.ok && result.reason === "assessed") return { ok: false, error: "Deze opdracht is al beoordeeld als voldoende; een nieuwe versie is niet nodig." };
     if (!result.ok) return { ok: false, missing: result.missing, state: toState(result.submission), feedbackRefused: result.feedbackRefused };
     return {
       ok: true,

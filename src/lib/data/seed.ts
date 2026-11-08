@@ -275,6 +275,8 @@ function enrollment(id: string, userId: string, pkg: "A" | "B", purchasedDaysAgo
     certificateReleasedAt: null,
     certificateCode: null,
     practicalStatus: "none",
+    practicalCertificateReleasedAt: null,
+    practicalCertificateCode: null,
     ownerNotes: "",
     ...extra,
   };

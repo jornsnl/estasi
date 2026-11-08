@@ -8,6 +8,11 @@ import {
   cleanAssignment,
   compareScans,
   feedbackRequestAllowed,
+  FIELD_TYPE_LABELS,
+  FIELD_TYPES,
+  invalidVideoLink,
+  MAX_ASSIGNMENT_UPLOAD_BYTES,
+  withKnownUploadKinds,
   isFieldAnswered,
   legacyToAssignment,
   lessonCompletion,
@@ -193,7 +198,7 @@ describe("antwoorden van de cursist", () => {
 });
 
 describe("uploads", () => {
-  const field = { accept: ["pdf", "docx", "mp4"] as const, maxFiles: 2 };
+  const field = { accept: ["pdf", "docx", "audio"] as const, maxFiles: 2 };
   it("controleert type, grootte en aantal", () => {
     expect(uploadKindOf("Plan.DOCX")).toBe("docx");
     expect(uploadKindOf("oud.doc")).toBe("docx");
@@ -203,11 +208,56 @@ describe("uploads", () => {
     expect(uploadProblem(f, { name: "a.pdf", size: 1000 }, 0)).toBeNull();
     expect(uploadProblem(f, { name: "a.png", size: 1000 }, 0)).toMatch(/niet toegestaan/);
     expect(uploadProblem(f, { name: "a.pdf", size: 11 * 1024 * 1024 }, 0)).toMatch(/groter dan 10 MB/);
-    expect(uploadProblem(f, { name: "film.mp4", size: 40 * 1024 * 1024 }, 0)).toBeNull();
+    // No video files any more (videos are links); everything is at most 10 MB.
+    expect(uploadKindOf("film.mp4")).toBeNull();
+    expect(uploadProblem(f, { name: "film.mp4", size: 1000 }, 0)).toMatch(/niet toegestaan/);
+    expect(uploadProblem(f, { name: "lied.mp3", size: 11 * 1024 * 1024 }, 0)).toMatch(/groter dan 10 MB/);
+    expect(MAX_ASSIGNMENT_UPLOAD_BYTES).toBe(10 * 1024 * 1024);
     expect(uploadProblem(f, { name: "a.pdf", size: 1000 }, 2)).toMatch(/maximaal 2/);
     expect(uploadProblem({ ...f, maxFiles: 1 }, { name: "a.pdf", size: 1000 }, 1)).toMatch(/één bestand/);
     expect(uploadProblem(f, { name: "leeg.pdf", size: 0 }, 0)).toMatch(/leeg/);
     expect(acceptFor(["pdf", "jpg"])).toBe(".pdf,.jpg,.jpeg");
+  });
+});
+
+describe("videolink", () => {
+  const video = { id: "vid", type: "video_link" as const, label: "Je presentatie", help: "", required: true };
+  const withVideo = { ...assignment, id: "va", parts: [{ id: "vp", title: "", intro: "", fields: [video] }] };
+  const optional = { ...withVideo, parts: [{ id: "vp", title: "", intro: "", fields: [{ ...video, required: false }] }] };
+
+  it("bewaart de link zoals geplakt en accepteert alleen YouTube en Vimeo bij indienen", () => {
+    expect(cleanAnswers(withVideo, { vid: { url: "  https://youtu.be/dQw4w9WgXcQ " } }, {})).toEqual({ vid: { url: "https://youtu.be/dQw4w9WgXcQ" } });
+    expect(cleanAnswers(withVideo, { vid: { url: "https://example.com/film.mp4" } }, {})).toEqual({ vid: { url: "https://example.com/film.mp4" } });
+    expect(cleanAnswers(withVideo, {}, { vid: { url: "https://vimeo.com/76979871" } })).toEqual({ vid: { url: "https://vimeo.com/76979871" } });
+    expect(missingRequiredFields(withVideo, { vid: { url: "https://vimeo.com/76979871" } })).toEqual([]);
+    expect(missingRequiredFields(withVideo, { vid: { url: "https://example.com/film.mp4" } }).map((f) => f.id)).toEqual(["vid"]);
+    expect(missingRequiredFields(withVideo, {}).map((f) => f.id)).toEqual(["vid"]);
+    // Optional: empty is fine, a wrong link is not.
+    expect(missingRequiredFields(optional, {})).toEqual([]);
+    expect(missingRequiredFields(optional, { vid: { url: "geen link" } }).map((f) => f.id)).toEqual(["vid"]);
+    expect(invalidVideoLink(video, { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" })).toBe(false);
+  });
+
+  it("staat in de veldtypes, de editor-opschoning en de tekstweergave", () => {
+    expect(FIELD_TYPES).toContain("video_link");
+    expect(FIELD_TYPE_LABELS.video_link).toBe("Videolink (YouTube of Vimeo)");
+    const cleaned = cleanAssignment({ parts: [{ id: "p", fields: [{ id: "x", type: "video_link", label: "Video", required: true }] }] }, "b", () => "n");
+    expect(cleaned.parts[0].fields[0]).toEqual({ id: "x", type: "video_link", label: "Video", help: "", required: true });
+    expect(answersAsText(withVideo, { vid: { url: "https://vimeo.com/76979871" } })[0].answer).toBe("https://vimeo.com/76979871");
+  });
+
+  it("haalt verdwenen uploadtypes (mp4) uit opgeslagen opdrachten", () => {
+    const stored = {
+      ...assignment,
+      id: "old",
+      parts: [{ id: "p", title: "", intro: "", fields: [
+        { id: "u1", type: "upload", label: "", help: "", required: false, accept: ["pdf", "mp4"], maxFiles: 1 },
+        { id: "u2", type: "upload", label: "", help: "", required: false, accept: ["mp4"], maxFiles: 1 },
+      ] }],
+    } as unknown as AssignmentBlock;
+    const out = normaliseBlocks([stored])[0] as AssignmentBlock;
+    expect(out.parts[0].fields.map((f) => (f as { accept: string[] }).accept)).toEqual([["pdf"], ["pdf"]]);
+    expect(withKnownUploadKinds(assignment)).toBe(assignment);
   });
 });
 

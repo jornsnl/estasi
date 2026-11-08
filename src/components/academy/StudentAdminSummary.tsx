@@ -59,7 +59,7 @@ export function StudentAdminSummary({ overview: o, lessons, feedback }: { overvi
             const s = subById.get(v.submissionId);
             return (
               <li key={v.id}>
-                <Link href={lessonLink(s?.lessonId)} className="font-medium text-bordeaux hover:underline">{assignmentTitle(v.assignment)}</Link>
+                <Link href={`/beheer/feedback/${v.id}`} className="font-medium text-bordeaux hover:underline">{assignmentTitle(v.assignment)}</Link>
                 <p className="text-xs text-muted">
                   {lessonTitle(s?.lessonId)} · versie {v.version} · {formatDateTime(v.submittedAt)} · {v.feedbackStatus === "nieuw" ? "nieuw" : "in behandeling"}
                 </p>
@@ -73,7 +73,7 @@ export function StudentAdminSummary({ overview: o, lessons, feedback }: { overvi
             const s = subById.get(f.submissionId);
             return (
               <li key={f.id}>
-                <Link href={lessonLink(s?.lessonId)} className="font-medium text-bordeaux hover:underline">{v ? assignmentTitle(v.assignment) : "Opdracht"}</Link>
+                <Link href={v ? `/beheer/feedback/${v.id}` : lessonLink(s?.lessonId)} className="font-medium text-bordeaux hover:underline">{v ? assignmentTitle(v.assignment) : "Opdracht"}</Link>
                 <p className="text-xs text-muted">
                   {lessonTitle(s?.lessonId)}{v ? ` · versie ${v.version}` : ""} · verstuurd {formatDateTime(f.sentAt)}
                 </p>
@@ -84,7 +84,7 @@ export function StudentAdminSummary({ overview: o, lessons, feedback }: { overvi
         <List title="Ingeleverde opdrachten" empty="Nog niets ingeleverd.">
           {handedIn.map(({ s, v }) => (
             <li key={s.id}>
-              <Link href={lessonLink(s.lessonId)} className="font-medium text-bordeaux hover:underline">{v ? assignmentTitle(v.assignment) : "Opdracht"}</Link>
+              <Link href={v ? `/beheer/feedback/${v.id}` : lessonLink(s.lessonId)} className="font-medium text-bordeaux hover:underline">{v ? assignmentTitle(v.assignment) : "Opdracht"}</Link>
               <p className="text-xs text-muted">
                 {lessonTitle(s.lessonId)} · {STATUS_LABELS[s.status].toLowerCase()} · {formatDate(s.submittedAt)}
                 {v && v.version > 1 ? ` · ${v.version} versies` : ""}
