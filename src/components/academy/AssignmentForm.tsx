@@ -61,9 +61,11 @@ type SaveState = "idle" | "pending" | "saving" | "saved" | "error" | "conflict";
 
 const DEBOUNCE_MS = 1500;
 
-const time = (iso: string) => new Date(iso).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+// Always Dutch time, so the server and the browser render the same text.
+const ZONE = "Europe/Amsterdam";
+const time = (iso: string) => new Date(iso).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit", timeZone: ZONE });
 const dateTime = (iso: string) =>
-  new Date(iso).toLocaleString("nl-NL", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  new Date(iso).toLocaleString("nl-NL", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: ZONE });
 
 /** Answers in the form the server accepts: upload fields send the ids of the files to keep. */
 function wire(assignment: AssignmentBlock, answers: AssignmentAnswers): AssignmentAnswers {

@@ -48,14 +48,10 @@ function changeType(field: AssignmentField, type: FieldType): AssignmentField {
 export function AssignmentEditor({ block, others }: { block: AssignmentBlock; others: AssignmentChoice[] }) {
   const [a, setA] = useState<AssignmentBlock>(block);
   const hidden = useRef<HTMLInputElement>(null);
-  const first = useRef(true);
+  const initial = useRef(JSON.stringify(block));
   // Buttons (add, move, remove) change no form field themselves; tell the unsaved-changes guard.
   useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    hidden.current?.dispatchEvent(new Event("change", { bubbles: true }));
+    if (JSON.stringify(a) !== initial.current) hidden.current?.dispatchEvent(new Event("change", { bubbles: true }));
   }, [a]);
   const name = (field: string) => `ae-${block.id}-${field}`;
 
