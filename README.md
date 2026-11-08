@@ -172,7 +172,11 @@ Alle e-mail loopt via Resend: die van Your Wedding Space via de API (`RESEND_API
 2. Onder **API Keys** een key maken met *Sending access* voor dat domein.
 3. In Render: `RESEND_API_KEY` = de key, `MAIL_FROM` = bijvoorbeeld `Sabine van Estasi Weddings <sabine@estasiweddings.nl>`. `SMTP_*` leeg laten.
 4. In Supabase, Authentication, SMTP: host `smtp.resend.com`, poort `465`, gebruiker `resend`, wachtwoord = dezelfde key.
-5. Test: deel een portaal met een eigen e-mailadres of vul een RSVP in. Lukt het niet, dan staat de reden van Resend in de log van Render (`[mail] versturen mislukt`).
+5. Test: deel een portaal met een eigen e-mailadres of vul een RSVP in. Lukt het niet, dan staat de reden van Resend in de mailgeschiedenis (Beheer, Mailgeschiedenis) en in de log van Render (`[mail] versturen mislukt`).
+
+Elke mail van Your Wedding Space gaat via `sendMail` in `src/lib/ws/mail.ts` en komt in de tabel `mail_log` (type, ontvanger, gast, onderwerp, status en foutreden). Mails met een inloglink worden zonder tekst bewaard en niet opnieuw verstuurd. Mails die Sabine aan gasten stuurt gaan één voor één (met een korte pauze, Resend staat ongeveer twee per seconde toe), met reply-to het contactadres uit Instellingen portaal.
+
+DNS voor `estasiweddings.nl` (de precieze waarden staan bij Resend onder Domains): een TXT-record `resend._domainkey` (DKIM); op het subdomein `send` een MX-record naar Resends feedback-server en een TXT-record `v=spf1 include:amazonses.com ~all` (SPF voor de bounce-afhandeling); en een TXT-record `_dmarc` met bijvoorbeeld `v=DMARC1; p=none; rua=mailto:sabine@estasiweddings.nl` (later aanscherpen naar `p=quarantine`). Een bestaand SPF-record op het hoofddomein (van de mailbox) blijft zoals het is.
 
 ### Uploads van Your Wedding Space
 
@@ -195,15 +199,15 @@ De opvolger van Sabine's Notion-template, op basis van haar document *Reverse en
 **Sabine (beheer, onder "Your Wedding Space" in het menu)**
 * Bruidsparen: aanmaken als concept met één of meer pakketten (Weddingplanner, Ceremoniemeester, Openingsdans). Het portaal staat meteen klaar met starttaken, meetings, draaiboek-tabbladen, RSVP-formulieren voor Daggasten en Avondgasten, meeneemlijsten, stylingplekken, eetmomenten en opdrachten; het bruidspaar ziet niets totdat Sabine op "Maak beschikbaar en deel" klikt. Pakketten later toevoegen of weghalen kan op Gegevens & delen
 * Dashboard met meldingen (opdracht afgerond, nieuwe favorieten bij de aanraders), Mijn takenbord en Mijn agenda
-* Pakketten (met soort: die bepaalt het menu), Opdrachten (ook de delen van Thema & Styling: teksten, vragen, Pinterest-borden, voorbeeld), Aanraders (leveranciers met foto, brochure en haar ervaring), Standaardlijsten (plekken in het stylingplan, eetmomenten, meeneemlijsten, tekst bij de groepsfoto's), Instellingen portaal
+* Pakketten (met soort: die bepaalt het menu; volgorde met slepen of pijltjes, geldt overal; verbergen, of verwijderen zolang geen bruidspaar het heeft), Openingsdans (video, de dans-pakketten als kaarten, interesse-aanvragen), Mailgeschiedenis (alle mails, mislukte opnieuw versturen), Opdrachten (ook de delen van Thema & Styling: teksten, vragen, Pinterest-borden, voorbeeld), Aanraders (leveranciers met foto, brochure en haar ervaring), Standaardlijsten (plekken in het stylingplan, eetmomenten, meeneemlijsten, tekst bij de groepsfoto's), Instellingen portaal
 
 **Het portaal (`/k/...`, eigen huisstijl: Playfair Display, goud `#A89650`, bordeaux `#6B1E2E`)**
-* Menu per pakket: alleen de openingsdans geeft Overzicht, Afspraken, De openingsdans en Facturen & Offertes; andere pagina's zijn dan ook via een link niet bereikbaar. Sabine ziet altijd alles. Overzicht is een huisje
+* Menu per pakket: alleen de openingsdans geeft Overzicht, Afspraken, De openingsdans en Facturen & Offertes; andere pagina's zijn dan ook via een link niet bereikbaar. Sabine ziet altijd alles. Overzicht is een huisje. De openingsdans staat altijd in het menu: zonder openingsdans in het pakket is het een informatiepagina met video, de pakketten en een knop voor een interesse-aanvraag (mail naar Sabine)
 * Overzicht: cover, vaste welkomsttekst, tegels, blok Binnenkort (afspraken en "Binnenkort betalen"), takenbord, vragenblok (een antwoord blijft zichtbaar tot het bruidspaar het opent; melding per mail zonder het antwoord), contactkaart
 * Jullie pakket: de pakketten, meetings met samenvatting, extra documenten (vast voor alle bruidsparen of per bruidspaar). Facturen & Offertes: documenten van Sabine
 * Draaiboek: dagplanning met namen in kleur, meegroeiende velden, slepen of pijltjes, rijen van Sabine op slot voor het bruidspaar; opstelling (diner en ceremonie, gasten plaatsen); meeneemlijsten; stylingplan; groepsfoto's; gastenlijst voor op de dag; leveranciers; printen met keuze per tabblad
 * Jullie leveranciers: alles direct invulbaar, vijf statussen, meerdere per categorie, eigen categorieën, aanraders met favorieten
-* Gastenlijst & RSVP: gastenlijst per gastengroep, uitnodigingslijst (Excel importeren en downloaden), formulieren met standaardvragen, eigen vragen (met "alleen tonen als"), headerfoto, bevestigingsmails met alle antwoorden, QR-codes
+* Gastenlijst & RSVP: gastenlijst per gastengroep, uitnodigingslijst (Excel importeren en downloaden), formulieren met standaardvragen, eigen vragen (met "alleen tonen als"), headerfoto, bevestigingsmails met alle antwoorden (bij elke gast zichtbaar of die verstuurd is), QR-codes, mailgeschiedenis (alleen lezen voor het bruidspaar), mail sturen aan één of meer gasten (alleen Sabine, met vaste afsluiting)
 * Eten & allergieën: eetmomenten, wie eet er mee (personen, eigen groepen, RSVP-groepen met automatische aantallen), allergielijst (kopiëren of PDF), deel van de dag per gast
 * Stylingplan & Moodboard: plan per plek (wat, wie, klaargezet, afbeeldingen), moodboard, samenvatting met AI als concept dat Sabine vrijgeeft
 * Opdrachten: vragen, of opdrachten in delen met notitievelden en "Opdracht afgerond"; Budgetplanning met de begroting

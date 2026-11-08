@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { markInfoHandled, saveGuest } from "@/app/actions/ws-rsvp";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { GuestTabs } from "@/components/ws/GuestTabs";
+import { SelectAllGuests } from "@/components/ws/SelectAllGuests";
 import { requirePlanning } from "@/lib/ws/access";
 import { query } from "@/lib/ws/db";
 import { formatDateTime, plural } from "@/lib/ws/format";
@@ -29,6 +31,15 @@ export interface GuestRow {
 }
 
 const ATTENDANCE = { yes: "Aanwezig", partial: "Deel van de dag", no: "Afwezig" } as const;
+
+function ConfirmationLabel({ state }: { state?: { status: "sent" | "failed"; at: Date } }) {
+  if (!state) return <span className="block text-xs text-muted">Bevestiging: niet bekend</span>;
+  return state.status === "sent" ? (
+    <span className="block text-xs text-success">✓ Bevestiging verstuurd {formatDateTime(state.at)}</span>
+  ) : (
+    <span className="block text-xs text-bordeaux">Bevestiging niet verstuurd</span>
+  );
+}
 
 function GuestForm({ coupleId, groups, guest }: { coupleId: string; groups: GuestGroup[]; guest?: GuestRow }) {
   return (
@@ -67,7 +78,7 @@ export default async function GuestList({
 }) {
   const { coupleId } = await params;
   const { couple, isAdmin } = await requirePlanning(coupleId);
-  const [groups, guests, infoRequests] = await Promise.all([
+  const [groups, guests, infoRequests, confirmations] = await Promise.all([
     groupsOf(couple.id),
     query<GuestRow>(
       `select g.*, f.name as form_name from guests g left join rsvp_forms f on f.id = g.form_id
@@ -82,7 +93,15 @@ export default async function GuestList({
           [couple.id],
         )
       : [],
+    // Feedback 5.5: per sign-up, whether the confirmation mail went out (the latest attempt).
+    query<{ response_id: string; status: "sent" | "failed"; at: Date }>(
+      `select distinct on (response_id) response_id, status, updated_at as at from mail_log
+        where couple_id = $1 and kind = 'rsvp_bevestiging' and response_id is not null order by response_id, created_at desc`,
+      [couple.id],
+    ),
   ]);
+  const confirmation = new Map(confirmations.map((c) => [c.response_id, c]));
+  const mailForm = `/k/${couple.id}/gasten/mail`;
   const coming = guests.filter((g) => g.attendance !== "no");
   const declined = guests.filter((g) => g.attendance === "no");
   const blocks = [
@@ -108,8 +127,11 @@ export default async function GuestList({
               return (
                 <tr key={g.id} className={`border-t border-line align-top ${shade ? "bg-cream/60" : ""}`}>
                   <td className="px-4 py-2.5">
+                    {isAdmin && g.email && (
+                      <input type="checkbox" form="mail-gasten" name="gast" value={g.id} aria-label={`${g.first_name} selecteren om te mailen`} className="mr-2 accent-[#6B1E2E]" />
+                    )}
                     {isAdmin ? (
-                      <details>
+                      <details className="inline-block align-top">
                         <summary className="cursor-pointer">{g.first_name} {g.last_name}</summary>
                         <div className="mt-2 rounded-xl bg-white p-3 shadow-sm"><GuestForm coupleId={couple.id} groups={groups} guest={g} /></div>
                       </details>
@@ -120,9 +142,14 @@ export default async function GuestList({
                     {g.manual && <span className="ml-1 rounded-full bg-cream-deep px-1.5 text-xs text-muted">Handmatig toegevoegd</span>}
                     {g.notes && <span className="block text-xs text-muted">{g.notes}</span>}
                     {g.form_name && <span className="block text-xs text-muted">via {g.form_name} · {formatDateTime(g.created_at)}</span>}
+                    {g.response_id && <ConfirmationLabel state={confirmation.get(g.response_id)} />}
                   </td>
                   <td className="px-4 py-2.5">{g.relation || "–"}</td>
-                  <td className="px-4 py-2.5">{g.phone || "–"}{g.email && <span className="block text-xs text-muted">{g.email}</span>}</td>
+                  <td className="px-4 py-2.5">
+                    {g.phone || "–"}
+                    {g.email && <span className="block text-xs text-muted">{g.email}</span>}
+                    {isAdmin && g.email && <Link href={`${mailForm}?gast=${g.id}`} className="text-xs text-bordeaux underline">Mail sturen</Link>}
+                  </td>
                   <td className="px-4 py-2.5">
                     {ATTENDANCE[g.attendance]}
                     {g.partial_note && <span className="block text-xs text-muted">{g.partial_note}</span>}
@@ -176,6 +203,14 @@ export default async function GuestList({
             ))}
           </ul>
         </section>
+      )}
+
+      {isAdmin && (
+        <form id="mail-gasten" method="get" action={mailForm} className="flex flex-wrap items-center gap-3 text-sm">
+          <SelectAllGuests form="mail-gasten" />
+          <button type="submit" className="btn-secondary py-1.5">Mail sturen aan geselecteerde gasten</button>
+          <span className="text-xs text-muted">Vink gasten aan in de lijst; elke gast krijgt een eigen mail.</span>
+        </form>
       )}
 
       {blocks.map((b) => (

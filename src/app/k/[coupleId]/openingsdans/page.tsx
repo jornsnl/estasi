@@ -5,10 +5,12 @@ import { VideoEmbed } from "@/components/VideoEmbed";
 import { AutoTextarea } from "@/components/ws/AutoTextarea";
 import { FileUpload } from "@/components/ws/FileUpload";
 import { RepeatRows } from "@/components/ws/RepeatRows";
-import { requireDance } from "@/lib/ws/access";
+import { DanceInfo } from "@/components/ws/DanceInfo";
+import { requireCouple } from "@/lib/ws/access";
 import { couplePackages } from "@/lib/ws/couples";
 import { one, query } from "@/lib/ws/db";
 import { directUploads } from "@/lib/ws/files";
+import type { Couple } from "@/lib/ws/types";
 
 export const metadata = { title: "De openingsdans" };
 
@@ -42,7 +44,25 @@ export default async function DancePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId } = await params;
-  const { couple, isAdmin } = await requireDance(coupleId);
+  const ctx = await requireCouple(coupleId);
+  // Feedback 9.1: with the dance in the package the page with the assignments; without it the
+  // information page, also for Sabine looking along (she can still open the assignments).
+  const inPackage = ctx.kinds.includes("od");
+  if (!inPackage && !(ctx.isAdmin && (await searchParams).weergave === "opdrachten")) {
+    return <DanceInfo couple={ctx.couple} isAdmin={ctx.isAdmin} searchParams={searchParams} />;
+  }
+  return <DanceWishes couple={ctx.couple} isAdmin={ctx.isAdmin} searchParams={searchParams} />;
+}
+
+async function DanceWishes({
+  couple,
+  isAdmin,
+  searchParams,
+}: {
+  couple: Couple;
+  isAdmin: boolean;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const [w, packages, audio] = await Promise.all([
     one<Wishes>("select * from dance_wishes where couple_id = $1", [couple.id]).then((r) => r ?? EMPTY),
     couplePackages(couple.id),

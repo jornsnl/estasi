@@ -188,6 +188,7 @@ export async function setSectionDone(coupleId: string, sectionId: string, isDone
       await sendMail({
         to: adminNotifyEmail(),
         subject: `${coupleName(ctx.couple)} hebben "${first.title}" afgerond`,
+        log: { kind: "opdracht", coupleId: ctx.couple.id, sentBy: ctx.account.name },
         text: `${coupleName(ctx.couple)} hebben alle opdrachten van "${first.title}" afgerond.\n\nBekijken: ${appUrl()}${link}\n\n${
           aiConfigured()
             ? "Op de pagina Styling staat zo een eerste samenvatting als concept klaar; alleen jij ziet die tot je hem vrijgeeft."

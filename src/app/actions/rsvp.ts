@@ -85,7 +85,7 @@ export async function submitRsvp(formData: FormData) {
     if (value) answers.push({ question: q.label, answer: value as string });
   }
 
-  await tx(async (db) => {
+  const ids = await tx(async (db) => {
     const response = await one<{ id: string }>(
       `insert into rsvp_responses (couple_id, form_id, first_name, last_name, email, phone, relation, relations, attending, partial_note, diet,
                                    dresscode_ok, answers, party_count)
@@ -94,9 +94,9 @@ export async function submitRsvp(formData: FormData) {
        JSON.stringify(answers), partyCount],
       db,
     );
-    await query(
+    const main = await one<{ id: string }>(
       `insert into guests (couple_id, response_id, form_id, group_id, first_name, last_name, relation, email, phone, diet, attendance, partial_note, created_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, clock_timestamp())`,
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, clock_timestamp()) returning id`,
       [couple.id, response!.id, form.id, form.group_id, firstName, lastName, relation, email, phone, diet, attending, partialNote],
       db,
     );
@@ -110,6 +110,7 @@ export async function submitRsvp(formData: FormData) {
         db,
       );
     }
+    return { responseId: response!.id, guestId: main!.id };
   });
 
   // Children on the invitation list of this household now count as guests too.
@@ -142,13 +143,19 @@ export async function submitRsvp(formData: FormData) {
   if (!body) body = coming ? `Lieve ${firstName},\n\nWat fijn dat je erbij bent! Je aanmelding is goed ontvangen.` : `Lieve ${firstName},\n\nBedankt voor het laten weten.`;
   // The overview of the answers always comes along, also when the text has no [antwoorden].
   if (!/\[antwoorden\]/i.test(coming ? form.confirmation_text : form.decline_text)) body += `\n\nWat je hebt ingevuld:\n\n${summary}`;
-  await sendMail({ to: email, subject: fillTemplate(subject, values), text: body });
+  await sendMail({
+    to: email,
+    subject: fillTemplate(subject, values),
+    text: body,
+    log: { kind: "rsvp_bevestiging", coupleId: couple.id, guestId: ids.guestId, responseId: ids.responseId, guestName: `${firstName} ${lastName}` },
+  });
 
   const members = (await coupleMembers(couple.id)).map((m) => m.email);
   await sendMail({
     to: [adminNotifyEmail(), ...members].filter(Boolean),
     subject: `Nieuwe RSVP (${form.name}) voor ${names}`,
     text: `${summary}\n\nGastenlijst: ${appUrl()}/k/${couple.id}/gasten`,
+    log: { kind: "rsvp_melding", coupleId: couple.id, guestId: ids.guestId, responseId: ids.responseId, guestName: `${firstName} ${lastName}` },
   });
 
   redirect(`${page}?bedankt=${coming ? "1" : "nee"}`);

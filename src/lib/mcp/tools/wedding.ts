@@ -403,6 +403,7 @@ export const weddingTools = [
             to: recipients,
             replyTo: ctx.user.email,
             subject: "Er staat een antwoord voor jullie klaar",
+            log: { kind: "antwoord", coupleId: c.id, sentBy: ctx.user.name },
             text: `Hoi ${coupleName(c)},\n\nSabine heeft jullie vraag in Your Wedding Space beantwoord. Log in om het antwoord te lezen:\n${appUrl()}/k/${c.id}#vragenblok`,
           })
         : false;

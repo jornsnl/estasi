@@ -76,6 +76,7 @@ export async function askQuestion(formData: FormData) {
       to: adminNotifyEmail(),
       replyTo: ctx.account.email,
       subject: `Nieuwe vraag van ${coupleName(ctx.couple)}`,
+      log: { kind: "vraag", coupleId: ctx.couple.id, sentBy: ctx.account.name },
       text: `${ctx.account.name} stelde een vraag in Your Wedding Space:\n\n${body}\n\nBeantwoorden: ${appUrl()}${back}`,
     });
   }
@@ -107,6 +108,7 @@ export async function answerQuestion(formData: FormData) {
     to: recipients,
     replyTo: ctx.account.email,
     subject: "Er staat een antwoord voor jullie klaar",
+    log: { kind: "antwoord", coupleId: ctx.couple.id, sentBy: ctx.account.name },
     text: `Hoi ${coupleName(ctx.couple)},\n\nSabine heeft jullie vraag in Your Wedding Space beantwoord. Log in om het antwoord te lezen:\n${appUrl()}${portal(ctx.couple.id, "#vragenblok")}`,
   });
   done(back, sent ? "Antwoord opgeslagen. Het bruidspaar krijgt een melding per e-mail." : "Antwoord opgeslagen. (Er is geen e-mail verstuurd: het versturen van e-mail staat niet ingesteld of mislukte.)");
