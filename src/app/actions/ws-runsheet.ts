@@ -56,7 +56,8 @@ const cleanPeople = (list: unknown) =>
 export async function saveRow(coupleId: string, tabId: string, rowId: string | null, input: RowInput, colors?: Record<string, string>): Promise<Result> {
   const ctx = await requireCouple(coupleId);
   const tab = ctx.planning ? await tabOf(ctx, tabId) : null;
-  if (!tab || (tab.kind !== "schedule" && tab.kind !== "list")) return { ok: false, error: "Tabblad niet gevonden." };
+  // The seating tab keeps the rows of the old "Opstelling" list as notes.
+  if (!tab || !["schedule", "list", "seating"].includes(tab.kind)) return { ok: false, error: "Tabblad niet gevonden." };
   const people = cleanPeople(input.people);
   await ensurePeople(ctx, people, colors);
   const values = {
@@ -79,9 +80,17 @@ export async function saveRow(coupleId: string, tabId: string, rowId: string | n
   }
 
   if (!isUuid(rowId)) return { ok: false, error: "Regel niet gevonden." };
-  const row = await one<{ by_admin: boolean; at_time: string }>("select by_admin, at_time from runsheet_rows where id = $1 and tab_id = $2", [rowId, tab.id]);
+  const row = await one<{ by_admin: boolean; at_time: string; what: string; source: string | null }>(
+    "select by_admin, at_time, what, source from runsheet_rows where id = $1 and tab_id = $2",
+    [rowId, tab.id],
+  );
   if (!row) return { ok: false, error: "Regel niet gevonden." };
   if (row.by_admin && !ctx.isAdmin) return { ok: false, error: "Deze regel is van Sabine; die kunnen jullie bekijken maar niet wijzigen." };
+  // A row from Eten en allergieën or Leveranciers: time and text change there, the rest here.
+  if (row.source) {
+    values.at_time = row.at_time;
+    values.what = row.what;
+  }
   await query(
     `update runsheet_rows set at_time = $2, what = $3, info = $4, location = $5, rain_location = $6, people = $7, who = $8 where id = $1`,
     [rowId, values.at_time, values.what, values.info, values.location, values.rain_location, people, people.join(", ")],
@@ -97,9 +106,10 @@ export async function deleteRow(coupleId: string, tabId: string, rowId: string):
   const ctx = await requireCouple(coupleId);
   const tab = ctx.planning ? await tabOf(ctx, tabId) : null;
   if (!tab || !isUuid(rowId)) return { ok: false, error: "Niet gevonden." };
-  const row = await one<{ by_admin: boolean }>("select by_admin from runsheet_rows where id = $1 and tab_id = $2", [rowId, tab.id]);
+  const row = await one<{ by_admin: boolean; source: string | null }>("select by_admin, source from runsheet_rows where id = $1 and tab_id = $2", [rowId, tab.id]);
   if (!row) return { ok: false, error: "Regel niet gevonden." };
   if (row.by_admin && !ctx.isAdmin) return { ok: false, error: "Deze regel is van Sabine." };
+  if (row.source) return { ok: false, error: row.source === "meal" ? "Deze regel komt uit Eten en allergieën; haal daar de tijd weg." : "Deze regel komt uit Leveranciers; haal daar de tijd weg." };
   await query("delete from runsheet_rows where id = $1", [rowId]);
   return state(ctx, tab.id);
 }

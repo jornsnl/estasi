@@ -20,6 +20,8 @@ export interface SupplierRowData {
   phone: string;
   email: string;
   notes: string;
+  present_from: string;
+  present_until: string;
   documents: number;
 }
 
@@ -178,6 +180,11 @@ function Row({
         {input("contact_person", "Contactpersoon", row.contact_person)}
         {input("phone", "Telefoon", row.phone, "tel")}
         {input("email", "E-mail", row.email, "email")}
+      </div>
+      {/* Arrival and departure show up in the day planning of the draaiboek. */}
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:max-w-md">
+        {input("present_from", "Aanwezig op locatie vanaf", row.present_from, "time")}
+        {input("present_until", "Aanwezig op locatie tot", row.present_until, "time")}
       </div>
       <label className="mt-3 block text-xs text-muted">
         Opmerkingen

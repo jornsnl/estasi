@@ -46,6 +46,8 @@ export default async function SuppliersPage({
           phone: r.phone,
           email: r.email,
           notes: r.notes,
+          present_from: r.present_from,
+          present_until: r.present_until,
           documents: r.documents,
         }))}
       />
