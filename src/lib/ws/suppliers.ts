@@ -97,6 +97,7 @@ export async function flushFavoriteMails(olderThanMinutes: number) {
     const list = events.map((e) => `• ${e.rec ?? "(verwijderde aanrader)"}${e.category ? ` (${e.category})` : ""}`).join("\n");
     await sendMail({
       to: adminNotifyEmail(),
+      log: { kind: "favorieten", coupleId: couple.id },
       subject: `${coupleName(couple)}: ${events.length === 1 ? "nieuwe favoriet" : `${events.length} nieuwe favorieten`}`,
       text: `${coupleName(couple)} ${events.length === 1 ? "heeft een nieuwe favoriet" : "hebben nieuwe favorieten"} gekozen bij de aanraders:\n\n${list}\n\nBekijken: ${appUrl()}/k/${couple.id}/leveranciers`,
     });

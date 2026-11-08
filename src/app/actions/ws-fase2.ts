@@ -94,6 +94,7 @@ export async function saveAnswers(formData: FormData) {
         to: adminNotifyEmail(),
         replyTo: ctx.account.email,
         subject: `${coupleName(ctx.couple)} heeft "${assignment.title}" ingevuld`,
+        log: { kind: "opdracht", coupleId: ctx.couple.id, sentBy: ctx.account.name },
         text: `${ctx.account.name} heeft de opdracht "${assignment.title}" ingestuurd.\n\nBekijken: ${appUrl()}${back}`,
       });
     }
