@@ -1,4 +1,5 @@
 import { saveProfile } from "@/app/actions/profile";
+import { Markdown } from "@/components/Markdown";
 import { PrivacyNotice } from "@/components/academy/PrivacyNotice";
 import { NotificationSettings } from "@/components/community/NotificationSettings";
 import { Notice } from "@/components/Notice";
@@ -101,7 +102,14 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       </div>
 
       <div className="mt-8">
-        <PrivacyNotice contactEmail={settings.contactEmail} />
+        {settings.privacyText.trim() ? (
+          <section id="privacy" className="card space-y-3 p-6 text-sm">
+            <h2 className="text-2xl">Privacy</h2>
+            <Markdown>{settings.privacyText}</Markdown>
+          </section>
+        ) : (
+          <PrivacyNotice contactEmail={settings.contactEmail} />
+        )}
       </div>
     </div>
   );

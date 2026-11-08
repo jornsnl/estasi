@@ -382,6 +382,7 @@ export function createSeed(): SeedData {
       contactEmail: process.env.CONTACT_EMAIL ?? "academy@estasiweddings.nl",
       practicalSpotsAvailable: false,
       practicalSpotsNote: "",
+      privacyText: "",
       answersPrivacyNotice: "Je antwoorden zijn alleen zichtbaar voor jou en voor je opleider. Zij gebruikt ze voor begeleiding, feedback en het vaststellen van je afronding. Andere cursisten kunnen je antwoorden nooit zien.",
     },
   };

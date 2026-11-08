@@ -84,6 +84,7 @@ const COLUMNS = {
     "practicalSpotsAvailable",
     "practicalSpotsNote",
     "answersPrivacyNotice",
+    "privacyText",
   ],
 } as const;
 

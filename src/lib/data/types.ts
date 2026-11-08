@@ -405,4 +405,6 @@ export interface Settings {
   practicalSpotsAvailable: boolean;
   practicalSpotsNote: string;
   answersPrivacyNotice: string;
+  /** Privacy text on the student's profile (Markdown). Empty: the built-in default. */
+  privacyText: string;
 }

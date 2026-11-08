@@ -284,6 +284,7 @@ export async function saveSettings(formData: FormData) {
     practicalSpotsAvailable,
     practicalSpotsNote: str(formData, "practicalSpotsNote", LIMITS.practicalSpotsNote),
     answersPrivacyNotice: str(formData, "answersPrivacyNotice", LIMITS.privacyNotice) || before.answersPrivacyNotice,
+    privacyText: str(formData, "privacyText", LIMITS.privacyText),
   });
   if (before.practicalSpotsAvailable !== practicalSpotsAvailable) {
     await audit(owner, practicalSpotsAvailable ? "Praktijkplekken opengezet" : "Praktijkplekken gesloten");

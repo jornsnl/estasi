@@ -30,6 +30,7 @@ export const LIMITS = {
   contactEmail: 200,
   practicalSpotsNote: 2000,
   privacyNotice: 5000,
+  privacyText: 20000,
 } as const;
 
 /**

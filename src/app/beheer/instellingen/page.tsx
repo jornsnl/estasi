@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { saveSettings } from "@/app/actions/content";
+import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { getStore } from "@/lib/data";
@@ -72,6 +73,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <label htmlFor="answersPrivacyNotice" className="label">Uitleg boven de opdrachten</label>
             <textarea id="answersPrivacyNotice" name="answersPrivacyNotice" rows={4} defaultValue={s.answersPrivacyNotice} maxLength={LIMITS.privacyNotice} className="input" />
             <p className="hint">Cursisten zien deze tekst voordat ze antwoorden invullen.</p>
+          </div>
+          <div>
+            <MarkdownEditor name="privacyText" label="Privacytekst op het profiel van cursisten" defaultValue={s.privacyText} rows={14} maxLength={LIMITS.privacyText} />
+            <p className="hint">
+              Staat onder Mijn profiel. Laat je dit leeg, dan zien cursisten de standaardtekst over wat de Academy bewaart, wie wat ziet en hoe ze inzage of
+              verwijdering kunnen vragen. Zet hier bijvoorbeeld ook de bewaartermijn en waar de gegevens staan (Supabase, Resend).
+            </p>
           </div>
         </section>
 
