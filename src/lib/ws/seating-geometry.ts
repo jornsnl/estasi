@@ -82,10 +82,81 @@ export function tableSeats(t: TableShape): SeatSpot[] {
   return spots.map((s, i) => ({ key: `t:${t.id}:${i}`, x: cx + (turned ? -s.dy : s.dx), y: cy + (turned ? s.dx : s.dy) }));
 }
 
+/** Chairs in one ceremony row, on each side of the aisle. */
+export interface RowSeats {
+  left: number;
+  right: number;
+}
+
 export interface CeremonyShape {
   shape: "rows" | "half" | "circle";
   rows: number;
   seats_per_row: number;
+  /** Rows with an aisle: chairs per row and side. Empty for plans made before this existed. */
+  row_seats?: RowSeats[];
+}
+
+export const MAX_ROWS = 40;
+export const MAX_SIDE = 40;
+const side = (n: unknown) => Math.max(0, Math.min(MAX_SIDE, Math.round(Number(n)) || 0));
+
+/** Cleans up rows from a form or a client: whole numbers, 0 to 40 per side, 1 to 40 rows. */
+export function cleanRows(rows: unknown): RowSeats[] {
+  if (!Array.isArray(rows)) return [];
+  return rows.slice(0, MAX_ROWS).map((r) => ({ left: side((r as RowSeats)?.left), right: side((r as RowSeats)?.right) }));
+}
+
+/** The rows of a ceremony with an aisle; plans without their own rows get the same number everywhere. */
+export function ceremonyRows(c: CeremonyShape): RowSeats[] {
+  const own = cleanRows(c.row_seats);
+  if (own.length) return own;
+  return Array.from({ length: Math.max(1, c.rows) }, () => ({ left: c.seats_per_row, right: c.seats_per_row }));
+}
+
+/** "Alle rijen gelijk": every row the same. */
+export const evenRows = (count: number, left: number, right: number): RowSeats[] =>
+  cleanRows(Array.from({ length: Math.max(1, Math.min(MAX_ROWS, count)) }, () => ({ left, right })));
+
+/** The chair keys of rows with an aisle: L:<row>:<n> and R:<row>:<n>, n = 0 next to the aisle. */
+export function rowSeatKeys(rows: RowSeats[]): string[] {
+  return rows.flatMap((r, i) => [
+    ...Array.from({ length: r.left }, (_, n) => `L:${i}:${n}`),
+    ...Array.from({ length: r.right }, (_, n) => `R:${i}:${n}`),
+  ]);
+}
+
+/**
+ * Where the chairs of rows with an aisle go when row `removed` is taken out:
+ * the rows behind it move up one. Returns the new key, or null for a chair
+ * that no longer exists. Other keys stay the same.
+ */
+export function keyAfterRowRemoval(key: string, removed: number): string | null {
+  const m = /^([LR]):(\d+):(\d+)$/.exec(key);
+  if (!m) return key;
+  const row = Number(m[2]);
+  if (row < removed) return key;
+  if (row === removed) return null;
+  return `${m[1]}:${row - 1}:${m[3]}`;
+}
+
+/**
+ * The changes to the placed chairs when the rows change from `before` to
+ * `after` (optionally by taking out row `removed`): which keys move and which
+ * placed chairs disappear.
+ */
+export function rowChange(before: RowSeats[], after: RowSeats[], placed: string[], removed?: number) {
+  const exists = new Set(rowSeatKeys(after));
+  const moves: { from: string; to: string }[] = [];
+  const lost: string[] = [];
+  for (const key of placed) {
+    if (!/^[LR]:/.test(key)) continue;
+    const to = removed === undefined ? key : keyAfterRowRemoval(key, removed);
+    if (to === null || !exists.has(to)) lost.push(key);
+    else if (to !== key) moves.push({ from: key, to });
+  }
+  // Rows move up, so the lowest keys go first and never land on a chair still in use.
+  moves.sort((a, b) => Number(a.from.split(":")[1]) - Number(b.from.split(":")[1]));
+  return { moves, lost };
 }
 
 /** The couple and the ceremony: a fixed box. */
@@ -98,16 +169,17 @@ export function ceremonyFront(c: CeremonyShape): { x: number; y: number; w: numb
 export function ceremonySeats(c: CeremonyShape): SeatSpot[] {
   const spots: SeatSpot[] = [];
   if (c.shape === "rows") {
+    // Shorter rows are shorter on the plan: chair 0 is always next to the aisle.
+    const rows = ceremonyRows(c);
     const gap = 90;
-    const spacing = Math.min(SEAT.w + 6, (CANVAS.w / 2 - gap / 2 - 20) / c.seats_per_row);
-    const rowGap = Math.min(48, (CANVAS.h - 130) / c.rows);
-    for (let r = 0; r < c.rows; r++) {
+    const widest = Math.max(1, ...rows.map((r) => Math.max(r.left, r.right)));
+    const spacing = Math.min(SEAT.w + 6, (CANVAS.w / 2 - gap / 2 - 20) / widest);
+    const rowGap = Math.min(48, (CANVAS.h - 130) / rows.length);
+    rows.forEach((row, r) => {
       const y = 120 + r * rowGap;
-      for (let i = 0; i < c.seats_per_row; i++) {
-        spots.push({ key: `L:${r}:${i}`, x: CANVAS.w / 2 - gap / 2 - (i + 0.5) * spacing, y, side: "left" });
-        spots.push({ key: `R:${r}:${i}`, x: CANVAS.w / 2 + gap / 2 + (i + 0.5) * spacing, y, side: "right" });
-      }
-    }
+      for (let i = 0; i < row.left; i++) spots.push({ key: `L:${r}:${i}`, x: CANVAS.w / 2 - gap / 2 - (i + 0.5) * spacing, y, side: "left" });
+      for (let i = 0; i < row.right; i++) spots.push({ key: `R:${r}:${i}`, x: CANVAS.w / 2 + gap / 2 + (i + 0.5) * spacing, y, side: "right" });
+    });
     return spots;
   }
   const front = ceremonyFront(c);
