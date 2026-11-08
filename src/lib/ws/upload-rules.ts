@@ -6,7 +6,7 @@
  * kinds below stay under it.
  */
 
-export type UploadKind = "image" | "document" | "audio";
+export type UploadKind = "image" | "document" | "audio" | "pdf";
 
 const MB = 1024 * 1024;
 
@@ -40,6 +40,7 @@ export const UPLOAD_KINDS: Record<UploadKind, { extensions: string[]; maxBytes: 
     label: "document",
   },
   audio: { extensions: ["mp3", "m4a", "aac", "wav"], maxBytes: 45 * MB, label: "audiobestand" },
+  pdf: { extensions: ["pdf"], maxBytes: 25 * MB, label: "PDF" },
 };
 
 /** Photos the browser may decode and shrink (HEIC only works in Safari). */

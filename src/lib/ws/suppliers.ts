@@ -102,3 +102,11 @@ export async function flushFavoriteMails(olderThanMinutes: number) {
     });
   }
 }
+
+/** Visible recommendations per category id (for the bordeaux bar on "Jullie leveranciers"). */
+export async function visibleRecommendationCounts(): Promise<Record<string, number>> {
+  const rows = await query<{ category_id: string; n: number }>(
+    "select category_id, count(*)::int as n from recommendations where not archived group by category_id",
+  );
+  return Object.fromEntries(rows.map((r) => [r.category_id, r.n]));
+}
