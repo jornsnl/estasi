@@ -2,9 +2,10 @@
 
 import { redirect } from "next/navigation";
 import { audit } from "@/lib/academy";
-import { createDevAccount, deleteDevAccount, newDevSetupLink } from "@/lib/auth/dev-auth";
+import { createDevAccount, deleteDevAccount, newDevSetupLink, setDevPassword } from "@/lib/auth/dev-auth";
 import { requireOwner } from "@/lib/auth/session";
-import { deleteAccount, inviteAccount, resendAccess } from "@/lib/auth/supabase-auth";
+import { deleteAccount, inviteAccount, resendAccess, setPasswordAsAdmin } from "@/lib/auth/supabase-auth";
+import { setMustChangePassword, temporaryPasswordProblem } from "@/lib/auth/temporary-password";
 import { supabaseEnabled } from "@/lib/supabase/config";
 import { getStore, type Enrollment, type PackageType, type PracticalStatus } from "@/lib/data";
 import { accessStatus, accessTermMonths, addMonths, pause, resume } from "@/lib/domain/access";
@@ -21,7 +22,9 @@ const SETUP_DAYS = 7;
 const str = (formData: FormData, name: string, max = 500) => String(formData.get(name) ?? "").trim().slice(0, max);
 
 function done(path: string, message: string, isError = false): never {
-  redirect(`${path}${path.includes("?") ? "&" : "?"}${isError ? "fout" : "melding"}=${encodeURIComponent(message)}`);
+  // An anchor (#...) has to come after the query, or the message is lost.
+  const [base, anchor] = path.split("#");
+  redirect(`${base}${base.includes("?") ? "&" : "?"}${isError ? "fout" : "melding"}=${encodeURIComponent(message)}${anchor ? `#${anchor}` : ""}`);
 }
 
 const studentPath = (userId: string) => `/beheer/cursisten/${userId}`;
@@ -137,6 +140,35 @@ export async function newSetupLink(formData: FormData) {
   await newDevSetupLink(userId, SETUP_DAYS);
   await audit(owner, "Nieuwe activatie/herstellink gemaakt", "", userId);
   done(studentPath(userId), "Nieuwe link aangemaakt.");
+}
+
+/**
+ * Emergency option next to the invite: Sabine sets a temporary password and
+ * passes it on herself. The student must choose an own password after signing in.
+ * The password itself is never logged or put in a URL.
+ */
+export async function setTemporaryPassword(formData: FormData) {
+  const owner = await requireOwner();
+  const store = getStore();
+  const userId = str(formData, "userId");
+  const user = await store.getUser(userId);
+  if (!user || user.role !== "student") done("/beheer", "Cursist niet gevonden.", true);
+  const path = `${studentPath(userId)}#tijdelijk-wachtwoord`;
+  if (formData.get("confirm") !== "on") done(path, "Vink aan dat je het wachtwoord zelf aan de cursist doorgeeft.", true);
+  const password = String(formData.get("password") ?? "").trim();
+  const problem = temporaryPasswordProblem(password);
+  if (problem) done(path, problem, true);
+
+  if (supabaseEnabled()) {
+    const failed = await setPasswordAsAdmin(userId, password);
+    if (failed) done(path, failed, true);
+    if (!user.activatedAt) await store.updateUser(userId, { activatedAt: new Date().toISOString() });
+  } else {
+    await setDevPassword(userId, password);
+  }
+  await setMustChangePassword(userId, true);
+  await audit(owner, "Tijdelijk wachtwoord ingesteld", "De cursist kiest na het inloggen een eigen wachtwoord", userId);
+  done(path, `Tijdelijk wachtwoord ingesteld. Geef het zelf door aan ${user.name}; na het inloggen kiest de cursist een eigen wachtwoord.`);
 }
 
 async function loadEnrollment(formData: FormData): Promise<Enrollment> {

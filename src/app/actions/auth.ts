@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getStore } from "@/lib/data";
 import { devAuthAllowed, devLinkAccount, devSignIn, newDevSetupLink, setDevPassword } from "@/lib/auth/dev-auth";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
+import { mustChangePassword, setMustChangePassword } from "@/lib/auth/temporary-password";
 import { clear, hit, isLimited, LOGIN_PER_EMAIL, LOGIN_PER_IP, RESET_PER_IP } from "@/lib/auth/rate-limit";
 import { currentSession, endSession, forgetFactors, homeFor, startDevSession } from "@/lib/auth/session";
 import {
@@ -63,6 +64,8 @@ export async function login(formData: FormData) {
   }
   clear(emailKey);
   if (!supabase) await startDevSession(user!.id);
+  // A temporary password from Sabine: first choose an own one.
+  if (await mustChangePassword(user!.id)) redirect("/wachtwoord-instellen");
   // Back to where the visitor came from (for example the MCP consent screen).
   redirect(next ?? homeFor(user!));
 }
@@ -138,8 +141,15 @@ export async function setNewPassword(formData: FormData) {
   const current = await currentSession();
   if (!current) redirect("/auth/bevestigen?verlopen=1");
   const password = checkNewPassword(formData, path);
-  const problem = await updatePassword(password);
-  if (problem) back(path, problem);
+  if (supabaseEnabled()) {
+    const problem = await updatePassword(password);
+    if (problem) back(path, problem);
+  } else if (devAuthAllowed()) {
+    await setDevPassword(current.user.id, password);
+  } else {
+    redirect("/login");
+  }
+  await setMustChangePassword(current.user.id, false);
   if (!current.user.activatedAt) {
     await getStore().updateUser(current.user.id, { activatedAt: new Date().toISOString() });
   }

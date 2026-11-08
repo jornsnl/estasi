@@ -136,6 +136,7 @@ Hoe het in elkaar zit:
 * Alle gegevens lopen via de server, rechtstreeks met Postgres (`DATABASE_URL`, `src/lib/data/pg-store.ts`). De server actions controleren eerst de rol. De tabellen zijn dicht voor de publieke API; row level security staat aan als extra slot
 * Inloggen via Supabase Auth (`src/lib/auth/session.ts` en `supabase-auth.ts`). Sessies staan in cookies en worden ververst door `src/middleware.ts`
 * Uitnodiging en herstel: Supabase mailt een link naar `/auth/bevestigen`. De link wordt pas gebruikt als de cursist op Doorgaan drukt, zodat virusscanners in de mail hem niet opmaken. Daarna kiest de cursist een wachtwoord op `/wachtwoord-instellen`
+* Tijdelijk wachtwoord (noodoptie): op de cursistpagina kan de opleider onder Gegevens een tijdelijk wachtwoord instellen (via de admin-API van Supabase Auth, die ook het e-mailadres bevestigt). Zij geeft het zelf door. Zolang `public.users.must_change_password` aan staat, stuurt de app de cursist na het inloggen en bij elke Academy-pagina naar `/wachtwoord-instellen`; na een eigen wachtwoord werkt het tijdelijke niet meer. Het wachtwoord komt nooit in het logboek of in een URL (migratie `0032`)
 * Tweestapsverificatie is optioneel. De opleider zet hem aan via Instellingen (aanbevolen). Wie een authenticator app heeft gekoppeld, moet bij elke nieuwe login de code geven
 * Mislukte inlogpogingen worden per e-mailadres en per IP beperkt (`src/lib/auth/rate-limit.ts`)
 * Het beheeraccount kan ook inloggen met een passkey (zie Passkeys en MCP)

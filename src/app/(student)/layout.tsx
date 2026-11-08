@@ -7,6 +7,8 @@ import { menuCounts, viewerFor } from "@/lib/community/server";
 import { PACKAGE_LABELS } from "@/lib/domain/labels";
 import { touchActivity } from "@/lib/academy";
 import { requireStudent } from "@/lib/auth/session";
+import { mustChangePassword } from "@/lib/auth/temporary-password";
+import { redirect } from "next/navigation";
 import { getStore } from "@/lib/data";
 import { unseenFeedback } from "@/lib/data/assignments";
 
@@ -20,6 +22,8 @@ export const metadata: Metadata = {
 
 export default async function StudentLayout({ children }: { children: React.ReactNode }) {
   const user = await requireStudent();
+  // Signed in with a temporary password from Sabine: choose an own one first.
+  if (await mustChangePassword(user.id)) redirect("/wachtwoord-instellen");
   await touchActivity(user);
   const [settings, enrollment] = await Promise.all([getStore().getSettings(), getStore().getEnrollmentForUser(user.id)]);
   const [counts, newFeedback] = await Promise.all([
