@@ -3,7 +3,7 @@ import { formatDate } from "@/lib/util/format";
 /** The certificate of the online part, or (kind "praktijk") of the practical part with the shadow wedding. */
 export function Certificate({ name, date, code, kind = "online" }: { name: string; date: string; code: string; kind?: "online" | "praktijk" }) {
   return (
-    <div className="mx-auto aspect-[1.414] w-full max-w-4xl bg-white p-3 shadow-sm print:shadow-none">
+    <div className="mx-auto w-full max-w-4xl bg-white p-3 shadow-sm sm:aspect-[1.414] print:aspect-[1.414] print:shadow-none">
       <div className="flex h-full flex-col items-center justify-center border border-gold p-8 text-center outline outline-1 outline-offset-4 outline-gold/40 sm:p-14">
         <p className="eyebrow">Estasi Weddings</p>
         <p className="mt-2 font-serif text-2xl text-gold-ink">Wedding Plan Academy</p>
