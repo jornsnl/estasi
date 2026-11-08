@@ -62,6 +62,7 @@ export default async function RunSheet({
         <PrintDialog
           href={`${base}/print`}
           tabs={shown.map((t) => ({ key: t.id, title: t.title }))}
+          speeches={isAdmin}
         />
       </header>
       <Notice searchParams={searchParams} />

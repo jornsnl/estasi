@@ -6,12 +6,15 @@ const KEY = "ws-print-tabs";
 
 /**
  * "Draaiboek printen": choose the tabs (plus cover and table of contents).
- * The last choice is remembered in this browser.
+ * The last choice is remembered in this browser. `speeches` only for Sabine:
+ * the extra choice to add the speech list (the print page checks the role
+ * again, so the parameter alone never shows speeches to a couple).
  */
-export function PrintDialog({ href, tabs }: { href: string; tabs: { key: string; title: string }[] }) {
+export function PrintDialog({ href, tabs, speeches = false }: { href: string; tabs: { key: string; title: string }[]; speeches?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const all = ["cover", "toc", ...tabs.map((t) => t.key)];
   const [chosen, setChosen] = useState<string[]>(all);
+  const [withSpeeches, setWithSpeeches] = useState(false);
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) ?? "null");
@@ -29,7 +32,7 @@ export function PrintDialog({ href, tabs }: { href: string; tabs: { key: string;
       // Not remembered; printing works anyway.
     }
     const order = all.filter((k) => chosen.includes(k));
-    window.open(`${href}?tabs=${encodeURIComponent(order.join(","))}&print=1`, "_blank", "noopener");
+    window.open(`${href}?tabs=${encodeURIComponent(order.join(","))}${speeches && withSpeeches ? "&speeches=1" : ""}&print=1`, "_blank", "noopener");
     dialog.current?.close();
   };
   const box = (key: string, label: string) => (
@@ -52,6 +55,11 @@ export function PrintDialog({ href, tabs }: { href: string; tabs: { key: string;
           {box("toc", "Inhoudsopgave")}
           {tabs.map((t) => box(t.key, t.title))}
         </div>
+        {speeches && (
+          <label className="mt-3 flex items-center gap-2 border-t border-line pt-3 text-sm">
+            <input type="checkbox" checked={withSpeeches} onChange={(e) => setWithSpeeches(e.target.checked)} className="accent-[#6B1E2E]" /> Speeches toevoegen (alleen voor mij)
+          </label>
+        )}
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" onClick={() => dialog.current?.close()} className="btn-ghost">Annuleren</button>
           <button type="button" onClick={go} disabled={chosen.length === 0} className="btn-primary disabled:opacity-50">PDF maken</button>

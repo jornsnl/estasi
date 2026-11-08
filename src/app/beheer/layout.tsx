@@ -35,6 +35,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
         { href: "/beheer/bruidsparen/agenda", label: "Mijn agenda" },
         { href: "/beheer/bruidsparen/pakketten", label: "Pakketten" },
         { href: "/beheer/bruidsparen/openingsdans", label: "Openingsdans" },
+        { href: "/beheer/bruidsparen/speeches", label: "Speeches" },
         { href: "/beheer/bruidsparen/mails", label: "Mailgeschiedenis" },
         { href: "/beheer/bruidsparen/opdrachten", label: "Opdrachten" },
         { href: "/beheer/bruidsparen/aanraders", label: "Aanraders" },

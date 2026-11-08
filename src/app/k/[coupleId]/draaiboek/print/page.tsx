@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AutoPrint } from "@/components/AutoPrint";
 import { PrintButton } from "@/components/PrintButton";
+import { SpeechPrintTable } from "@/components/ws/SpeechPrint";
 import { requirePlanning } from "@/lib/ws/access";
 import { dayGuests } from "@/lib/ws/dayguests";
 import { coverCounts, notResponded, type GroupKind } from "@/lib/ws/guest-counts";
@@ -11,6 +12,7 @@ import { mealsFor } from "@/lib/ws/meals";
 import { peopleFor, rowsFor, supplierContacts, tabsFor, type RunsheetTab } from "@/lib/ws/runsheet";
 import { withVirtualTabs } from "@/lib/ws/runsheet-pure";
 import { getSettings } from "@/lib/ws/settings";
+import { speechesFor } from "@/lib/ws/speeches";
 import { SUPPLIER_STATUS } from "@/lib/ws/suppliers";
 import { SeatingPrint } from "../SeatingTab";
 import { StylingPrint } from "../StylingTab";
@@ -32,7 +34,7 @@ export default async function RunSheetPrint({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId } = await params;
-  const { couple } = await requirePlanning(coupleId);
+  const { couple, isAdmin } = await requirePlanning(coupleId);
   const sp = await searchParams;
   const tabs = await tabsFor(couple.id);
   // Same order as on screen, with Leveranciers and Eten & allergieën in between.
@@ -41,7 +43,13 @@ export default async function RunSheetPrint({
   // "seating:<plan id>": only that seating plan (the PDF button on the plan itself).
   const onlyPlan = rawTabs.find((t) => t.startsWith("seating:"))?.split(":")[1];
   const wanted = onlyPlan ? tabs.filter((t) => t.kind === "seating").map((t) => t.id) : rawTabs;
-  const chosen = shown.filter((t) => wanted.includes(t.id)) as (RunsheetTab | { id: string; title: string; kind: "suppliers" | "meals"; position: number })[];
+  const chosen = shown.filter((t) => wanted.includes(t.id)) as (RunsheetTab | { id: string; title: string; kind: "suppliers" | "meals" | "speeches"; position: number })[];
+  // Speeches (feedback 12.3): only for Sabine, whatever the link says; a chapter right after the day schedule.
+  const speeches = isAdmin && sp.speeches === "1" && !onlyPlan ? await speechesFor(couple.id) : null;
+  if (speeches) {
+    const at = chosen.findIndex((t) => t.kind === "schedule");
+    chosen.splice(at === -1 ? chosen.length : at + 1, 0, { id: "speeches", title: "Speeches", kind: "speeches", position: 0 });
+  }
   const [settings, people] = await Promise.all([getSettings(), peopleFor(couple.id)]);
   const colorOf = (name: string) => people.find((p) => p.name.toLowerCase() === name.toLowerCase())?.color ?? "#ecebe8";
 
@@ -96,6 +104,8 @@ export default async function RunSheetPrint({
               </>
             ) : tab.kind === "meals" ? (
               <MealsPrint coupleId={couple.id} />
+            ) : tab.kind === "speeches" ? (
+              <SpeechPrintTable speeches={speeches ?? []} />
             ) : (
               <SuppliersPrint coupleId={couple.id} />
             )}
