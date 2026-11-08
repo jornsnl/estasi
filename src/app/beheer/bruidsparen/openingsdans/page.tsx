@@ -4,11 +4,9 @@ import { archivePackage } from "@/app/actions/ws-admin";
 import { deletePackage, moveDancePackage } from "@/app/actions/ws-packages";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { VideoEmbed } from "@/components/VideoEmbed";
-import { FileUpload } from "@/components/ws/FileUpload";
 import { SortableRows } from "@/components/ws/SortableRows";
+import { VideoSettingForm } from "@/components/ws/VideoSettingForm";
 import { query } from "@/lib/ws/db";
-import { directUploads } from "@/lib/ws/files";
 import { formatDate, formatDateTime } from "@/lib/ws/format";
 import { danceName } from "@/lib/ws/package-order";
 import { getSettings } from "@/lib/ws/settings";
@@ -82,28 +80,13 @@ export default async function DanceAdmin({ searchParams }: { searchParams: Promi
 
       <section id="video" className="scroll-mt-6 space-y-2">
         <h2 className="section-title">Video</h2>
-        <form action={saveDanceVideo} className="card space-y-4 p-5">
-          {settings.dance_video_file_id ? (
-            <div className="space-y-1">
-              <video controls preload="metadata" src={`/api/ws-bestanden/${settings.dance_video_file_id}`} className="aspect-video w-full max-w-xl rounded-xl bg-ink" />
-              <label className="flex items-center gap-2 text-xs text-muted"><input type="checkbox" name="removeVideo" /> Geüploade video verwijderen</label>
-            </div>
-          ) : settings.dance_video_url ? (
-            <div className="max-w-xl"><VideoEmbed url={settings.dance_video_url} title="Video van een openingsdans" /></div>
-          ) : (
-            <p className="text-sm text-muted">Nog geen video. Zonder video staat er op de informatiepagina geen videoblok.</p>
-          )}
-          <div>
-            <label className="label" htmlFor="videoUrl">YouTube- of Vimeo-link</label>
-            <input id="videoUrl" name="videoUrl" defaultValue={settings.dance_video_url} placeholder="https://www.youtube.com/watch?v=…" className="input" />
-            <p className="mt-1 text-xs text-muted">Een geüploade video gaat voor de link. Laat het veld leeg om de link weg te halen.</p>
-          </div>
-          <div>
-            <p className="label">Of upload een video (mp4, webm of mov, maximaal 45 MB)</p>
-            <FileUpload name="video" coupleId={null} kind="video" direct={directUploads()} label={settings.dance_video_file_id ? "Andere video uploaden" : "Video uploaden"} />
-          </div>
-          <SubmitButton className="btn-primary" pendingText="Opslaan…">Video opslaan</SubmitButton>
-        </form>
+        <VideoSettingForm
+          action={saveDanceVideo}
+          fileId={settings.dance_video_file_id}
+          url={settings.dance_video_url}
+          title="Video van een openingsdans"
+          emptyText="Nog geen video. Zonder video staat er op de informatiepagina geen videoblok."
+        />
       </section>
 
       <section id="pakketten" className="scroll-mt-6 space-y-2">

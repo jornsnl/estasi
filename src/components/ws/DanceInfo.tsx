@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requestDance } from "@/app/actions/ws-dance";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { VideoEmbed } from "@/components/VideoEmbed";
+import { hasSettingVideo, SettingVideo } from "@/components/ws/SettingVideo";
 import { one, query } from "@/lib/ws/db";
 import { formatDate, formatMoney } from "@/lib/ws/format";
 import { danceName, offerLines } from "@/lib/ws/package-order";
@@ -28,7 +28,6 @@ export async function DanceInfo({
     query<Package>("select * from packages where kind = 'od' and not archived order by position, name"),
     one<{ created_at: Date; package_name: string }>("select created_at, package_name from dance_requests where couple_id = $1 order by created_at desc limit 1", [couple.id]),
   ]);
-  const video = settings.dance_video_file_id ? `/api/ws-bestanden/${settings.dance_video_file_id}` : null;
 
   return (
     <div className="max-w-4xl space-y-8">
@@ -49,13 +48,9 @@ export async function DanceInfo({
       </header>
       <Notice searchParams={searchParams} />
 
-      {(video || settings.dance_video_url) && (
+      {hasSettingVideo(settings.dance_video_file_id, settings.dance_video_url) && (
         <section aria-label="Video van een openingsdans" className="max-w-3xl">
-          {video ? (
-            <video controls preload="metadata" playsInline src={video} className="aspect-video w-full rounded-xl bg-ink" />
-          ) : (
-            <VideoEmbed url={settings.dance_video_url} title="Video van een openingsdans" />
-          )}
+          <SettingVideo fileId={settings.dance_video_file_id} url={settings.dance_video_url} title="Video van een openingsdans" />
         </section>
       )}
 

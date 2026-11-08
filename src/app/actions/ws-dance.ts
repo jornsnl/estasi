@@ -1,6 +1,5 @@
 "use server";
 
-import { embedUrl } from "@/components/VideoEmbed";
 import { requireOwner } from "@/lib/auth/session";
 import { requireCouple, requireDance } from "@/lib/ws/access";
 import { logActivity } from "@/lib/ws/couples";
@@ -11,6 +10,7 @@ import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
 import { danceName } from "@/lib/ws/package-order";
 import { done, str } from "@/lib/ws/redirect";
 import { getSettings } from "@/lib/ws/settings";
+import { saveVideoSetting } from "@/lib/ws/video-setting";
 
 /** De openingsdans: the couple fills in blocks 1 to 3, Sabine block 4 (and may change everything). */
 
@@ -119,23 +119,7 @@ export async function requestDance(formData: FormData) {
 /** The video on the information page: an upload or a YouTube/Vimeo link, the same for every couple. */
 export async function saveDanceVideo(formData: FormData) {
   const owner = await requireOwner();
-  const back = "/beheer/bruidsparen/openingsdans#video";
-  const link = url(str(formData, "videoUrl", 500));
-  if (link && !embedUrl(link)) done(back, "Deze link herkennen we niet. Gebruik een YouTube- of Vimeo-link, of upload de video.", true);
-  const current = await one<{ dance_video_file_id: string | null }>("select dance_video_file_id from settings where id = true");
-  let fileId = current?.dance_video_file_id ?? null;
-  try {
-    const file = await storeUpload(formData.get("video"), { coupleId: null, accountId: owner.id, kind: "video" });
-    if (file || formData.get("removeVideo") === "on") {
-      if (fileId) await deleteFiles("delete from files where id = $1 and couple_id is null", [fileId]);
-      fileId = file?.id ?? null;
-    }
-  } catch (err) {
-    if (err instanceof UploadError) done(back, err.message, true);
-    throw err;
-  }
-  await query("update settings set dance_video_url = $1, dance_video_file_id = $2 where id = true", [link, fileId]);
-  done(back, "Video opgeslagen.");
+  await saveVideoSetting(formData, "dance", owner.id, "/beheer/bruidsparen/openingsdans#video");
 }
 
 /** Name, price and contents of a dance package card; the rest of the package stays as it is. */

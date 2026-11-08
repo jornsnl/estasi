@@ -68,6 +68,9 @@ export interface Settings {
   /** The opening dance video for couples without the dance: a link, or an upload. */
   dance_video_url: string;
   dance_video_file_id: string | null;
+  /** The tour video on the couple's start page (feedback 11): a link, or an upload. */
+  tour_video_url: string;
+  tour_video_file_id: string | null;
 }
 
 export interface Task {
