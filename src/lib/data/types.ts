@@ -138,9 +138,10 @@ export type LegacyBlock = LegacyQuestionBlock | LegacyChoiceBlock | LegacyUpload
 // Assignments ----------------------------------------------------------------
 
 /** File types a student may upload in an upload field. */
-export type UploadKind = "pdf" | "docx" | "xlsx" | "pptx" | "jpg" | "png" | "mp4" | "audio";
+/** No video files: a video is handed in as a YouTube or Vimeo link (field type video_link). */
+export type UploadKind = "pdf" | "docx" | "xlsx" | "pptx" | "jpg" | "png" | "audio";
 
-export type FieldType = "short" | "long" | "single" | "multi" | "scale" | "scale_rows" | "upload";
+export type FieldType = "short" | "long" | "single" | "multi" | "scale" | "scale_rows" | "upload" | "video_link";
 
 interface FieldBase {
   id: string;
@@ -197,7 +198,12 @@ export interface UploadField extends FieldBase {
   maxFiles: number;
 }
 
-export type AssignmentField = ShortField | LongField | ChoiceField | ScaleField | ScaleRowsField | UploadField;
+/** A YouTube or Vimeo link the student pastes; shown embedded. */
+export interface VideoLinkField extends FieldBase {
+  type: "video_link";
+}
+
+export type AssignmentField = ShortField | LongField | ChoiceField | ScaleField | ScaleRowsField | UploadField | VideoLinkField;
 
 export interface AssignmentPart {
   id: string;
@@ -232,6 +238,8 @@ export interface FieldAnswer {
   /** scale_rows: per row id a score (mode score) or a text (mode text). */
   rows?: Record<string, number | string>;
   files?: FileRef[];
+  /** video_link: the YouTube or Vimeo link as the student pasted it. */
+  url?: string;
 }
 
 /** Answers per field id. */

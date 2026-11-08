@@ -16,6 +16,7 @@ import {
   ASSIGNMENT_LIMITS,
   compareScans,
   FEEDBACK_LIMIT,
+  invalidVideoLink,
   isFieldAnswered,
   isSubmitted,
   sameAnswers,
@@ -24,6 +25,7 @@ import {
   uploadProblem,
 } from "@/lib/domain/assignment";
 import { ScanComparisonTable } from "./ScanComparisonTable";
+import { VideoLinkEmbed } from "./VideoLinkEmbed";
 
 export interface FeedbackItem {
   id: string;
@@ -516,6 +518,7 @@ function wireFree(answers: AssignmentAnswers): AssignmentAnswers {
     if (typeof a.score === "number") clean.score = a.score;
     if (a.rows && Object.keys(a.rows).length) clean.rows = a.rows;
     if (a.files?.length) clean.files = a.files.map((f) => ({ id: f.id }) as FileRef);
+    if (a.url?.trim()) clean.url = a.url.trim();
     if (Object.keys(clean).length) out[id] = clean;
   }
   return out;
@@ -587,8 +590,28 @@ function FieldInput({
     <div id={`veld-${field.id}`} className={`scroll-mt-24 ${missing ? "rounded-lg border border-bordeaux/50 bg-bordeaux-soft/30 p-3" : ""}`}>
       {group ? <p className="mb-1">{label}</p> : <label htmlFor={inputId} className="mb-1 block">{label}</label>}
       {field.help && <p className="hint mb-2 whitespace-pre-wrap">{field.help}</p>}
-      {missing && <p className="mb-2 text-sm text-bordeaux">Dit veld is verplicht.</p>}
+      {missing && !invalidVideoLink(field, answer) && <p className="mb-2 text-sm text-bordeaux">Dit veld is verplicht.</p>}
 
+      {field.type === "video_link" && (
+        <div className="space-y-3">
+          <input
+            id={inputId}
+            type="url"
+            inputMode="url"
+            value={answer?.url ?? ""}
+            maxLength={ASSIGNMENT_LIMITS.url}
+            className="input"
+            placeholder="https://www.youtube.com/watch?v=… of https://vimeo.com/…"
+            onChange={(e) => onChange({ url: e.target.value })}
+          />
+          {invalidVideoLink(field, answer) ? (
+            <p className="text-sm text-bordeaux">Deze link werkt niet. Plak een link van YouTube of Vimeo (een niet-openbare video kan ook).</p>
+          ) : (
+            !answer?.url && <p className="hint">Zet je video eerst op YouTube of Vimeo (bijvoorbeeld als niet-openbare video) en plak hier de link.</p>
+          )}
+          {answer?.url && <VideoLinkEmbed url={answer.url} title={field.label || "Video"} />}
+        </div>
+      )}
       {field.type === "short" && (
         <input id={inputId} value={answer?.text ?? ""} maxLength={ASSIGNMENT_LIMITS.shortAnswer} className="input" onChange={(e) => onChange({ text: e.target.value })} />
       )}

@@ -8,6 +8,7 @@ import {
   lessonCompletion,
   missingRequiredFields,
   uploadProblem,
+  withKnownUploadKinds,
 } from "@/lib/domain/assignment";
 import { ASSIGNMENT_LIMITS } from "@/lib/domain/assignment";
 import { fromRow, toParams, toRow, type Table } from "./rows";
@@ -34,6 +35,12 @@ import type {
  */
 
 const map = <T>(table: Table) => (row: Record<string, unknown>) => fromRow<T>(table, row);
+
+/** A version as stored; upload kinds that no longer exist (mp4) are dropped from its copy of the assignment. */
+const versionFrom = (row: Record<string, unknown>): SubmissionVersion => {
+  const v = fromRow<SubmissionVersion>("submission_versions", row);
+  return v.assignment ? { ...v, assignment: withKnownUploadKinds(v.assignment) } : v;
+};
 
 async function insertRow<T>(db: Queryable, table: Table, value: object): Promise<T> {
   const row = toRow(table, value, true);
@@ -76,13 +83,13 @@ export async function listVersions(filter: { userId?: string; submissionId?: str
     `select * from public.submission_versions${where.length ? ` where ${where.join(" and ")}` : ""} order by submitted_at, version`,
     params,
   );
-  return rows.map(map<SubmissionVersion>("submission_versions"));
+  return rows.map(versionFrom);
 }
 
 export async function getVersion(id: string): Promise<SubmissionVersion | null> {
   if (!isUuid(id)) return null;
   const row = await one<Record<string, unknown>>("select * from public.submission_versions where id = $1", [id]);
-  return row ? fromRow<SubmissionVersion>("submission_versions", row) : null;
+  return row ? versionFrom(row) : null;
 }
 
 /** Feedback of one student (or everyone). Students only ever get the sent ones (sentOnly). */
