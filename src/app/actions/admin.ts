@@ -1,15 +1,18 @@
 "use server";
 
-import { randomBytes } from "crypto";
 import { redirect } from "next/navigation";
 import { audit } from "@/lib/academy";
-import { newToken } from "@/lib/auth/password";
+import { createDevAccount, deleteDevAccount, newDevSetupLink } from "@/lib/auth/dev-auth";
 import { requireOwner } from "@/lib/auth/session";
 import { deleteAccount, inviteAccount, resendAccess } from "@/lib/auth/supabase-auth";
-import { getStore, isSupabaseMode, type Enrollment, type PackageType, type PracticalStatus } from "@/lib/data";
-import { accessStatus, addMonths, ACCESS_MONTHS, pause, resume } from "@/lib/domain/access";
+import { supabaseEnabled } from "@/lib/supabase/config";
+import { getStore, type Enrollment, type PackageType, type PracticalStatus } from "@/lib/data";
+import { accessStatus, accessTermMonths, addMonths, pause, resume } from "@/lib/domain/access";
 import { LIMITS } from "@/lib/domain/input";
 import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
+import { certificateChange, notifyFeedbackSent } from "@/lib/academy-feedback";
+import { deleteFeedbackConcept, getSubmissionById, getVersion, relockModule, saveFeedback, setFeedbackStatus, unlockModule } from "@/lib/data/assignments";
+import { ASSESSMENT_LABELS, FEEDBACK_STATUS_LABELS, isAssessment, isFeedbackStatus } from "@/lib/domain/feedback";
 import { storeUpload, UploadError } from "@/lib/uploads";
 import { formatDate, fromDateInput } from "@/lib/util/format";
 import { newId } from "@/lib/util/id";
@@ -30,6 +33,7 @@ export async function createStudent(formData: FormData) {
   const email = str(formData, "email", LIMITS.email).toLowerCase();
   const pkg = (str(formData, "package") === "B" ? "B" : "A") as PackageType;
   const purchasedInput = str(formData, "purchasedAt");
+  const months = accessTermMonths(str(formData, "accessMonths"));
   // Midday in Amsterdam, so the day is the same in every time zone the date is shown in.
   const purchasedAt = purchasedInput ? fromDateInput(purchasedInput, "12:00") : new Date().toISOString();
 
@@ -41,11 +45,12 @@ export async function createStudent(formData: FormData) {
   }
 
   const now = new Date().toISOString();
-  const supabase = isSupabaseMode();
+  const supabase = supabaseEnabled();
   let userId: string;
   try {
     // With Supabase the account (and its id) comes from Supabase Auth, which also mails the invite.
-    userId = supabase ? await inviteAccount(email, name) : newId();
+    // The development login makes the account itself and shows the link on the student page.
+    userId = supabase ? await inviteAccount(email, name) : await createDevAccount(email, name);
   } catch (err) {
     console.error(err);
     done("/beheer/cursisten/nieuw", "De uitnodiging kon niet worden verstuurd. Controleer het e-mailadres en de e-mailinstellingen in Supabase.", true);
@@ -56,9 +61,6 @@ export async function createStudent(formData: FormData) {
       email,
       name,
       role: "student",
-      passwordHash: null,
-      setupToken: supabase ? null : newToken(),
-      setupTokenExpiresAt: supabase ? null : new Date(Date.now() + SETUP_DAYS * 86_400_000).toISOString(),
       activatedAt: null,
       createdAt: now,
       lastActiveAt: null,
@@ -80,7 +82,7 @@ export async function createStudent(formData: FormData) {
       userId,
       package: pkg,
       purchasedAt,
-      endsAt: addMonths(purchasedAt, ACCESS_MONTHS),
+      endsAt: addMonths(purchasedAt, months),
       pausedAt: null,
       pauses: [],
       revokedAt: null,
@@ -88,14 +90,22 @@ export async function createStudent(formData: FormData) {
       certificateReleasedAt: null,
       certificateCode: null,
       practicalStatus: "none",
+      practicalCertificateReleasedAt: null,
+      practicalCertificateCode: null,
       ownerNotes: str(formData, "ownerNotes", LIMITS.ownerNotes),
     });
+    if (!supabase) await newDevSetupLink(userId, SETUP_DAYS);
   } catch (err) {
     // Do not leave a half made account behind (the users row cascades away with it).
-    if (supabase) await deleteAccount(userId).catch(() => undefined);
+    await (supabase ? deleteAccount(userId) : deleteDevAccount(userId)).catch(() => undefined);
     throw err;
   }
-  await audit(owner, "Cursist aangemaakt", `Pakket ${pkg} · ${PACKAGE_LABELS[pkg]}, aankoopdatum ${formatDate(purchasedAt)}`, userId);
+  await audit(
+    owner,
+    "Cursist aangemaakt",
+    `Pakket ${pkg} · ${PACKAGE_LABELS[pkg]}, aankoopdatum ${formatDate(purchasedAt)}, toegang ${plural(months, "maand", "maanden")}`,
+    userId,
+  );
   done(
     studentPath(userId),
     supabase
@@ -111,7 +121,7 @@ export async function newSetupLink(formData: FormData) {
   const user = await store.getUser(userId);
   if (!user || user.role !== "student") done("/beheer", "Cursist niet gevonden.", true);
 
-  if (isSupabaseMode()) {
+  if (supabaseEnabled()) {
     let kind: "invite" | "reset";
     try {
       kind = await resendAccess(user);
@@ -124,10 +134,7 @@ export async function newSetupLink(formData: FormData) {
     done(studentPath(userId), `${what} gemaild naar ${user.email}.`);
   }
 
-  await store.updateUser(userId, {
-    setupToken: newToken(),
-    setupTokenExpiresAt: new Date(Date.now() + SETUP_DAYS * 86_400_000).toISOString(),
-  });
+  await newDevSetupLink(userId, SETUP_DAYS);
   await audit(owner, "Nieuwe activatie/herstellink gemaakt", "", userId);
   done(studentPath(userId), "Nieuwe link aangemaakt.");
 }
@@ -218,17 +225,18 @@ export async function changeCompletion(formData: FormData) {
       log = "Bevestiging online afronding teruggedraaid";
       break;
     case "releaseCertificate":
-      if (!enrollment.onlineCompletedAt) done(path, "Bevestig eerst de online afronding.", true);
-      patch = {
-        certificateReleasedAt: now,
-        certificateCode: enrollment.certificateCode ?? `WPA-${new Date().getFullYear()}-${randomBytes(3).toString("hex").toUpperCase()}`,
-      };
-      log = "Online certificaat vrijgegeven";
-      break;
     case "withdrawCertificate":
-      patch = { certificateReleasedAt: null };
-      log = "Certificaat ingetrokken";
+    case "releasePractical":
+    case "withdrawPractical": {
+      // Academy 15: released by hand, after checking modules, final assignments and the practical part.
+      const user = await store.getUser(enrollment.userId);
+      if (!user) done("/beheer", "Cursist niet gevonden.", true);
+      const change = await certificateChange(user, enrollment, op);
+      if (!change.ok) done(path, change.error, true);
+      patch = change.patch;
+      log = change.log;
       break;
+    }
     case "practical": {
       const status = str(formData, "practicalStatus") as PracticalStatus;
       if (!["none", "planned", "completed"].includes(status)) done(path, "Onbekende status.", true);
@@ -244,6 +252,12 @@ export async function changeCompletion(formData: FormData) {
       patch = { package: "B" };
       log = `Upgrade naar pakket B · ${PACKAGE_LABELS.B}`;
       break;
+    case "downgrade":
+      // Progress is never removed: the B-only modules are hidden again and come back after a new upgrade.
+      if (enrollment.package === "A") done(path, "Deze cursist heeft al pakket A.", true);
+      patch = { package: "A" };
+      log = `Pakket gewijzigd naar A · ${PACKAGE_LABELS.A}`;
+      break;
     case "notes":
       patch = { ownerNotes: str(formData, "ownerNotes", LIMITS.ownerNotes) };
       log = "Notities bijgewerkt";
@@ -256,37 +270,90 @@ export async function changeCompletion(formData: FormData) {
   done(path, log);
 }
 
+const feedbackPath = (versionId: string) => `/beheer/feedback/${versionId}`;
+
+/**
+ * The feedback screen (Academy 8): save the feedback as a concept, send it
+ * (with the assessment of a final assignment), or throw the concept away.
+ * Sending notifies the student by mail, push and a badge in the Academy.
+ */
 export async function giveFeedback(formData: FormData) {
   const owner = await requireOwner();
-  const store = getStore();
-  const answer = await store.getAnswer(str(formData, "answerId"));
-  if (!answer) redirect("/beheer");
-  const path = `${studentPath(answer.userId)}?les=${answer.lessonId}`;
-  const text = str(formData, "text", LIMITS.feedback);
-  if (!text) done(path, "Schrijf eerst je feedback.", true);
+  const version = await getVersion(str(formData, "versionId"));
+  if (!version) done("/beheer/feedback", "Deze versie bestaat niet meer.", true);
+  const path = feedbackPath(version.id);
+  const intent = str(formData, "intent");
 
-  // A rejected attachment must not throw away the feedback that was written.
-  let attachment = null;
+  if (intent === "delete") {
+    await deleteFeedbackConcept(version.id);
+    done(path, "Concept verwijderd.");
+  }
+  const send = intent === "send";
+  const text = str(formData, "text", LIMITS.feedback);
+  const assessmentInput = str(formData, "assessment");
+  const assessment = isAssessment(assessmentInput) ? assessmentInput : null;
+
+  // A rejected attachment must not throw away the feedback that was written: it is kept as a concept.
+  let attachment: Awaited<ReturnType<typeof storeUpload>> | undefined = formData.get("removeAttachment") === "1" ? null : undefined;
   let attachmentError: string | null = null;
   try {
-    attachment = await storeUpload(formData.get("attachment"), { belongsTo: answer.userId, uploadedBy: owner.id });
+    const uploaded = await storeUpload(formData.get("attachment"), { belongsTo: version.userId, uploadedBy: owner.id });
+    if (uploaded) attachment = uploaded;
   } catch (err) {
     if (!(err instanceof UploadError)) throw err;
     attachmentError = err.message;
   }
-  await store.createFeedback({
-    id: newId(),
-    answerId: answer.id,
-    userId: answer.userId,
-    authorId: owner.id,
-    text,
-    attachment,
-    answerVersion: answer.version,
-    createdAt: new Date().toISOString(),
-  });
-  await audit(owner, "Feedback gegeven", "", answer.userId);
-  if (attachmentError) done(path, `Feedback opgeslagen, maar zonder bijlage: ${attachmentError} Geef de bijlage eventueel als extra feedback.`, true);
-  done(path, "Feedback opgeslagen. De cursist ziet deze bij de opdracht.");
+  const result = await saveFeedback({ version, authorId: owner.id, text, attachment, assessment, send: send && !attachmentError });
+  if (!result.ok) done(path, result.error, true);
+  if (attachmentError) done(path, `Je feedback is als concept bewaard, maar de bijlage niet: ${attachmentError} Kies een ander bestand of verstuur zonder bijlage.`, true);
+
+  if (!send) {
+    await audit(owner, "Feedback als concept bewaard", `versie ${version.version}`, version.userId);
+    done(path, "Concept bewaard. De cursist ziet het pas als je het verstuurt.");
+  }
+  const submission = await getSubmissionById(version.submissionId);
+  if (submission) {
+    await notifyFeedbackSent({ studentId: version.userId, lessonId: submission.lessonId, blockId: submission.blockId, assessed: result.assessed, sentBy: owner.name });
+  }
+  await audit(
+    owner,
+    "Feedback verstuurd",
+    `versie ${version.version}${result.assessed ? ` · beoordeling: ${ASSESSMENT_LABELS[result.assessed]}` : ""}`,
+    version.userId,
+  );
+  done(path, `Feedback verstuurd${result.assessed ? ` met beoordeling "${ASSESSMENT_LABELS[result.assessed]}"` : ""}. De cursist krijgt er een melding van.`);
+}
+
+/** Sets the status of a feedback request by hand (nieuw, in behandeling, afgerond). */
+export async function changeFeedbackStatus(formData: FormData) {
+  const owner = await requireOwner();
+  const version = await getVersion(str(formData, "versionId"));
+  if (!version) done("/beheer/feedback", "Deze versie bestaat niet meer.", true);
+  const status = str(formData, "status");
+  const path = feedbackPath(version.id);
+  if (!isFeedbackStatus(status)) done(path, "Onbekende status.", true);
+  if (!(await setFeedbackStatus(version.id, status))) done(path, "Bij deze versie is geen feedback gevraagd.", true);
+  await audit(owner, "Status feedbackverzoek gewijzigd", `versie ${version.version}: ${FEEDBACK_STATUS_LABELS[status].toLowerCase()}`, version.userId);
+  done(path, `Status: ${FEEDBACK_STATUS_LABELS[status].toLowerCase()}.`);
+}
+
+/** Opens a module for one student before the previous one is completed, or takes that back. */
+export async function changeModuleUnlock(formData: FormData) {
+  const owner = await requireOwner();
+  const store = getStore();
+  const userId = str(formData, "userId");
+  const user = await store.getUser(userId);
+  const target = await store.getModule(str(formData, "moduleId"));
+  if (!user || user.role !== "student" || !target) done("/beheer", "Cursist of module niet gevonden.", true);
+  const path = studentPath(userId);
+  if (str(formData, "op") === "lock") {
+    await relockModule(userId, target.id);
+    await audit(owner, "Handmatige vrijgave ingetrokken", target.title, userId);
+    done(path, `Module "${target.title}" volgt weer de gewone volgorde.`);
+  }
+  await unlockModule(userId, target.id, owner.id);
+  await audit(owner, "Module handmatig vrijgegeven", target.title, userId);
+  done(path, `Module "${target.title}" is vrijgegeven voor ${user.name}.`);
 }
 
 /** Contact details of a student, as entered when the account was made. */

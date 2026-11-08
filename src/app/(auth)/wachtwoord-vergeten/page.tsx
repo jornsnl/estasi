@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requestPasswordReset } from "@/app/actions/auth";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { isLocalMode } from "@/lib/data";
+import { devAuthAllowed } from "@/lib/auth/dev-mode";
 
 export const metadata = { title: "Wachtwoord vergeten" };
 
@@ -19,8 +19,8 @@ export default function ForgotPage({ searchParams }: { searchParams: Promise<Rec
         </div>
         <SubmitButton className="btn-primary w-full" pendingText="Versturen…">Stuur herstellink</SubmitButton>
       </form>
-      {isLocalMode() && (
-        <p className="mt-4 text-xs text-muted">Lokale modus: er wordt nog geen e-mail verstuurd. De link verschijnt in de serverlog.</p>
+      {devAuthAllowed() && (
+        <p className="mt-4 text-xs text-muted">Ontwikkel-login: er wordt geen e-mail verstuurd. De link verschijnt in de serverlog.</p>
       )}
       <p className="mt-4 text-center text-sm">
         <Link href="/login" className="text-bordeaux hover:underline">Terug naar inloggen</Link>

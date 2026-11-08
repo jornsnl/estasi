@@ -5,7 +5,7 @@ import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { SupplierTable } from "@/components/ws/SupplierTable";
 import { requirePlanning } from "@/lib/ws/access";
-import { suppliersFor } from "@/lib/ws/suppliers";
+import { suppliersFor, visibleRecommendationCounts } from "@/lib/ws/suppliers";
 
 export const metadata = { title: "Jullie leveranciers" };
 
@@ -19,7 +19,7 @@ export default async function SuppliersPage({
   const { coupleId } = await params;
   const { couple } = await requirePlanning(coupleId);
   if (!couple.suppliers_enabled) notFound();
-  const rows = await suppliersFor(couple.id);
+  const [rows, recommendations] = await Promise.all([suppliersFor(couple.id), visibleRecommendationCounts()]);
 
   return (
     <div className="space-y-6">
@@ -34,6 +34,7 @@ export default async function SuppliersPage({
       <Notice searchParams={searchParams} />
       <SupplierTable
         coupleId={couple.id}
+        recommendations={recommendations}
         rows={rows.map((r) => ({
           id: r.id,
           category_id: r.category_id,
@@ -45,6 +46,8 @@ export default async function SuppliersPage({
           phone: r.phone,
           email: r.email,
           notes: r.notes,
+          present_from: r.present_from,
+          present_until: r.present_until,
           documents: r.documents,
         }))}
       />

@@ -1,16 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { supabaseAnonKey, supabaseUrl } from "@/lib/supabase/config";
+import { supabaseAnonKey, supabaseEnabled, supabaseUrl } from "@/lib/supabase/config";
 
 let warned = false;
 
 /**
- * Supabase mode only: refreshes the short lived access token before the page
- * renders (Server Components cannot write cookies themselves). In local mode
- * this does nothing.
+ * With Supabase only: refreshes the short lived access token before the page
+ * renders (Server Components cannot write cookies themselves). Without
+ * SUPABASE_URL (development login) this does nothing.
  */
 export async function middleware(request: NextRequest) {
-  if (process.env.DATA_BACKEND !== "supabase") return NextResponse.next();
+  if (!supabaseEnabled()) return NextResponse.next();
 
   // A wrong setting must not crash every request: log it once and let the page explain.
   let url: string;

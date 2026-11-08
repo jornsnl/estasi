@@ -1,5 +1,6 @@
 import { LIMITS } from "@/lib/domain/input";
-import { PACKAGE_LABELS } from "@/lib/domain/labels";
+import { ACCESS_MONTHS, ACCESS_TERM_MONTHS } from "@/lib/domain/access";
+import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
 import { createStudent } from "@/app/actions/admin";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -16,7 +17,7 @@ export default async function NewStudentPage({ searchParams }: { searchParams: P
       <h1 className="mt-1 text-4xl">Cursist toevoegen</h1>
       <p className="mt-2 mb-8 text-muted">
         Fase 1: na ontvangst van de betaling maak je hier het account aan. Je krijgt een activatielink die je naar de cursist stuurt; de
-        cursist kiest daarmee zelf een wachtwoord. De toegang loopt 12 maanden vanaf de aankoopdatum.
+        cursist kiest daarmee zelf een wachtwoord. De toegang loopt standaard 12 maanden vanaf de aankoopdatum; dat kun je hieronder aanpassen en later altijd verlengen.
       </p>
       <Notice searchParams={searchParams} />
       <form action={createStudent} className="card space-y-5 p-6">
@@ -44,6 +45,15 @@ export default async function NewStudentPage({ searchParams }: { searchParams: P
           <div>
             <label htmlFor="purchasedAt" className="label">Aankoopdatum</label>
             <input id="purchasedAt" name="purchasedAt" type="date" defaultValue={toDateInput(new Date().toISOString())} className="input" />
+          </div>
+          <div>
+            <label htmlFor="accessMonths" className="label">Toegangstermijn</label>
+            <select id="accessMonths" name="accessMonths" defaultValue={ACCESS_MONTHS} className="input">
+              {ACCESS_TERM_MONTHS.map((m) => (
+                <option key={m} value={m}>{plural(m, "maand", "maanden")}{m === ACCESS_MONTHS ? " (standaard)" : ""}</option>
+              ))}
+            </select>
+            <p className="hint">De einddatum is de aankoopdatum plus deze termijn.</p>
           </div>
         </div>
         <fieldset>

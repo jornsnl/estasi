@@ -99,7 +99,7 @@ export async function stylingSummary(sources: { title: string; items: QA[] }[], 
 Maak op basis van deze antwoorden een eerste opzet voor het stylingplan. Antwoord met alleen JSON, zonder uitleg eromheen, in deze vorm:
 {"samenvatting": "...", "kleuren": ["#RRGGBB", ...], "items": [{"plek": "...", "wat": "..."}, ...]}
 
-- samenvatting: een overzicht van stijl, sfeer, kleuren en materialen in korte alinea's (gewone tekst, alinea's gescheiden door een lege regel). Eindig met "Open punten:" als er iets ontbreekt.
+- samenvatting: een overzicht van stijl, sfeer, kleuren en materialen in korte alinea's (gewone tekst, alinea's gescheiden door een lege regel). Het bruidspaar leest dit straks zelf: schrijf in warm, persoonlijk Nederlands en spreek hen aan met "jullie", alsof Sabine hun wensen in eigen woorden teruggeeft ("Jullie dromen van ..."). Niet zakelijk of opsommend, geen kopjes of markdown. Eindig met "Open punten:" als er iets ontbreekt.
 - kleuren: 4 tot 6 kleuren uit wat het bruidspaar beschrijft.
 - items: per plek uit <plekken> 2 tot 5 concrete stylingitems (bijvoorbeeld "Welkomstbord op ezel met droogbloemen"), alleen waar de antwoorden aanleiding toe geven. Gebruik precies de namen van de plekken.
 Houd het bij wat het bruidspaar schreef.`,
@@ -109,3 +109,24 @@ Houd het bij wat het bruidspaar schreef.`,
 }
 
 export { parseStylingProposal } from "./pure";
+
+/**
+ * A clear message for Sabine when a summary fails (never shown to the couple,
+ * who see "De samenvatting is binnenkort beschikbaar." instead).
+ */
+export function aiErrorMessage(err: unknown): string {
+  if (!aiConfigured()) return "AI staat uit: zet ANTHROPIC_API_KEY in de hosting.";
+  if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
+    return "De API-sleutel (ANTHROPIC_API_KEY) wordt niet geaccepteerd. Controleer de sleutel in de hosting.";
+  }
+  if (err instanceof Anthropic.RateLimitError) return "De AI-dienst krijgt even te veel verzoeken. Probeer het over een paar minuten opnieuw.";
+  if (err instanceof Anthropic.APIConnectionTimeoutError) return "De AI-dienst reageerde niet op tijd. Probeer het opnieuw.";
+  if (err instanceof Anthropic.APIConnectionError) return "Geen verbinding met de AI-dienst. Probeer het later opnieuw.";
+  if (err instanceof Anthropic.InternalServerError) return "De AI-dienst is tijdelijk niet beschikbaar. Probeer het over een paar minuten opnieuw.";
+  if (err instanceof Anthropic.BadRequestError) {
+    const credit = /credit|billing|balance/i.test(err.message);
+    return credit ? "Het tegoed van het AI-account is op. Vul het aan bij Anthropic en probeer het opnieuw." : "De AI-dienst kon dit verzoek niet verwerken. Probeer het opnieuw.";
+  }
+  if (err instanceof Anthropic.APIError) return `De AI-dienst gaf een fout (${err.status ?? "onbekend"}). Probeer het opnieuw.`;
+  return err instanceof Error && err.message ? err.message : "Er ging iets mis bij het maken van de samenvatting.";
+}

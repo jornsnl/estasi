@@ -1,19 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { changeAccess, changeCompletion, giveFeedback, newSetupLink, updateStudentDetails } from "@/app/actions/admin";
+import { changeAccess, changeCompletion, changeModuleUnlock, newSetupLink, updateStudentDetails } from "@/app/actions/admin";
+import { CertificateControls } from "@/components/academy/CertificateControls";
+import { StudentAdminSummary } from "@/components/academy/StudentAdminSummary";
+import { StudentPrivacyPanel } from "@/components/academy/StudentPrivacyPanel";
+import { SubmissionPanel } from "@/components/academy/SubmissionPanel";
 import { Badge } from "@/components/Badge";
 import { Notice } from "@/components/Notice";
 import { ProgressBar } from "@/components/ProgressBar";
 import { SubmitButton } from "@/components/SubmitButton";
 import { studentOverview } from "@/lib/academy";
-import { getStore, isSupabaseMode, type Answer, type AnswerableBlock, type Feedback } from "@/lib/data";
+import { onlineCertificateCheck } from "@/lib/academy-feedback";
+import { getStore, type Lesson, type Submission, type SubmissionVersion } from "@/lib/data";
+import { listAssignmentFeedback } from "@/lib/data/assignments";
+import { assignmentsOf, isSubmitted } from "@/lib/domain/assignment";
 import { ACCESS_LABELS, DEFAULT_EXTEND_MONTHS, EXTEND_MONTHS, remainingDays } from "@/lib/domain/access";
 import { isActivated } from "@/lib/domain/account";
 import { LIMITS } from "@/lib/domain/input";
 import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
-import { appUrl } from "@/lib/supabase/config";
-import { COURSE_STATUS_LABELS, feedbackState, isAnswerable, isAnswered } from "@/lib/domain/progress";
-import { ACCEPT_ATTR } from "@/lib/uploads";
+import { devAuthAllowed, devPendingLink } from "@/lib/auth/dev-auth";
+import { supabaseEnabled } from "@/lib/supabase/config";
+import { COURSE_STATUS_LABELS, modulePercent } from "@/lib/domain/progress";
 import { formatDate, formatDateTime, toDateInput } from "@/lib/util/format";
 
 export const metadata = { title: "Cursist" };
@@ -31,19 +38,20 @@ export default async function StudentDetail({
   const user = await store.getUser(userId);
   if (!user || user.role !== "student") notFound();
 
-  const [o, profile, answers, feedback, log, settings, completions] = await Promise.all([
+  const [o, profile, feedback, log, settings, completions, lessons] = await Promise.all([
     studentOverview(user),
     store.getProfile(userId),
-    store.listAnswers({ userId }),
-    store.listFeedback({ userId }),
+    listAssignmentFeedback({ userId }),
     store.listAudit(userId),
     store.getSettings(),
     store.listCompletions(userId),
+    store.listLessons(),
   ]);
   const e = o.enrollment;
   const completedAt = new Map(completions.map((c) => [c.lessonId, c.completedAt]));
-  const answersByBlock = new Map(answers.map((a) => [`${a.lessonId}:${a.blockId}`, a]));
-  const setupLink = user.setupToken ? `${appUrl()}/activeren/${user.setupToken}` : null;
+  const subsByBlock = new Map(o.submissions.map((s) => [`${s.lessonId}:${s.blockId}`, s]));
+  const versionsOf = (s: Submission | undefined) => (s ? o.versions.filter((v) => v.submissionId === s.id).sort((a, b) => a.version - b.version) : []);
+  const setup = devAuthAllowed() ? await devPendingLink(user.id) : null;
   const activated = isActivated(user);
 
   return (
@@ -66,17 +74,17 @@ export default async function StudentDetail({
 
       <Notice searchParams={searchParams} />
 
-      {setupLink && (
+      {setup && (
         <section className="card border-gold/50 bg-gold-soft/40 p-5">
           <h2 className="text-xl">{activated ? "Herstellink" : "Activatielink"}</h2>
           <p className="mt-1 text-sm text-muted">
-            Stuur deze link naar de cursist. Geldig tot {formatDateTime(user.setupTokenExpiresAt)}. In fase 2 gaat dit automatisch per e-mail.
+            Stuur deze link naar de cursist. Geldig tot {formatDateTime(setup.expiresAt)}. (Ontwikkel-login: met Supabase gaat dit per e-mail.)
           </p>
-          <p className="mt-3 rounded-md border border-line bg-white p-3 font-mono text-sm break-all select-all">{setupLink}</p>
+          <p className="mt-3 rounded-md border border-line bg-white p-3 font-mono text-sm break-all select-all">{setup.link}</p>
         </section>
       )}
 
-      {isSupabaseMode() && !activated && (
+      {supabaseEnabled() && !activated && (
         <section className="card border-gold/50 bg-gold-soft/40 p-5">
           <h2 className="text-xl">Nog niet geactiveerd</h2>
           <p className="mt-1 text-sm text-muted">
@@ -85,6 +93,8 @@ export default async function StudentDetail({
           </p>
         </section>
       )}
+
+      <StudentAdminSummary overview={o} lessons={lessons} feedback={feedback} />
 
       {e && (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -180,20 +190,7 @@ export default async function StudentDetail({
                   </ActionForm>
                 )}
               </Row>
-              <Row label="Online certificaat">
-                {e.certificateReleasedAt ? (
-                  <>
-                    <span>Vrijgegeven op {formatDate(e.certificateReleasedAt)} ({e.certificateCode})</span>
-                    <ActionForm action={changeCompletion} userId={userId} op="withdrawCertificate" small confirm="Certificaat intrekken?">
-                      Intrekken
-                    </ActionForm>
-                  </>
-                ) : (
-                  <ActionForm action={changeCompletion} userId={userId} op="releaseCertificate" primary disabled={!e.onlineCompletedAt}>
-                    Certificaat vrijgeven
-                  </ActionForm>
-                )}
-              </Row>
+              <CertificateControls userId={userId} enrollment={e} onlineMissing={onlineCertificateCheck(o).missing} />
               <Row label="Praktijkdeel">
                 {e.package === "B" ? (
                   <form action={changeCompletion} className="flex items-center gap-2">
@@ -224,14 +221,29 @@ export default async function StudentDetail({
               </Row>
             </div>
             {e.package === "B" && (
-              <p className="mt-3 text-xs text-muted">Het praktijkcertificaat verstuur je zelf buiten het platform.</p>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted">Het praktijkcertificaat geef je hierboven vrij zodra de meeloopbruiloft is afgerond.</p>
+                <ActionForm
+                  action={changeCompletion}
+                  userId={userId}
+                  op="downgrade"
+                  small
+                  confirm="Terugzetten naar pakket A? Modules die alleen voor pakket B zijn, verdwijnen dan voor deze cursist. De voortgang blijft bewaard."
+                >
+                  Terug naar pakket A
+                </ActionForm>
+              </div>
             )}
           </section>
         </div>
       )}
 
       <section>
-        <h2 className="mb-4 text-3xl">Antwoorden en opdrachten</h2>
+        <h2 className="text-3xl">Voortgang en opdrachten</h2>
+        <p className="mt-1 mb-4 text-sm text-muted">
+          {o.completedModules} van {plural(o.progress.length, "module", "modules")} afgerond · {plural(o.submittedAssignments, "opdracht", "opdrachten")} ingediend
+          {o.openFeedback > 0 && ` · ${o.openFeedback} feedbackverzoek${o.openFeedback === 1 ? "" : "en"} open`}.{e && ` Alleen modules van pakket ${e.package} tellen mee.`}
+        </p>
         <div className="space-y-4">
           {o.progress.map((p, i) => (
             <div key={p.module.id} className="card p-5">
@@ -239,33 +251,44 @@ export default async function StudentDetail({
                 <h3 className="text-xl">
                   <span className="text-muted">Module {i + 1}.</span> {p.module.title}
                 </h3>
-                <span className="text-sm text-muted">
-                  {p.completedCount}/{plural(p.lessons.length, "les", "lessen")} · {p.state === "locked" ? "vergrendeld" : p.state === "completed" ? "afgerond" : "open"}
+                <span className="flex flex-wrap items-center gap-2 text-sm text-muted">
+                  {p.completedCount}/{plural(p.lessons.length, "les", "lessen")} ({modulePercent(p)}%) · {p.assignments.submitted}/{plural(p.assignments.total, "opdracht", "opdrachten")} ingediend ·{" "}
+                  {p.state === "locked" ? "vergrendeld" : p.state === "completed" ? "afgerond" : p.unlockedManually ? "handmatig vrijgegeven" : "open"}
+                  {p.state === "locked" && (
+                    <UnlockForm userId={userId} moduleId={p.module.id} op="unlock">Nu vrijgeven</UnlockForm>
+                  )}
+                  {p.unlockedManually && (
+                    <UnlockForm userId={userId} moduleId={p.module.id} op="lock">Vrijgave intrekken</UnlockForm>
+                  )}
                 </span>
               </div>
               <div className="mt-3 divide-y divide-line border-t border-line">
                 {p.lessons.map((lesson) => {
-                  const questions = lesson.blocks.filter(isAnswerable);
-                  const lessonAnswers = questions.map((b) => answersByBlock.get(`${lesson.id}:${b.id}`));
-                  const answered = questions.filter((b, j) => isAnswered(b, lessonAnswers[j])).length;
-                  const needsFeedback = questions.some((b, j) => {
-                    const s = feedbackState(lessonAnswers[j], feedback);
-                    return b.feedback && isAnswered(b, lessonAnswers[j]) && (s === "open" || s === "changed_after_feedback");
-                  });
+                  const assignments = assignmentsOf(lesson.blocks);
+                  const subs = assignments.map((a) => subsByBlock.get(`${lesson.id}:${a.id}`));
+                  const submitted = subs.filter((s) => isSubmitted(s?.status)).length;
+                  const needsFeedback = subs.some((s) => versionsOf(s).some((v) => v.feedbackStatus === "nieuw" || v.feedbackStatus === "in_behandeling"));
                   return (
                     <details key={lesson.id} open={selectedLesson === lesson.id} className="group py-3">
                       <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
                         <span className="font-medium group-open:text-bordeaux">{lesson.title}</span>
                         <span className="flex items-center gap-2 text-sm text-muted">
-                          {needsFeedback && <Badge tone="bordeaux">Feedback open</Badge>}
-                          {answered}/{questions.length} beantwoord
+                          {needsFeedback && <Badge tone="bordeaux">Feedback gevraagd</Badge>}
+                          {submitted}/{assignments.length} ingediend
                           {completedAt.has(lesson.id) && <Badge tone="success">Afgerond {formatDate(completedAt.get(lesson.id))}</Badge>}
                         </span>
                       </summary>
                       <div className="mt-4 space-y-4">
-                        {questions.length === 0 && <p className="text-sm text-muted">Deze les heeft geen vragen.</p>}
-                        {questions.map((block, j) => (
-                          <AnswerView key={block.id} block={block} answer={lessonAnswers[j]} feedback={feedback} />
+                        {assignments.length === 0 && <p className="text-sm text-muted">Deze les heeft geen opdrachten.</p>}
+                        {assignments.map((assignment, j) => (
+                          <SubmissionPanel
+                            key={assignment.id}
+                            assignment={assignment}
+                            submission={subs[j]}
+                            versions={versionsOf(subs[j])}
+                            feedback={feedback}
+                            original={assignment.repeatOf ? findOriginal(assignment.repeatOf, lessons, o.submissions, o.versions) : null}
+                          />
                         ))}
                       </div>
                     </details>
@@ -339,7 +362,7 @@ export default async function StudentDetail({
           </dl>
           <form action={newSetupLink} className="mt-5">
             <input type="hidden" name="userId" value={userId} />
-            <SubmitButton className="btn-secondary">{isSupabaseMode()
+            <SubmitButton className="btn-secondary">{supabaseEnabled()
                 ? activated ? "Wachtwoord-herstellink mailen" : "Uitnodiging opnieuw mailen"
                 : activated ? "Wachtwoord-herstellink maken" : "Nieuwe activatielink maken"}</SubmitButton>
           </form>
@@ -361,6 +384,8 @@ export default async function StudentDetail({
           </ul>
         </section>
       </div>
+
+      <StudentPrivacyPanel user={user} />
     </div>
   );
 }
@@ -423,63 +448,24 @@ function ProfileRow({ label, value }: { label: string; value: string | undefined
   );
 }
 
-function AnswerView({ block, answer, feedback }: { block: AnswerableBlock; answer: Answer | undefined; feedback: Feedback[] }) {
-  const items = answer ? feedback.filter((f) => f.answerId === answer.id) : [];
-  const state = feedbackState(answer, feedback);
+function UnlockForm({ userId, moduleId, op, children }: { userId: string; moduleId: string; op: "unlock" | "lock"; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-cream/60 p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="font-medium">{block.prompt || "(vraag zonder tekst)"}</p>
-        {block.required && <Badge tone="bordeaux">Verplicht</Badge>}
-        {block.feedback && <Badge tone="gold">Feedbackopdracht</Badge>}
-        {state === "changed_after_feedback" && <Badge tone="bordeaux">Aangepast na feedback</Badge>}
-      </div>
-      {answer && isAnswered(block, answer) ? (
-        <>
-          {block.type === "question" && <p className="mt-2 whitespace-pre-wrap">{answer.text}</p>}
-          {block.type === "choice" && <p className="mt-2">Gekozen: {answer.choice}</p>}
-          {block.type === "upload" && (
-            <ul className="mt-2 space-y-1">
-              {answer.files.map((f) => (
-                <li key={f.id}>
-                  <a href={`/api/bestanden/${f.id}`} className="text-bordeaux underline">{f.name}</a>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="mt-2 text-xs text-muted">
-            Laatst gewijzigd {formatDateTime(answer.updatedAt)} · versie {answer.version}
-          </p>
-        </>
-      ) : (
-        <p className="mt-2 text-sm text-muted">Nog niet beantwoord.</p>
-      )}
-
-      {items.map((f) => (
-        <div key={f.id} className="mt-3 rounded-md border-l-2 border-gold bg-white p-3 text-sm">
-          <p className="text-xs text-muted">
-            Jouw feedback · {formatDateTime(f.createdAt)} · op versie {f.answerVersion}
-          </p>
-          <p className="mt-1 whitespace-pre-wrap">{f.text}</p>
-          {f.attachment && (
-            <a href={`/api/bestanden/${f.attachment.id}`} className="text-bordeaux underline">Bijlage: {f.attachment.name}</a>
-          )}
-        </div>
-      ))}
-
-      {answer && isAnswered(block, answer) && (
-        <details className="mt-3" open={block.feedback && (state === "open" || state === "changed_after_feedback")}>
-          <summary className="cursor-pointer text-sm text-bordeaux">Feedback geven</summary>
-          <form action={giveFeedback} className="mt-2 space-y-2">
-            <input type="hidden" name="answerId" value={answer.id} />
-            <textarea name="text" rows={3} required maxLength={LIMITS.feedback} className="input" placeholder="Schrijf je feedback…" />
-            <div className="flex flex-wrap items-center gap-3">
-              <input type="file" name="attachment" accept={ACCEPT_ATTR} className="text-sm" />
-              <SubmitButton className="btn-primary py-2" pendingText="Opslaan…">Feedback opslaan</SubmitButton>
-            </div>
-          </form>
-        </details>
-      )}
-    </div>
+    <form action={changeModuleUnlock}>
+      <input type="hidden" name="userId" value={userId} />
+      <input type="hidden" name="moduleId" value={moduleId} />
+      <input type="hidden" name="op" value={op} />
+      <SubmitButton className="btn-secondary px-3 py-1 text-xs" confirm={op === "unlock" ? "Deze module nu vrijgeven voor deze cursist, ook al is de vorige module nog niet af?" : undefined}>
+        {children}
+      </SubmitButton>
+    </form>
   );
+}
+
+/** The first measurement a repeated assignment compares with: its last version, or its draft. */
+function findOriginal(blockId: string, lessons: Lesson[], submissions: Submission[], versions: SubmissionVersion[]) {
+  const sub = submissions.find((s) => s.blockId === blockId);
+  const last = sub ? versions.filter((v) => v.submissionId === sub.id).sort((a, b) => b.version - a.version)[0] : undefined;
+  if (last) return { assignment: last.assignment, answers: last.answers };
+  const definition = lessons.flatMap((l) => assignmentsOf(l.blocks)).find((a) => a.id === blockId);
+  return definition && sub ? { assignment: definition, answers: sub.draft } : null;
 }

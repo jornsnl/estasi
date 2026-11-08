@@ -2,18 +2,23 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getStore, isSupabaseMode, type User } from "@/lib/data";
+import { getStore, type User } from "@/lib/data";
+import { supabaseEnabled } from "@/lib/supabase/config";
 import { adminClient, authClient } from "@/lib/supabase/server";
+import { assertDevAuth, devAuthAllowed } from "./dev-mode";
 import { clearPasskeyMarker, isPasskeySession } from "./passkeys";
 
 /**
- * Who is logged in. Two backends:
- * - local: a signed cookie with the user id (development and demos)
- * - supabase: Supabase Auth sessions (short access token plus refresh
- *   token in cookies, refreshed by src/middleware.ts), MFA for the owner
+ * Who is logged in.
+ * - With Supabase (SUPABASE_URL set; always in production): Supabase Auth
+ *   sessions (short access token plus refresh token in cookies, refreshed by
+ *   src/middleware.ts), MFA for the owner.
+ * - Development login (no SUPABASE_URL and not production): a signed cookie
+ *   with the user id, see src/lib/auth/dev-auth.ts.
+ * - Anything else (production without Supabase): nobody is logged in.
  */
 
-// Local mode ------------------------------------------------------------------
+// Development login -----------------------------------------------------------
 
 const COOKIE = "academy_session";
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 14;
@@ -51,8 +56,9 @@ function decode(token: string | undefined): string | null {
   }
 }
 
-/** Local mode only; Supabase sets its own session cookies on sign in. */
-export async function startLocalSession(userId: string) {
+/** Development login only (refuses otherwise); Supabase sets its own session cookies on sign in. */
+export async function startDevSession(userId: string) {
+  assertDevAuth();
   (await cookies()).set(COOKIE, encode(userId), {
     httpOnly: true,
     sameSite: "lax",
@@ -62,7 +68,7 @@ export async function startLocalSession(userId: string) {
   });
 }
 
-// Both modes ------------------------------------------------------------------
+// Sessions --------------------------------------------------------------------
 
 interface SessionInfo {
   userId: string;
@@ -73,7 +79,8 @@ interface SessionInfo {
 }
 
 async function session(): Promise<SessionInfo | null> {
-  if (!isSupabaseMode()) {
+  if (!supabaseEnabled()) {
+    if (!devAuthAllowed()) return null;
     const userId = decode((await cookies()).get(COOKIE)?.value);
     return userId ? { userId, aal: "aal1", needsCode: false } : null;
   }
@@ -116,7 +123,7 @@ export function forgetFactors(userId: string) {
 }
 
 export async function endSession() {
-  if (isSupabaseMode()) {
+  if (supabaseEnabled()) {
     // Revokes the refresh token at Supabase, so a copied cookie stops working.
     await (await authClient()).auth.signOut({ scope: "local" });
     await clearPasskeyMarker();

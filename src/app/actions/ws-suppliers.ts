@@ -6,6 +6,9 @@ import { logActivity } from "@/lib/ws/couples";
 import { isUuid, one, query, tx } from "@/lib/ws/db";
 import { deleteFiles, storeUpload, UploadError } from "@/lib/ws/files";
 import { done, str } from "@/lib/ws/redirect";
+import { moveInList } from "@/lib/ws/recommendations";
+import { syncAfterSave } from "@/lib/ws/runsheet";
+import { cleanTime } from "@/lib/ws/runsheet-pure";
 import { isSupplierStatus, recordFavorite } from "@/lib/ws/suppliers";
 import type { Recommendation } from "@/lib/ws/types";
 
@@ -26,7 +29,9 @@ const FIELDS = {
   address: 300,
   notes: 5000,
 } as const;
-export type SupplierField = keyof typeof FIELDS | "status";
+/** "Aanwezig op locatie vanaf / tot": rows in the day planning. */
+const TIMES = ["present_from", "present_until"] as const;
+export type SupplierField = keyof typeof FIELDS | "status" | (typeof TIMES)[number];
 
 /** Saves one field of one row, straight from the table (no page reload). */
 export async function saveSupplierField(
@@ -41,8 +46,12 @@ export async function saveSupplierField(
   if (field === "status") {
     if (!isSupplierStatus(value)) return { ok: false, error: "Onbekende status." };
     clean = value;
+  } else if ((TIMES as readonly string[]).includes(field)) {
+    const time = cleanTime(value);
+    if (time === null) return { ok: false, error: "Vul een tijd in als 13:30." };
+    clean = time;
   } else if (field in FIELDS) {
-    clean = String(value ?? "").trim().slice(0, FIELDS[field]);
+    clean = String(value ?? "").trim().slice(0, FIELDS[field as keyof typeof FIELDS]);
   } else {
     return { ok: false, error: "Onbekend veld." };
   }
@@ -53,6 +62,8 @@ export async function saveSupplierField(
   );
   if (!updated) return { ok: false, error: "Niet gevonden." };
   if (field === "status") await note(ctx, "Status van een leverancier gewijzigd");
+  // Name, status and times make the arrival and departure rows in the day planning.
+  if (field === "name" || field === "status" || (TIMES as readonly string[]).includes(field)) await syncAfterSave(ctx.couple.id);
   return { ok: true };
 }
 
@@ -83,6 +94,7 @@ export async function deleteSupplierRow(formData: FormData) {
     );
     await query("delete from couple_suppliers where id = $1 and couple_id = $2", [id, ctx.couple.id]);
     if (files.length) await deleteFiles("delete from files where id = any($1::uuid[])", [files.map((f) => f.file_id)]);
+    await syncAfterSave(ctx.couple.id);
   }
   done(list(ctx.couple.id), "Leverancier verwijderd.");
 }
@@ -109,6 +121,7 @@ export async function deleteCoupleCategory(formData: FormData) {
   const ctx = await requireCouple(str(formData, "coupleId", 40));
   const id = str(formData, "categoryId", 40);
   if (isUuid(id)) await query("delete from supplier_categories where id = $1 and couple_id = $2", [id, ctx.couple.id]);
+  await syncAfterSave(ctx.couple.id);
   done(list(ctx.couple.id), "Categorie verwijderd.");
 }
 
@@ -138,6 +151,7 @@ export async function saveSupplierDetails(formData: FormData) {
     throw err;
   }
   await note(ctx, "Leverancier bijgewerkt");
+  await syncAfterSave(ctx.couple.id);
   done(back, "Opgeslagen.");
 }
 
@@ -201,17 +215,18 @@ export async function toggleFavorite(coupleId: string, recommendationId: string)
       order by position, created_at limit 1`,
     [ctx.couple.id, rec.category_id],
   );
-  const values = [rec.name, rec.phone, rec.email, rec.website, rec.id];
+  const values = [rec.name, rec.phone, rec.email, rec.website, rec.id, rec.contact_person];
   if (empty) {
     await query(
-      `update couple_suppliers set status = 'favorite', name = $2, phone = $3, email = $4, website = $5, recommendation_id = $6, updated_at = now()
+      `update couple_suppliers set status = 'favorite', name = $2, phone = $3, email = $4, website = $5, recommendation_id = $6,
+              contact_person = $7, updated_at = now()
         where id = $1`,
       [empty.id, ...values],
     );
   } else {
     await query(
-      `insert into couple_suppliers (couple_id, category_id, status, name, phone, email, website, recommendation_id, position)
-       values ($1, $2, 'favorite', $3, $4, $5, $6, $7,
+      `insert into couple_suppliers (couple_id, category_id, status, name, phone, email, website, recommendation_id, contact_person, position)
+       values ($1, $2, 'favorite', $3, $4, $5, $6, $7, $8,
                (select coalesce(max(position), 0) + 1 from couple_suppliers where couple_id = $1 and category_id = $2))`,
       [ctx.couple.id, rec.category_id, ...values],
     );
@@ -233,35 +248,48 @@ export async function saveRecommendation(formData: FormData) {
   const back = isUuid(id) ? `${RECS}#r-${id}` : RECS;
   const name = str(formData, "name", 200);
   const categoryId = str(formData, "categoryId", 40);
+  const profession = str(formData, "profession", 120);
   if (!name) done(back, "Vul de bedrijfsnaam in.", true);
   if (!isUuid(categoryId) || !(await one("select 1 from supplier_categories where id = $1 and couple_id is null", [categoryId]))) {
     done(back, "Kies een categorie.", true);
   }
+  if (!profession) done(back, "Vul het beroep in.", true);
   const current = isUuid(id) ? await one<Recommendation>("select * from recommendations where id = $1", [id]) : null;
   try {
     const photo = await storeUpload(formData.get("photo"), { coupleId: null, accountId: account.id, kind: "image" });
-    const brochure = await storeUpload(formData.get("brochure"), { coupleId: null, accountId: account.id, kind: "document" });
+    const brochure = await storeUpload(formData.get("brochure"), { coupleId: null, accountId: account.id, kind: "pdf" });
+    const photoId = photo?.id ?? (formData.get("removePhoto") === "on" ? null : current?.photo_file_id ?? null);
+    const brochureId = brochure?.id ?? (formData.get("removeBrochure") === "on" ? null : current?.brochure_file_id ?? null);
     const values = [
-      categoryId, name, str(formData, "profession", 120), str(formData, "phone", 60), str(formData, "email", 200),
-      str(formData, "website", 300), str(formData, "experience", 5000),
-      photo?.id ?? (formData.get("removePhoto") === "on" ? null : current?.photo_file_id ?? null),
-      brochure?.id ?? (formData.get("removeBrochure") === "on" ? null : current?.brochure_file_id ?? null),
+      categoryId, name, profession, str(formData, "phone", 60), str(formData, "email", 200),
+      str(formData, "website", 300), str(formData, "experience", 5000), photoId, brochureId,
+      str(formData, "region", 120), str(formData, "contactPerson", 200), str(formData, "instagram", 300),
+      str(formData, "description", 5000), str(formData, "workArea", 200), str(formData, "priceIndication", 200),
+      str(formData, "availability", 200),
+      // "Zichtbaar" unchecked = hidden (archived).
+      formData.get("visible") !== "on",
     ];
+    // A new category: at the end of that category.
+    const lastInCategory = "(select coalesce(max(position), 0) + 1 from recommendations where category_id = $1)";
     if (current) {
       await query(
-        `update recommendations set category_id = $2, name = $3, profession = $4, phone = $5, email = $6, website = $7, experience = $8,
-                photo_file_id = $9, brochure_file_id = $10 where id = $1`,
-        [current.id, ...values],
+        `update recommendations set category_id = $1, name = $2, profession = $3, phone = $4, email = $5, website = $6, experience = $7,
+                photo_file_id = $8, brochure_file_id = $9, region = $10, contact_person = $11, instagram = $12, description = $13,
+                work_area = $14, price_indication = $15, availability = $16, archived = $17,
+                position = case when category_id = $1 then position else ${lastInCategory} end, updated_at = now()
+          where id = $18`,
+        [...values, current.id],
       );
       const old = [
-        current.photo_file_id !== values[7] ? current.photo_file_id : null,
-        current.brochure_file_id !== values[8] ? current.brochure_file_id : null,
+        current.photo_file_id !== photoId ? current.photo_file_id : null,
+        current.brochure_file_id !== brochureId ? current.brochure_file_id : null,
       ].filter((f): f is string => Boolean(f));
       if (old.length) await deleteFiles("delete from files where id = any($1::uuid[]) and couple_id is null", [old]);
     } else {
       await query(
-        `insert into recommendations (category_id, name, profession, phone, email, website, experience, photo_file_id, brochure_file_id, position)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, (select coalesce(max(position), 0) + 1 from recommendations))`,
+        `insert into recommendations (category_id, name, profession, phone, email, website, experience, photo_file_id, brochure_file_id,
+                                      region, contact_person, instagram, description, work_area, price_indication, availability, archived, position)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, ${lastInCategory})`,
         values,
       );
     }
@@ -270,6 +298,39 @@ export async function saveRecommendation(formData: FormData) {
     throw err;
   }
   done(back, current ? "Aanrader opgeslagen." : "Aanrader toegevoegd.");
+}
+
+/** Hide or show a recommendation for the couples, straight from the list. */
+export async function toggleRecommendationVisible(formData: FormData) {
+  await requireOwner();
+  const id = str(formData, "recommendationId", 40);
+  const rec = isUuid(id)
+    ? await one<Recommendation>("update recommendations set archived = not archived, updated_at = now() where id = $1 returning *", [id])
+    : null;
+  if (!rec) done(RECS, "Niet gevonden.", true);
+  done(`${RECS}#r-${rec.id}`, rec.archived ? `"${rec.name}" is verborgen voor de bruidsparen.` : `"${rec.name}" is weer zichtbaar.`);
+}
+
+/** One place up or down within its category. */
+export async function moveRecommendation(formData: FormData) {
+  await requireOwner();
+  const id = str(formData, "recommendationId", 40);
+  const direction = str(formData, "direction") === "up" ? "up" : "down";
+  const rec = isUuid(id) ? await one<Recommendation>("select * from recommendations where id = $1", [id]) : null;
+  if (!rec) done(RECS, "Niet gevonden.", true);
+  const siblings = await query<{ id: string }>(
+    "select id from recommendations where category_id = $1 order by position, name, id",
+    [rec.category_id],
+  );
+  const order = moveInList(siblings.map((s) => s.id), rec.id, direction);
+  if (order) {
+    await tx(async (db) => {
+      for (const [n, rid] of order.entries()) {
+        await query("update recommendations set position = $2 where id = $1", [rid, n + 1], db);
+      }
+    });
+  }
+  done(`${RECS}#c-${rec.category_id}`, "Volgorde aangepast.");
 }
 
 export async function deleteRecommendation(formData: FormData) {

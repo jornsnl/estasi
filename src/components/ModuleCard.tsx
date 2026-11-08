@@ -17,6 +17,7 @@ export function ModuleCard({ p, index, href }: { p: ModuleProgress; index: numbe
       <p className="mt-1 line-clamp-2 text-sm text-muted">{p.module.description}</p>
       <p className="mt-4 text-sm text-muted">
         {p.completedCount} van {plural(p.lessons.length, "les", "lessen")} afgerond
+        {p.assignments.total > 0 && ` · ${p.assignments.submitted}/${p.assignments.total} opdrachten ingediend`}
       </p>
     </>
   );

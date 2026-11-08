@@ -1,13 +1,14 @@
 import "server-only";
 import { createHash, createHmac, timingSafeEqual } from "crypto";
+import { supabaseEnabled } from "@/lib/supabase/config";
 
 /**
  * Server side signing key for small cookies (passkey challenge, passkey
- * session marker). Local mode uses SESSION_SECRET; with Supabase it is
- * derived from the secret key, which only this server knows.
+ * session marker). With Supabase it is derived from the secret key,
+ * which only this server knows; the development login uses SESSION_SECRET.
  */
 function rootSecret(): string {
-  const supabaseKey = process.env.DATA_BACKEND === "supabase" ? process.env.SUPABASE_SERVICE_ROLE_KEY : undefined;
+  const supabaseKey = supabaseEnabled() ? process.env.SUPABASE_SERVICE_ROLE_KEY : undefined;
   if (supabaseKey) return `supabase:${supabaseKey.trim()}`;
   const session = process.env.SESSION_SECRET;
   if (session && session.length >= 32) return `local:${session}`;

@@ -4,6 +4,8 @@ import { after } from "next/server";
 import { requireOwner } from "@/lib/auth/session";
 import { requireCouple, requireCoupleAdmin, type CoupleContext } from "@/lib/ws/access";
 import { aiConfigured, draftStylingPlan, extractColors, summariseAssignment } from "@/lib/ws/ai";
+import { readBudgetForm } from "@/lib/ws/budget";
+import { readPalette, writePalette } from "@/lib/ws/color";
 import { copyAssignmentTemplate, logActivity } from "@/lib/ws/couples";
 import { isUuid, one, query, tx } from "@/lib/ws/db";
 import { deleteFiles, storeUpload, storeUploads, UploadError } from "@/lib/ws/files";
@@ -70,18 +72,29 @@ export async function saveAnswers(formData: FormData) {
   const assignmentId = id(formData, "assignmentId");
   const back = portal(ctx.couple.id, `/opdrachten/${assignmentId}`);
   const assignment = assignmentId
-    ? await one<{ id: string; title: string; submitted_at: Date | null; visible_from: string | null }>(
-        "select id, title, submitted_at, visible_from from assignments where id = $1 and couple_id = $2",
+    ? await one<{ id: string; title: string; submitted_at: Date | null; visible_from: string | null; budget: boolean }>(
+        "select id, title, submitted_at, visible_from, budget from assignments where id = $1 and couple_id = $2",
         [assignmentId, ctx.couple.id],
       )
     : null;
   if (!assignment) done(portal(ctx.couple.id, "/opdrachten"), "Opdracht niet gevonden.", true);
   const questions = await query<{ id: string }>("select id from assignment_questions where assignment_id = $1", [assignment.id]);
+  // The budget table of "Budgetplanning & prioriteiten" is saved with the same button; the amounts are the "Begroot" in Kosten.
+  const lines = assignment.budget
+    ? await query<{ id: string; name: string }>("select id, name from budget_items where couple_id = $1 and kind in ('category', 'own')", [ctx.couple.id])
+    : [];
+  const budget = assignment.budget ? readBudgetForm(formData.entries(), Object.fromEntries(lines.map((l) => [l.id, l.name]))) : null;
+  if (budget?.errors.length) done(back, `Niets opgeslagen: controleer de bedragen (${budget.errors.join(", ")}). Gebruik bijvoorbeeld 1.250 of 1250,50.`, true);
+  const budgetSaved = Boolean(budget && (budget.total !== undefined || budget.lines.length > 0));
   await tx(async (db) => {
     for (const q of questions) {
       if (formData.has(`a-${q.id}`)) {
         await query("update assignment_questions set answer = $2 where id = $1", [q.id, str(formData, `a-${q.id}`, 20_000)], db);
       }
+    }
+    if (budget && budget.total !== undefined) await query("update couples set total_budget_cents = $2 where id = $1", [ctx.couple.id, budget.total], db);
+    for (const line of budget?.lines ?? []) {
+      if (lines.some((l) => l.id === line.id)) await query("update budget_items set budget_cents = $2 where id = $1", [line.id, line.cents], db);
     }
   });
   const submit = formData.get("intent") === "submit";
@@ -94,13 +107,15 @@ export async function saveAnswers(formData: FormData) {
         to: adminNotifyEmail(),
         replyTo: ctx.account.email,
         subject: `${coupleName(ctx.couple)} heeft "${assignment.title}" ingevuld`,
+        log: { kind: "opdracht", coupleId: ctx.couple.id, sentBy: ctx.account.name },
         text: `${ctx.account.name} heeft de opdracht "${assignment.title}" ingestuurd.\n\nBekijken: ${appUrl()}${back}`,
       });
     }
-    done(back, aiConfigured() ? "Ingestuurd. De samenvatting staat hier over een minuutje." : "Ingestuurd. Sabine krijgt er een melding van.");
+    const sent = aiConfigured() ? "De samenvatting staat hier over een minuutje." : "Sabine krijgt er een melding van.";
+    done(back, budgetSaved ? `Opgeslagen en bijgewerkt in Kosten, en ingestuurd. ${sent}` : `Ingestuurd. ${sent}`);
   }
   await note(ctx, `Opdracht bijgewerkt: ${assignment.title}`);
-  done(back, "Antwoorden opgeslagen.");
+  done(back, budgetSaved ? "Opgeslagen en bijgewerkt in Kosten." : "Antwoorden opgeslagen.");
 }
 
 export async function manageAssignment(formData: FormData) {
@@ -191,11 +206,19 @@ export async function saveStylingPlan(formData: FormData) {
     }
     done(back, "Concept gemaakt. Neem over wat je wilt en verfijn het.");
   }
-  const colors = [...str(formData, "colors", 500).matchAll(/#[0-9a-fA-F]{6}/g)].map((m) => m[0].toLowerCase()).slice(0, 10);
+  let names: Record<string, unknown> = {};
+  try {
+    names = JSON.parse(str(formData, "colorNames", 5000) || "{}");
+  } catch {
+    names = {};
+  }
+  const hexes = [...str(formData, "colors", 500).matchAll(/#[0-9a-fA-F]{6}/g)].map((m) => m[0].toLowerCase());
+  const palette = writePalette(readPalette(hexes, names));
   await query(
-    `insert into styling_plans (couple_id, concept, colors, published, updated_at) values ($1, $2, $3::jsonb, $4, now())
-     on conflict (couple_id) do update set concept = excluded.concept, colors = excluded.colors, published = excluded.published, updated_at = now()`,
-    [ctx.couple.id, str(formData, "concept", 20_000), JSON.stringify(colors), formData.get("published") === "on"],
+    `insert into styling_plans (couple_id, concept, colors, color_names, published, updated_at) values ($1, $2, $3::jsonb, $4::jsonb, $5, now())
+     on conflict (couple_id) do update set concept = excluded.concept, colors = excluded.colors, color_names = excluded.color_names,
+       published = excluded.published, updated_at = now()`,
+    [ctx.couple.id, str(formData, "concept", 20_000), JSON.stringify(palette.colors), JSON.stringify(palette.names), formData.get("published") === "on"],
   );
   done(back, formData.get("published") === "on" ? "Stylingplan opgeslagen en zichtbaar voor het bruidspaar." : "Stylingplan opgeslagen (nog niet zichtbaar voor het bruidspaar).");
 }

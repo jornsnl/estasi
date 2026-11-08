@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { addSupplierRow, deleteCoupleCategory, deleteSupplierRow, saveSupplierField, type SupplierField } from "@/app/actions/ws-suppliers";
 import { AutoTextarea } from "@/components/ws/AutoTextarea";
+import { SupplierQuickNav } from "@/components/ws/SupplierQuickNav";
+import { categoryFilled, showRecommendationBar, type SupplierRowLike } from "@/lib/ws/recommendations";
 
 type Status = "tbd" | "favorite" | "talking" | "booked" | "not_needed";
 
@@ -18,6 +20,8 @@ export interface SupplierRowData {
   phone: string;
   email: string;
   notes: string;
+  present_from: string;
+  present_until: string;
   documents: number;
 }
 
@@ -35,13 +39,27 @@ const TONE: Record<Status, string> = {
   booked: "bg-success-soft text-success",
   not_needed: "bg-[#ecebe8] text-muted",
 };
-const RECOMMEND: Status[] = ["tbd", "favorite", "talking"];
 
 /**
  * "Jullie leveranciers": every field can be typed in directly and is saved
  * as soon as you leave it. Sabine and the couple can both do everything.
  */
-export function SupplierTable({ coupleId, rows }: { coupleId: string; rows: SupplierRowData[] }) {
+export function SupplierTable({
+  coupleId,
+  rows,
+  recommendations,
+}: {
+  coupleId: string;
+  rows: SupplierRowData[];
+  /** Visible recommendations per category id. */
+  recommendations: Record<string, number>;
+}) {
+  // What the rows hold now (status and name change while typing), for the dots and the bar.
+  const [live, setLive] = useState<Record<string, SupplierRowLike>>(() =>
+    Object.fromEntries(rows.map((r) => [r.id, { status: r.status, name: r.name }])),
+  );
+  const report = (id: string, change: Partial<SupplierRowLike>) =>
+    setLive((current) => ({ ...current, [id]: { ...(current[id] ?? { status: "tbd", name: "" }), ...change } }));
   const categories = rows.reduce<{ id: string; name: string; own: boolean; rows: SupplierRowData[] }[]>((acc, row) => {
     const last = acc[acc.length - 1];
     if (last && last.id === row.category_id) last.rows.push(row);
@@ -49,34 +67,67 @@ export function SupplierTable({ coupleId, rows }: { coupleId: string; rows: Supp
     return acc;
   }, []);
 
+  const current = (cat: (typeof categories)[number]) => cat.rows.map((r) => live[r.id] ?? { status: r.status, name: r.name });
+
   return (
-    <div className="space-y-3">
-      {categories.map((cat) => (
-        <section key={cat.id} id={`c-${cat.id}`} className="scroll-mt-6">
-          {cat.rows.map((row, n) => (
-            <Row key={row.id} coupleId={coupleId} row={row} first={n === 0} />
-          ))}
-          <div className="flex flex-wrap gap-3 px-1 pt-1 text-xs">
-            <form action={addSupplierRow}>
-              <input type="hidden" name="coupleId" value={coupleId} />
-              <input type="hidden" name="categoryId" value={cat.id} />
-              <button type="submit" className="text-muted hover:text-bordeaux">+ Nog een {cat.name.toLowerCase()}</button>
-            </form>
-            {cat.own && (
-              <form action={deleteCoupleCategory} onSubmit={(e) => { if (!confirm(`Categorie "${cat.name}" met alles erin verwijderen?`)) e.preventDefault(); }}>
+    <div className="lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-6">
+      <SupplierQuickNav categories={categories.map((cat) => ({ id: cat.id, name: cat.name, filled: categoryFilled(current(cat)) }))} />
+      <div className="space-y-3">
+        {categories.map((cat) => (
+          <section key={cat.id} id={`c-${cat.id}`} className="scroll-mt-20 lg:scroll-mt-6">
+            {cat.rows.map((row, n) => (
+              <Row key={row.id} coupleId={coupleId} row={row} first={n === 0} report={report} />
+            ))}
+            {showRecommendationBar(current(cat), recommendations[cat.id] ?? 0) && (
+              <RecommendationBar href={`/k/${coupleId}/leveranciers/aanraders?categorie=${cat.id}`} />
+            )}
+            <div className="flex flex-wrap gap-3 px-1 pt-1 text-xs">
+              <form action={addSupplierRow}>
                 <input type="hidden" name="coupleId" value={coupleId} />
                 <input type="hidden" name="categoryId" value={cat.id} />
-                <button type="submit" className="text-muted hover:text-bordeaux">Eigen categorie verwijderen</button>
+                <button type="submit" className="text-muted hover:text-bordeaux">+ Nog een {cat.name.toLowerCase()}</button>
               </form>
-            )}
-          </div>
-        </section>
-      ))}
+              {cat.own && (
+                <form action={deleteCoupleCategory} onSubmit={(e) => { if (!confirm(`Categorie "${cat.name}" met alles erin verwijderen?`)) e.preventDefault(); }}>
+                  <input type="hidden" name="coupleId" value={coupleId} />
+                  <input type="hidden" name="categoryId" value={cat.id} />
+                  <button type="submit" className="text-muted hover:text-bordeaux">Eigen categorie verwijderen</button>
+                </form>
+              )}
+            </div>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
 
-function Row({ coupleId, row, first }: { coupleId: string; row: SupplierRowData; first: boolean }) {
+/** "Twijfel je nog?": the whole bordeaux bar opens the recommendations of this category. */
+export function RecommendationBar({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      className="mb-2 flex items-center justify-between gap-3 rounded-xl bg-bordeaux px-4 py-3 text-cream shadow-sm transition-colors hover:bg-[#561725] focus-visible:outline-offset-2"
+    >
+      <span className="text-sm sm:text-base">
+        <span className="font-serif font-semibold">Twijfel je nog?</span> Bekijk de aanraders van Estasi
+      </span>
+      <span aria-hidden="true" className="text-lg">→</span>
+    </Link>
+  );
+}
+
+function Row({
+  coupleId,
+  row,
+  first,
+  report,
+}: {
+  coupleId: string;
+  row: SupplierRowData;
+  first: boolean;
+  report: (id: string, change: Partial<SupplierRowLike>) => void;
+}) {
   const [status, setStatus] = useState<Status>(row.status);
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState("");
@@ -87,6 +138,7 @@ function Row({ coupleId, row, first }: { coupleId: string; row: SupplierRowData;
     start(async () => {
       const result = await saveSupplierField(coupleId, row.id, field, value);
       setState(result.ok ? "saved" : "error");
+      if (result.ok && (field === "status" || field === "name")) report(row.id, { [field]: value });
       setError(result.error ?? "");
     });
   }
@@ -129,6 +181,11 @@ function Row({ coupleId, row, first }: { coupleId: string; row: SupplierRowData;
         {input("phone", "Telefoon", row.phone, "tel")}
         {input("email", "E-mail", row.email, "email")}
       </div>
+      {/* Arrival and departure show up in the day planning of the draaiboek. */}
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:max-w-md">
+        {input("present_from", "Aanwezig op locatie vanaf", row.present_from, "time")}
+        {input("present_until", "Aanwezig op locatie tot", row.present_until, "time")}
+      </div>
       <label className="mt-3 block text-xs text-muted">
         Opmerkingen
         <AutoTextarea
@@ -138,11 +195,6 @@ function Row({ coupleId, row, first }: { coupleId: string; row: SupplierRowData;
         />
       </label>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-        {RECOMMEND.includes(status) && (
-          <Link href={`/k/${coupleId}/leveranciers/aanraders?categorie=${row.category_id}`} className="btn-secondary py-1.5 text-xs">
-            ♡ Bekijk Estasi aanraders
-          </Link>
-        )}
         <Link href={`/k/${coupleId}/leveranciers/${row.id}`} className="text-xs text-bordeaux hover:underline">
           Details & documenten{row.documents > 0 ? ` (${row.documents})` : ""}
         </Link>

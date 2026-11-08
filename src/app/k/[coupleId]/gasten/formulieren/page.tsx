@@ -90,9 +90,21 @@ export default async function RsvpForms({
             <div className="mt-2 flex flex-wrap gap-2 text-sm">
               {/* A relative link: always the same site, whatever APP_URL says. */}
               <a href={`/rsvp/${form.slug}`} target="_blank" rel="noopener" className="btn-secondary py-1.5">Formulier bekijken</a>
-              <a href={`/api/ws-qr/${form.id}?format=png&download=1`} className="btn-secondary py-1.5">QR-code (png)</a>
-              <a href={`/api/ws-qr/${form.id}?format=svg&download=1`} className="btn-secondary py-1.5">QR-code (svg, voor drukwerk)</a>
             </div>
+            {/* The QR code holds only the fixed link above: it never expires. */}
+            <form action={`/api/ws-qr/${form.id}`} method="get" className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-cream px-3 py-2 text-sm">
+              <input type="hidden" name="download" value="1" />
+              <span className="font-medium">QR-code downloaden</span>
+              <span className="flex flex-wrap gap-3">
+                <label className="flex items-center gap-1.5"><input type="radio" name="bg" value="white" defaultChecked className="accent-[#6B1E2E]" /> {form.qr_background.toLowerCase() === "#ffffff" ? "Witte achtergrond" : "Met achtergrondkleur"}</label>
+                <label className="flex items-center gap-1.5"><input type="radio" name="bg" value="transparent" className="accent-[#6B1E2E]" /> Transparant</label>
+              </span>
+              <select name="format" aria-label="Bestandsformaat" defaultValue="png" className="input w-auto py-1 text-sm">
+                <option value="png">PNG</option>
+                <option value="svg">SVG (voor drukwerk)</option>
+              </select>
+              <button type="submit" className="btn-secondary py-1">Downloaden</button>
+            </form>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element -- generated QR code */}
           <img src={`/api/ws-qr/${form.id}?format=svg&v=${encodeURIComponent(form.qr_color + form.qr_background)}`} alt={`QR-code voor ${form.name}`} width={140} height={140} className="rounded-lg border border-line" />

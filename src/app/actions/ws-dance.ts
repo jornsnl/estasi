@@ -1,10 +1,16 @@
 "use server";
 
-import { requireDance } from "@/lib/ws/access";
+import { requireOwner } from "@/lib/auth/session";
+import { requireCouple, requireDance } from "@/lib/ws/access";
 import { logActivity } from "@/lib/ws/couples";
-import { one, query } from "@/lib/ws/db";
+import { isUuid, one, query } from "@/lib/ws/db";
 import { deleteFiles, storeUpload, UploadError } from "@/lib/ws/files";
+import { coupleName, formatDate, formatMoney, parseMoney } from "@/lib/ws/format";
+import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
+import { danceName } from "@/lib/ws/package-order";
 import { done, str } from "@/lib/ws/redirect";
+import { getSettings } from "@/lib/ws/settings";
+import { saveVideoSetting } from "@/lib/ws/video-setting";
 
 /** De openingsdans: the couple fills in blocks 1 to 3, Sabine block 4 (and may change everything). */
 
@@ -66,4 +72,87 @@ export async function saveDance(formData: FormData) {
   }
   if (!ctx.isAdmin) await logActivity(ctx.couple.id, ctx.account.id, "Wensen voor de openingsdans bijgewerkt");
   done(back, "Opgeslagen.");
+}
+
+// Couples without the dance in their package (feedback 9.2, 9.3) -----------------------------------
+
+/** "Ik heb interesse in een openingsdans": kept, and Sabine gets a mail. */
+export async function requestDance(formData: FormData) {
+  const ctx = await requireCouple(str(formData, "coupleId", 40));
+  const back = `/k/${ctx.couple.id}/openingsdans#interesse`;
+  const choice = str(formData, "packageId", 40);
+  const message = str(formData, "message", 4000);
+  const pkg =
+    choice && choice !== "unknown" && isUuid(choice)
+      ? await one<{ id: string; name: string; price_cents: number }>("select id, name, price_cents from packages where id = $1 and kind = 'od' and not archived", [choice])
+      : null;
+  if (choice !== "unknown" && !pkg) done(back, "Kies een pakket, of \"Ik weet het nog niet\".", true);
+  const packageName = pkg ? danceName(pkg.name) : "Ik weet het nog niet";
+  await query(
+    "insert into dance_requests (couple_id, package_id, package_name, message, requested_by_name) values ($1, $2, $3, $4, $5)",
+    [ctx.couple.id, pkg?.id ?? null, packageName, message, ctx.account.name],
+  );
+  if (!ctx.isAdmin) await logActivity(ctx.couple.id, ctx.account.id, `Interesse in een openingsdans (${packageName})`);
+  const settings = await getSettings();
+  const names = [ctx.couple.partner1_first, ctx.couple.partner2_first].filter((n) => n.trim()).join(" en ") || coupleName(ctx.couple);
+  const replyTo = [ctx.couple.partner1_email, ctx.couple.partner2_email, ctx.account.email].find((e) => e && e.includes("@"));
+  await sendMail({
+    to: adminNotifyEmail() || settings.contact_email,
+    replyTo,
+    subject: `Interesse in een openingsdans: ${names}`,
+    text: [
+      `${names} hebben interesse in een openingsdans.`,
+      "",
+      `Namen: ${[`${ctx.couple.partner1_first} ${ctx.couple.partner1_last}`, `${ctx.couple.partner2_first} ${ctx.couple.partner2_last}`].map((n) => n.trim()).filter(Boolean).join(" en ")}`,
+      `Trouwdatum: ${ctx.couple.wedding_date ? formatDate(ctx.couple.wedding_date) : "nog niet bekend"}`,
+      `Pakket: ${packageName}${pkg?.price_cents ? ` (${formatMoney(pkg.price_cents)})` : ""}`,
+      `Bericht: ${message || "(geen bericht)"}`,
+      `Verstuurd door: ${ctx.account.name}${ctx.isAdmin ? " (beheer)" : ""}`,
+      "",
+      `Alle aanvragen: ${appUrl()}/beheer/bruidsparen/openingsdans`,
+    ].join("\n"),
+    log: { kind: "openingsdans", coupleId: ctx.couple.id, sentBy: ctx.account.name },
+  });
+  done(back, "Dank jullie wel! Sabine neemt binnenkort contact met jullie op.");
+}
+
+/** The video on the information page: an upload or a YouTube/Vimeo link, the same for every couple. */
+export async function saveDanceVideo(formData: FormData) {
+  const owner = await requireOwner();
+  await saveVideoSetting(formData, "dance", owner.id, "/beheer/bruidsparen/openingsdans#video");
+}
+
+/** Name, price and contents of a dance package card; the rest of the package stays as it is. */
+export async function saveDanceOffer(formData: FormData) {
+  await requireOwner();
+  const id = str(formData, "packageId", 40);
+  const back = "/beheer/bruidsparen/openingsdans#pakketten";
+  let name = str(formData, "name", 120);
+  if (!name) done(back, "Geef het pakket een naam.", true);
+  if (!/^Openingsdans/i.test(name)) name = `Openingsdans: ${name}`;
+  let price: number | null;
+  try {
+    price = parseMoney(str(formData, "price", 30));
+  } catch (err) {
+    done(back, (err as Error).message, true);
+  }
+  const description = str(formData, "description", 5000);
+  if (isUuid(id)) {
+    const row = await one("update packages set name = $2, price_cents = $3, description = $4 where id = $1 and kind = 'od' returning id", [id, name, price ?? 0, description]);
+    done(back, row ? "Pakket opgeslagen." : "Pakket niet gevonden.", !row);
+  }
+  await query(
+    `insert into packages (name, variant, price_cents, meetings, suppliers_enabled, description, kind, position)
+     values ($1, '', $2, 0, false, $3, 'od', (select coalesce(max(position), 0) + 1 from packages))`,
+    [name, price ?? 0, description],
+  );
+  done(back, "Pakket toegevoegd.");
+}
+
+export async function markDanceRequest(formData: FormData) {
+  await requireOwner();
+  const id = str(formData, "requestId", 40);
+  const handled = formData.get("handled") === "1";
+  if (isUuid(id)) await query("update dance_requests set handled_at = case when $2 then now() else null end where id = $1", [id, handled]);
+  done("/beheer/bruidsparen/openingsdans#aanvragen", handled ? "Aanvraag afgehandeld." : "Aanvraag weer open.");
 }

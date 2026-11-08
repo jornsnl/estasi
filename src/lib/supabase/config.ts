@@ -1,5 +1,13 @@
 /** Supabase settings from the environment. Read lazily so builds need no secrets. */
 
+/**
+ * Supabase Auth and Storage are used whenever SUPABASE_URL is set, which is
+ * always the case in production. Without it (local development) the app uses
+ * the development login (src/lib/auth/dev-auth.ts) and keeps uploads in
+ * Postgres. The data itself always goes through DATABASE_URL.
+ */
+export const supabaseEnabled = (env: NodeJS.ProcessEnv = process.env) => Boolean(env.SUPABASE_URL?.trim());
+
 function required(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`${name} ontbreekt. Zie .env.example en de README (Supabase).`);

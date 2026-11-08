@@ -2,7 +2,8 @@
 
 import { requireOwner } from "@/lib/auth/session";
 import { requireCouple, requireCoupleAdmin, type CoupleContext } from "@/lib/ws/access";
-import { aiConfigured, stylingSummary, type QA } from "@/lib/ws/ai";
+import { after } from "next/server";
+import { aiConfigured, aiErrorMessage, stylingSummary, type QA } from "@/lib/ws/ai";
 import { sectionQA, sectionsFor } from "@/lib/ws/assignments";
 import { logActivity } from "@/lib/ws/couples";
 import { isUuid, one, query, tx } from "@/lib/ws/db";
@@ -187,8 +188,23 @@ export async function setSectionDone(coupleId: string, sectionId: string, isDone
       await sendMail({
         to: adminNotifyEmail(),
         subject: `${coupleName(ctx.couple)} hebben "${first.title}" afgerond`,
-        text: `${coupleName(ctx.couple)} hebben alle opdrachten van "${first.title}" afgerond.\n\nBekijken: ${appUrl()}${link}\n\nOp de pagina Stylingplan & Moodboard kun je met "Samenvatting maken" een eerste opzet laten maken.`,
+        log: { kind: "opdracht", coupleId: ctx.couple.id, sentBy: ctx.account.name },
+        text: `${coupleName(ctx.couple)} hebben alle opdrachten van "${first.title}" afgerond.\n\nBekijken: ${appUrl()}${link}\n\n${
+          aiConfigured()
+            ? "Op de pagina Styling staat zo een eerste samenvatting als concept klaar; alleen jij ziet die tot je hem vrijgeeft."
+            : 'Op de pagina Styling kun je met "Samenvatting vernieuwen" een eerste opzet laten maken.'
+        }`,
       });
+      // A first draft right away, after the response, when there is none yet and this was the styling assignment.
+      const coupleId = ctx.couple.id;
+      const assignmentId = section.assignment_id;
+      if (aiConfigured()) {
+        after(async () => {
+          const source = await one<{ id: string }>("select id from assignments where id = $1 and styling_source", [assignmentId]);
+          const plan = await one<{ ai_draft: string }>("select ai_draft from styling_plans where couple_id = $1", [coupleId]);
+          if (source && !plan?.ai_draft) await runStylingSummary(coupleId);
+        });
+      }
     }
   } else if (!isDone) {
     await query("update assignments set completed_at = null where id = $1", [section.assignment_id]);
@@ -198,13 +214,16 @@ export async function setSectionDone(coupleId: string, sectionId: string, isDone
 
 // AI summary into a draft styling plan (Sabine) ----------------------------------------------------------
 
-export async function makeStylingSummary(formData: FormData) {
-  const ctx = await requireCoupleAdmin(str(formData, "coupleId", 40));
-  const back = page(ctx, "#uitwerken");
-  if (!aiConfigured()) done(back, "AI staat niet aan: zet ANTHROPIC_API_KEY in de hosting.", true);
+type SummaryResult = { ok: true; count: number } | { ok: false; error: string; empty?: boolean };
+
+/**
+ * Makes the summary and the proposals per place from the answers. On failure
+ * the reason is kept (ai_error) for Sabine; the couple never sees it.
+ */
+async function runStylingSummary(coupleId: string): Promise<SummaryResult> {
   const sources = await query<{ id: string; title: string; kind: string }>(
     "select id, title, kind from assignments where couple_id = $1 and styling_source order by position",
-    [ctx.couple.id],
+    [coupleId],
   );
   const filled: { title: string; items: QA[] }[] = [];
   for (const s of sources) {
@@ -213,36 +232,53 @@ export async function makeStylingSummary(formData: FormData) {
       : await query<QA>("select prompt, answer from assignment_questions where assignment_id = $1 order by position", [s.id]);
     if (items.some((i) => i.answer.trim())) filled.push({ title: s.title, items });
   }
-  if (filled.length === 0) done(back, "Er zijn nog geen antwoorden op de opdracht Thema & Styling om samen te vatten.", true);
-  const places = await query<{ id: string; name: string }>("select id, name from styling_places where couple_id = $1 order by position", [ctx.couple.id]);
+  if (filled.length === 0) return { ok: false, empty: true, error: "Er zijn nog geen antwoorden op de opdracht Thema & Styling om samen te vatten." };
+  const places = await query<{ id: string; name: string }>("select id, name from styling_places where couple_id = $1 order by position", [coupleId]);
   let proposal;
   try {
+    if (!aiConfigured()) throw new Error("not configured");
     proposal = await stylingSummary(filled, places.map((p) => p.name));
+    if (!proposal.summary) throw new Error("Er kwam geen samenvatting terug. Probeer het opnieuw.");
   } catch (err) {
-    done(back, `Samenvatting maken is niet gelukt: ${(err as Error).message}`, true);
+    const error = aiErrorMessage(err);
+    console.error("[styling] samenvatting mislukt:", err);
+    await query(
+      `insert into styling_plans (couple_id, ai_error) values ($1, $2)
+       on conflict (couple_id) do update set ai_error = excluded.ai_error`,
+      [coupleId, error.slice(0, 300)],
+    );
+    return { ok: false, error };
   }
   await tx(async (db) => {
     await query(
       `insert into styling_plans (couple_id, ai_draft, ai_draft_at, colors, ai_error) values ($1, $2, now(), $3::jsonb, '')
        on conflict (couple_id) do update set ai_draft = excluded.ai_draft, ai_draft_at = now(), ai_error = '',
          colors = case when jsonb_array_length(styling_plans.colors) = 0 then excluded.colors else styling_plans.colors end`,
-      [ctx.couple.id, proposal.summary, JSON.stringify(proposal.colors)],
+      [coupleId, proposal.summary, JSON.stringify(proposal.colors)],
       db,
     );
     // A new summary replaces the previous proposals that were never released.
-    await query("delete from styling_items where couple_id = $1 and draft", [ctx.couple.id], db);
+    await query("delete from styling_items where couple_id = $1 and draft", [coupleId], db);
     for (const item of proposal.items) {
       const place = places.find((p) => p.name === item.place);
       if (!place) continue;
       await query(
         `insert into styling_items (couple_id, place_id, what, draft, position)
          values ($1, $2, $3, true, (select coalesce(max(position), 0) + 1 from styling_items where place_id = $2))`,
-        [ctx.couple.id, place.id, item.what],
+        [coupleId, place.id, item.what],
         db,
       );
     }
   });
-  done(back, `Samenvatting gemaakt met ${proposal.items.length} voorstellen. Alleen jij ziet ze; pas aan en geef vrij.`);
+  return { ok: true, count: proposal.items.length };
+}
+
+/** "Samenvatting vernieuwen" (Sabine): returns a message for the button instead of a redirect. */
+export async function refreshStylingSummary(coupleId: string): Promise<{ ok: boolean; message?: string; error?: string }> {
+  const ctx = await requireCoupleAdmin(coupleId);
+  const result = await runStylingSummary(ctx.couple.id);
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, message: `Samenvatting gemaakt met ${result.count} voorstellen. Alleen jij ziet ze; pas aan en geef vrij.` };
 }
 
 /** Releases the plan: the concept text and every proposed item become visible for the couple. */

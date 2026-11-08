@@ -16,7 +16,7 @@ import { existsSync } from "fs";
 import { randomUUID } from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import { createSeed } from "../src/lib/data/seed";
-import { toRow } from "../src/lib/data/supabase-rows";
+import { toRow } from "../src/lib/data/rows";
 
 for (const file of [".env.local", ".env"]) if (existsSync(file)) process.loadEnvFile(file);
 

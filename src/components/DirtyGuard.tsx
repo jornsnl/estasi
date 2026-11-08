@@ -17,12 +17,21 @@ export function DirtyGuard({ formId, message = "Er zijn wijzigingen die nog niet
   useEffect(() => {
     const form = document.getElementById(formId) as HTMLFormElement | null;
     if (!form) return;
-    const onInput = () => {
+    // Counts every field that belongs to the form, also one outside it with form="...",
+    // and not a field inside it that belongs to another form.
+    const onInput = (e: Event) => {
+      if ((e.target as HTMLInputElement | null)?.form !== form) return;
       dirtyRef.current = true;
       setDirty(true);
     };
     const onSubmit = () => {
       submitting.current = true;
+    };
+    // After a server action React resets the form to the saved values: nothing unsaved any more.
+    const onReset = () => {
+      dirtyRef.current = false;
+      submitting.current = false;
+      setDirty(false);
     };
     const beforeUnload = (e: BeforeUnloadEvent) => {
       if (dirtyRef.current && !submitting.current) e.preventDefault();
@@ -40,15 +49,17 @@ export function DirtyGuard({ formId, message = "Er zijn wijzigingen die nog niet
         e.stopPropagation();
       }
     };
-    form.addEventListener("input", onInput);
-    form.addEventListener("change", onInput);
+    document.addEventListener("input", onInput, true);
+    document.addEventListener("change", onInput, true);
     form.addEventListener("submit", onSubmit);
+    form.addEventListener("reset", onReset);
     window.addEventListener("beforeunload", beforeUnload);
     document.addEventListener("click", onClick, true);
     return () => {
-      form.removeEventListener("input", onInput);
-      form.removeEventListener("change", onInput);
+      document.removeEventListener("input", onInput, true);
+      document.removeEventListener("change", onInput, true);
       form.removeEventListener("submit", onSubmit);
+      form.removeEventListener("reset", onReset);
       window.removeEventListener("beforeunload", beforeUnload);
       document.removeEventListener("click", onClick, true);
     };

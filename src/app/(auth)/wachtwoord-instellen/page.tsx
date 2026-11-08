@@ -4,14 +4,14 @@ import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
 import { currentSession } from "@/lib/auth/session";
-import { isSupabaseMode } from "@/lib/data";
+import { supabaseEnabled } from "@/lib/supabase/config";
 
 export const metadata = { title: "Wachtwoord kiezen" };
 // The backend (local or Supabase) is only known at runtime.
 export const dynamic = "force-dynamic";
 
 export default async function SetPasswordPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  if (!isSupabaseMode()) notFound();
+  if (!supabaseEnabled()) notFound();
   const current = await currentSession();
   if (!current) redirect("/auth/bevestigen?verlopen=1");
 

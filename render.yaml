@@ -11,8 +11,6 @@ services:
     # Runs in the new image before it goes live; a failed migration stops the deploy.
     preDeployCommand: node scripts/migrate.mjs
     envVars:
-      - key: DATA_BACKEND
-        value: supabase
       - key: APP_URL
         sync: false
       - key: CONTACT_EMAIL
@@ -23,7 +21,7 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      # Supabase "Session pooler" connection string: migrations and Your Wedding Space.
+      # Supabase "Session pooler" connection string: all app data (Academy and Your Wedding Space) and the migrations.
       - key: DATABASE_URL
         sync: false
       # E-mail for Your Wedding Space via Resend (preferred): API key with

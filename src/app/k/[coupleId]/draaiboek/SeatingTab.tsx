@@ -36,6 +36,7 @@ function LayoutForm({ coupleId, groups, layout, kind }: { coupleId: string; grou
           <div className="grid grid-cols-2 gap-2">
             <div><label className="label" htmlFor={`r-${k}`}>Rijen / ringen</label><input id={`r-${k}`} name="rows" type="number" min={1} max={40} defaultValue={layout?.rows ?? 6} className="input" /></div>
             <div><label className="label" htmlFor={`p-${k}`}>Stoelen per rij (per kant)</label><input id={`p-${k}`} name="seatsPerRow" type="number" min={1} max={40} defaultValue={layout?.seats_per_row ?? 6} className="input" /></div>
+            {layout?.shape === "rows" && <p className="col-span-2 text-xs text-muted">Per rij en per kant instellen doe je bij &quot;Stoelen per rij&quot; onder de plattegrond. Een ander getal hier zet alle rijen gelijk.</p>}
           </div>
           <div><label className="label" htmlFor={`l-${k}`}>Label linkerkant</label><input id={`l-${k}`} name="sideLeft" defaultValue={layout?.side_left ?? ""} placeholder="Kant Estelle" className="input" /></div>
           <div><label className="label" htmlFor={`rr-${k}`}>Label rechterkant</label><input id={`rr-${k}`} name="sideRight" defaultValue={layout?.side_right ?? ""} placeholder="Kant Ramon" className="input" /></div>

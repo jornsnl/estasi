@@ -1,31 +1,12 @@
 import type {
-  Answer,
-  AnswerableBlock,
-  Block,
   Enrollment,
-  Feedback,
   Lesson,
   LessonCompletion,
   Module,
+  Submission,
+  SubmissionVersion,
 } from "@/lib/data/types";
-
-export const isAnswerable = (block: Block): block is AnswerableBlock =>
-  block.type === "question" || block.type === "choice" || block.type === "upload";
-
-export function isAnswered(block: AnswerableBlock, answer: Answer | undefined): boolean {
-  if (!answer) return false;
-  if (block.type === "choice") return !!answer.choice;
-  if (block.type === "upload") return answer.files.length > 0;
-  return answer.text.trim().length > 0;
-}
-
-/** Required blocks in a lesson that still have no answer. */
-export function missingRequired(lesson: Lesson, answers: Answer[]): AnswerableBlock[] {
-  const byBlock = new Map(answers.map((a) => [a.blockId, a]));
-  return lesson.blocks
-    .filter(isAnswerable)
-    .filter((b) => b.required && !isAnswered(b, byBlock.get(b.id)));
-}
+import { assignmentsOf, isSubmitted } from "./assignment";
 
 export type ModuleState = "locked" | "open" | "completed";
 
@@ -35,35 +16,61 @@ export interface ModuleProgress {
   completedLessonIds: Set<string>;
   completedCount: number;
   state: ModuleState;
+  /** Opened early by the owner for this student. */
+  unlockedManually: boolean;
+  /** Assignments in this module, and how many of them the student has submitted. */
+  assignments: { total: number; submitted: number };
+}
+
+export interface ProgressOptions {
+  /** Modules the owner opened early for this student. */
+  unlocks?: { moduleId: string }[];
+  submissions?: Pick<Submission, "lessonId" | "blockId" | "status">[];
 }
 
 /**
- * A module unlocks once every lesson of the previous module is completed.
- * Lessons only complete when their required questions are answered, so this
- * is the "all required parts done" rule from the plan.
+ * A module unlocks once every lesson of the previous module is completed, or
+ * when the owner opened it for this student. Open feedback never holds a
+ * student back: a lesson completes as soon as its required assignments are
+ * submitted (or it is marked as read when it has none).
  */
 export function moduleProgress(
   modules: Module[],
   lessons: Lesson[],
   completions: LessonCompletion[],
+  options: ProgressOptions = {},
 ): ModuleProgress[] {
   const done = new Set(completions.map((c) => c.lessonId));
+  const unlocked = new Set((options.unlocks ?? []).map((u) => u.moduleId));
+  const submitted = new Set((options.submissions ?? []).filter((s) => isSubmitted(s.status)).map((s) => `${s.lessonId}:${s.blockId}`));
   let previousComplete = true;
-  return modules.map((module) => {
-    const moduleLessons = lessons.filter((l) => l.moduleId === module.id);
-    const completedLessonIds = new Set(moduleLessons.filter((l) => done.has(l.id)).map((l) => l.id));
-    const allDone = moduleLessons.length > 0 && completedLessonIds.size === moduleLessons.length;
-    const state: ModuleState = !previousComplete ? "locked" : allDone ? "completed" : "open";
-    previousComplete = previousComplete && allDone;
-    return {
-      module,
-      lessons: moduleLessons,
-      completedLessonIds,
-      completedCount: completedLessonIds.size,
-      state,
-    };
-  });
+  // The caller passes only what the student may see (visibleCourse in visibility.ts).
+  return modules
+    .map((module) => {
+      const moduleLessons = lessons.filter((l) => l.moduleId === module.id);
+      const completedLessonIds = new Set(moduleLessons.filter((l) => done.has(l.id)).map((l) => l.id));
+      const allDone = moduleLessons.length > 0 && completedLessonIds.size === moduleLessons.length;
+      const unlockedManually = unlocked.has(module.id) && !previousComplete;
+      const state: ModuleState = !previousComplete && !unlockedManually ? "locked" : allDone ? "completed" : "open";
+      // A module without lessons (yet) never holds the next one back.
+      if (moduleLessons.length > 0) previousComplete = state === "completed";
+      const assignments = moduleLessons.flatMap((l) => assignmentsOf(l.blocks).map((a) => `${l.id}:${a.id}`));
+      return {
+        module,
+        lessons: moduleLessons,
+        completedLessonIds,
+        completedCount: completedLessonIds.size,
+        state,
+        unlockedManually,
+        assignments: { total: assignments.length, submitted: assignments.filter((k) => submitted.has(k)).length },
+      };
+    });
 }
+
+export const completedModules = (progress: ModuleProgress[]) => progress.filter((p) => p.state === "completed").length;
+
+/** Per module 0-100, for a bar per module. */
+export const modulePercent = (p: ModuleProgress) => (p.lessons.length === 0 ? 0 : Math.round((p.completedCount / p.lessons.length) * 100));
 
 export function overallPercent(progress: ModuleProgress[]): number {
   const total = progress.reduce((n, p) => n + p.lessons.length, 0);
@@ -123,29 +130,6 @@ export function courseStatus(
   return "in_progress";
 }
 
-export type FeedbackState = "none" | "open" | "given" | "changed_after_feedback";
-
-/** Feedback state for one answer on an assignment that gets feedback. */
-export function feedbackState(answer: Answer | undefined, feedback: Feedback[]): FeedbackState {
-  if (!answer) return "none";
-  const mine = feedback.filter((f) => f.answerId === answer.id);
-  if (mine.length === 0) return "open";
-  const latest = Math.max(...mine.map((f) => f.answerVersion));
-  return answer.version > latest ? "changed_after_feedback" : "given";
-}
-
-/** Answers on feedback assignments that still wait for the owner. */
-export function openFeedbackCount(lessons: Lesson[], answers: Answer[], feedback: Feedback[]): number {
-  const feedbackBlocks = new Map<string, AnswerableBlock>();
-  for (const lesson of lessons) {
-    for (const block of lesson.blocks) {
-      if (isAnswerable(block) && block.feedback) feedbackBlocks.set(block.id, block);
-    }
-  }
-  return answers.filter((a) => {
-    const block = feedbackBlocks.get(a.blockId);
-    if (!block || !isAnswered(block, a)) return false;
-    const state = feedbackState(a, feedback);
-    return state === "open" || state === "changed_after_feedback";
-  }).length;
-}
+/** Feedback requests that still wait for the owner (new or being worked on). */
+export const openFeedbackCount = (versions: Pick<SubmissionVersion, "feedbackStatus">[]) =>
+  versions.filter((v) => v.feedbackStatus === "nieuw" || v.feedbackStatus === "in_behandeling").length;

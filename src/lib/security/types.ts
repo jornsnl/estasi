@@ -1,5 +1,5 @@
-// Passkeys and the MCP connection (OAuth 2.1). Plain data, shared by the
-// local JSON store and the Supabase tables (migration 0016).
+// Passkeys and the MCP connection (OAuth 2.1). Plain data, stored in the
+// tables of migration 0016 (security/pg-store.ts).
 
 /** A WebAuthn credential (passkey) of the owner. */
 export interface Passkey {

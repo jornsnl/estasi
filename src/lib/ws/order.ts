@@ -15,6 +15,7 @@ const SCOPES = {
   styling_places: "couple_id",
   styling_items: "place_id",
   invitations: "couple_id",
+  speeches: "couple_id",
 } as const;
 export type OrderedTable = keyof typeof SCOPES;
 

@@ -1,15 +1,33 @@
+import type { Metadata } from "next";
 import { AppShell } from "@/components/AppShell";
+import { ExpiryBanner } from "@/components/academy/ExpiryBanner";
+import { kickExpiryNotices } from "@/lib/academy-expiry";
+import { kickNotifications } from "@/lib/community/notify";
+import { menuCounts, viewerFor } from "@/lib/community/server";
 import { PACKAGE_LABELS } from "@/lib/domain/labels";
 import { touchActivity } from "@/lib/academy";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
+import { unseenFeedback } from "@/lib/data/assignments";
 
 export const dynamic = "force-dynamic";
+
+// Installable on the home screen, needed for push notifications on iPhone (see src/app/academy.webmanifest).
+export const metadata: Metadata = {
+  manifest: "/academy.webmanifest",
+  appleWebApp: { capable: true, title: "Academy", statusBarStyle: "default" },
+};
 
 export default async function StudentLayout({ children }: { children: React.ReactNode }) {
   const user = await requireStudent();
   await touchActivity(user);
   const [settings, enrollment] = await Promise.all([getStore().getSettings(), getStore().getEnrollmentForUser(user.id)]);
+  const [counts, newFeedback] = await Promise.all([
+    menuCounts(await viewerFor(user)),
+    unseenFeedback(user.id).catch(() => []),
+  ]);
+  kickNotifications();
+  kickExpiryNotices();
 
   return (
     <AppShell
@@ -17,11 +35,15 @@ export default async function StudentLayout({ children }: { children: React.Reac
       subtitle={enrollment ? `Pakket ${PACKAGE_LABELS[enrollment.package]}` : "Cursist"}
       items={[
         { href: "/dashboard", label: "Dashboard" },
-        { href: "/opleiding", label: "Mijn opleiding" },
-        { href: "/community", label: "Community", soon: true },
-        { href: "/prive-chat", label: "Privéchat", soon: true },
+        // New feedback from Sabine: the badge goes once the student opens the lesson.
+        { href: "/opleiding", label: "Mijn opleiding", badge: newFeedback.length },
+        { href: "/portfolio", label: "Mijn portfolio" },
+        { href: "/community", label: "Community", badge: counts.community },
+        { href: "/prive-chat", label: "Privéchat", badge: counts.private },
         { href: "/profiel", label: "Mijn profiel" },
-        ...(enrollment?.certificateReleasedAt ? [{ href: "/certificaat", label: "Certificaat" }] : []),
+        ...(enrollment?.certificateReleasedAt || enrollment?.practicalCertificateReleasedAt
+          ? [{ href: enrollment.certificateReleasedAt ? "/certificaat" : "/certificaat/praktijk", label: "Certificaat" }]
+          : []),
       ]}
       footer={
         <div className="rounded-lg bg-cream p-3 text-sm">
@@ -32,6 +54,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
         </div>
       }
     >
+      <ExpiryBanner enrollment={enrollment} contactEmail={settings.contactEmail} />
       {children}
     </AppShell>
   );

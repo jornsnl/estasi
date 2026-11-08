@@ -2,7 +2,11 @@ import type { Metadata, Viewport } from "next";
 import { AdminPwa } from "@/components/AdminPwa";
 import { AppShell } from "@/components/AppShell";
 import { requireOwner } from "@/lib/auth/session";
-import { isLocalMode } from "@/lib/data";
+import { kickNotifications } from "@/lib/community/notify";
+import { kickExpiryNotices } from "@/lib/academy-expiry";
+import { menuCounts, viewerFor } from "@/lib/community/server";
+import { devAuthAllowed } from "@/lib/auth/dev-mode";
+import { openFeedbackRequestCount } from "@/lib/data/assignments";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +22,12 @@ export const viewport: Viewport = { themeColor: "#ffffff" };
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
   const user = await requireOwner();
+  const [counts, feedback] = await Promise.all([
+    menuCounts(await viewerFor(user)),
+    openFeedbackRequestCount().catch(() => 0),
+  ]);
+  kickNotifications();
+  kickExpiryNotices();
   return (
     <AppShell
       userName={user.name}
@@ -25,7 +35,10 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
       items={[
         { href: "/beheer", label: "Cursisten", exact: true, section: "Academy" },
         { href: "/beheer/cursisten/nieuw", label: "Cursist toevoegen" },
+        { href: "/beheer/feedback", label: "Feedback", badge: feedback },
         { href: "/beheer/inhoud", label: "Lesinhoud" },
+        { href: "/beheer/community", label: "Community", badge: counts.community },
+        { href: "/beheer/berichten", label: "Privéberichten", badge: counts.private },
         { href: "/beheer/instellingen", label: "Instellingen" },
         { href: "/beheer/logboek", label: "Logboek" },
         { href: "/beheer/profiel", label: "Profiel en beveiliging" },
@@ -34,14 +47,17 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
         { href: "/beheer/bruidsparen/takenbord", label: "Mijn takenbord" },
         { href: "/beheer/bruidsparen/agenda", label: "Mijn agenda" },
         { href: "/beheer/bruidsparen/pakketten", label: "Pakketten" },
+        { href: "/beheer/bruidsparen/openingsdans", label: "Openingsdans" },
+        { href: "/beheer/bruidsparen/speeches", label: "Speeches" },
+        { href: "/beheer/bruidsparen/mails", label: "Mailgeschiedenis" },
         { href: "/beheer/bruidsparen/opdrachten", label: "Opdrachten" },
         { href: "/beheer/bruidsparen/aanraders", label: "Aanraders" },
         { href: "/beheer/bruidsparen/standaardlijsten", label: "Standaardlijsten" },
         { href: "/beheer/bruidsparen/instellingen", label: "Instellingen portaal" },
       ]}
       footer={
-        isLocalMode() ? (
-          <p className="rounded-lg bg-gold-soft p-3 text-xs text-gold-ink">Lokale modus: gegevens staan in .data/db.json</p>
+        devAuthAllowed() ? (
+          <p className="rounded-lg bg-gold-soft p-3 text-xs text-gold-ink">Ontwikkelomgeving: lokale database, ontwikkel-login zonder Supabase</p>
         ) : undefined
       }
     >

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { logout } from "@/app/actions/auth";
 import { MfaForm } from "@/components/MfaForm";
 import { currentSession, homeFor } from "@/lib/auth/session";
-import { isSupabaseMode } from "@/lib/data";
+import { supabaseEnabled } from "@/lib/supabase/config";
 import { authClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Tweestapsverificatie" };
@@ -17,7 +17,7 @@ type Search = Record<string, string | string[] | undefined>;
  * every new sign in.
  */
 export default async function MfaPage({ searchParams }: { searchParams: Promise<Search> }) {
-  if (!isSupabaseMode()) notFound();
+  if (!supabaseEnabled()) notFound();
   const current = await currentSession();
   if (!current) redirect("/login");
 

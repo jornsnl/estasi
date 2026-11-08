@@ -1,13 +1,25 @@
 import "server-only";
-import { randomBytes } from "crypto";
 import { audit, studentOverview } from "@/lib/academy";
-import { getStore, type Answer, type AnswerableBlock, type Block, type Enrollment, type Lesson, type User } from "@/lib/data";
+import { certificateChange, notifyFeedbackSent, onlineCertificateCheck } from "@/lib/academy-feedback";
+import { getStore, type AssignmentAnswers, type AssignmentBlock, type Block, type Enrollment, type User } from "@/lib/data";
+import {
+  getSubmissionById,
+  getVersion,
+  listAssignmentFeedback,
+  listFeedbackRequests,
+  listSubmissions,
+  listVersions,
+  saveFeedback,
+  setFeedbackStatus,
+} from "@/lib/data/assignments";
+import { ASSESSMENT_LABELS, FEEDBACK_STATUS_LABELS, matchesRequest, practicalCertificateReadiness } from "@/lib/domain/feedback";
+import { query } from "@/lib/db";
 import { ACCESS_LABELS, accessStatus, addMonths, pause, resume } from "@/lib/domain/access";
 import { LIMITS } from "@/lib/domain/input";
 import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
-import { COURSE_STATUS_LABELS, feedbackState, isAnswerable, isAnswered } from "@/lib/domain/progress";
+import { answersAsText, assignmentsOf, assignmentTitle, STATUS_LABELS } from "@/lib/domain/assignment";
+import { COURSE_STATUS_LABELS } from "@/lib/domain/progress";
 import { formatDate, fromDateInput } from "@/lib/util/format";
-import { newId } from "@/lib/util/id";
 import { defineTool, ToolError, z } from "../tool";
 
 /** MCP tools for the Wedding Plan Academy (students, progress, feedback, content). */
@@ -41,38 +53,72 @@ function summary(o: Awaited<ReturnType<typeof studentOverview>>) {
     status: o.status ? COURSE_STATUS_LABELS[o.status] : null,
     statusCode: o.status,
     openFeedback: o.openFeedback,
+    completedModules: o.completedModules,
+    modulesInPackage: o.progress.length,
+    submittedAssignments: o.submittedAssignments,
     activated: Boolean(o.user.activatedAt),
     lastActiveAt: o.user.lastActiveAt,
   };
 }
+
+const assignmentSummary = (a: AssignmentBlock) => ({
+  id: a.id,
+  type: a.type,
+  title: a.title,
+  intro: a.intro,
+  requiredForLesson: a.requiredForLesson,
+  feedbackAllowed: a.feedbackAllowed,
+  graded: a.graded,
+  repeatOf: a.repeatOf,
+  parts: a.parts.map((p) => ({
+    title: p.title,
+    intro: p.intro,
+    fields: p.fields.map((f) => ({
+      id: f.id,
+      type: f.type,
+      label: f.label,
+      help: f.help,
+      required: f.required,
+      ...("options" in f ? { options: f.options, allowComment: f.allowComment } : {}),
+      ...("min" in f ? { min: f.min, max: f.max, minLabel: f.minLabel, maxLabel: f.maxLabel, explanation: f.explanation } : {}),
+      ...("rows" in f ? { rows: f.rows.map((r) => r.label), mode: f.mode } : {}),
+      ...("accept" in f ? { accept: f.accept, maxFiles: f.maxFiles } : {}),
+    })),
+  })),
+});
 
 const blockSummary = (b: Block) => {
   switch (b.type) {
     case "video":
       return { id: b.id, type: b.type, url: b.url, caption: b.caption };
     case "text":
-      return { id: b.id, type: b.type, markdown: b.markdown };
+      return b.html ? { id: b.id, type: b.type, html: b.html } : { id: b.id, type: b.type, markdown: b.markdown };
+    case "image":
+      return { id: b.id, type: b.type, file: b.file?.name ?? null, alt: b.alt, caption: b.caption };
     case "download":
       return { id: b.id, type: b.type, label: b.label, description: b.description, url: b.url, file: b.file?.name ?? null };
-    case "question":
-      return { id: b.id, type: b.type, kind: b.kind, prompt: b.prompt, helpText: b.helpText, required: b.required, feedbackAssignment: b.feedback };
-    case "choice":
-      return { id: b.id, type: b.type, prompt: b.prompt, options: b.options, required: b.required, feedbackAssignment: b.feedback };
-    case "upload":
-      return { id: b.id, type: b.type, prompt: b.prompt, helpText: b.helpText, required: b.required, feedbackAssignment: b.feedback };
+    case "assignment":
+      return assignmentSummary(b);
+    default:
+      return { id: (b as Block).id, type: (b as Block).type };
   }
 };
 
-function promptOf(lesson: Lesson | undefined, blockId: string): string {
-  const block = lesson?.blocks.find((b) => b.id === blockId);
-  return block && isAnswerable(block) ? block.prompt : "(vraag niet meer in de les)";
-}
+/** Answers per field as text, with the question as it was in that version. */
+const readable = (assignment: AssignmentBlock, answers: AssignmentAnswers) =>
+  answersAsText(assignment, answers).map((l) => ({ part: l.part || undefined, question: l.question, required: l.required, answer: l.answer }));
 
-const answerText = (a: Answer) => ({
-  text: a.text,
-  choice: a.choice,
-  files: a.files.map((f) => f.name),
-});
+/** Finds a version by its id, or (old links) by the answer id it was converted from. */
+async function versionFor(id: string) {
+  const direct = await getVersion(id);
+  if (direct) return direct;
+  const row = await query<{ id: string }>(
+    `select v.id from public.submission_versions v join public.assignment_submissions s on s.id = v.submission_id
+      where s.legacy_answer_id::text = $1 or s.id::text = $1 order by v.version desc limit 1`,
+    [id],
+  );
+  return row[0] ? getVersion(row[0].id) : null;
+}
 
 export const academyTools = [
   defineTool({
@@ -151,11 +197,19 @@ export const academyTools = [
           certificateReleasedAt: overview.enrollment.certificateReleasedAt,
           certificateCode: overview.enrollment.certificateCode,
           practicalStatus: overview.enrollment.practicalStatus,
+          practicalCertificateReleasedAt: overview.enrollment.practicalCertificateReleasedAt,
+          practicalCertificateCode: overview.enrollment.practicalCertificateCode,
           ownerNotes: overview.enrollment.ownerNotes,
+          // What still stands between the student and each certificate (released by hand).
+          onlineCertificateMissing: onlineCertificateCheck(overview).missing,
+          practicalCertificateMissing: practicalCertificateReadiness(overview.enrollment).missing,
         },
         modules: overview.progress.map((p) => ({
           title: p.module.title,
           state: p.state,
+          unlockedManually: p.unlockedManually,
+          assignmentsSubmitted: p.assignments.submitted,
+          assignmentsTotal: p.assignments.total,
           lessons: p.lessons.map((l) => ({ id: l.id, title: l.title, completed: p.completedLessonIds.has(l.id) })),
         })),
         recentLog: log.slice(0, 15).map((e) => ({ at: e.at, action: e.action, details: e.details })),
@@ -165,76 +219,98 @@ export const academyTools = [
 
   defineTool({
     name: "academy_list_open_feedback",
-    title: "Academy: openstaande feedback",
-    description: "Antwoorden op feedbackopdrachten die nog op feedback van de opleider wachten, of die de cursist na de laatste feedback heeft aangepast. Met de vraag, het antwoord en het answerId voor academy_give_feedback. Oudste eerst.",
+    title: "Academy: feedbackverzoeken",
+    description: "Feedbackverzoeken van cursisten en ingeleverde eindopdrachten die op een beoordeling wachten. Standaard de openstaande (status nieuw of in behandeling, oudste eerst); met status ook nieuw, in_behandeling, afgerond of alle. Met de opdracht, alle antwoorden, de eventuele vraag aan Sabine, of er al een concept klaarstaat, en het versionId voor academy_give_feedback.",
     scope: "read",
     input: z.object({
       studentId: id.optional().describe("Alleen voor deze cursist"),
+      status: z.enum(["open", "nieuw", "in_behandeling", "afgerond", "alle"]).default("open"),
+      moduleId: id.optional().describe("Alleen voor deze module"),
       limit: z.number().int().min(1).max(100).default(25),
     }),
-    async run({ studentId, limit }) {
-      const store = getStore();
+    async run({ studentId, status, moduleId, limit }) {
       const only = studentId ? await student(studentId) : null;
-      const [lessons, answers, feedback, users] = await Promise.all([
-        store.listLessons(),
-        store.listAnswers(only ? { userId: only.id } : {}),
-        store.listFeedback(only ? { userId: only.id } : {}),
-        store.listUsers("student"),
+      const [requests, feedback] = await Promise.all([
+        listFeedbackRequests(only ? { userId: only.id } : {}),
+        listAssignmentFeedback(only ? { userId: only.id } : {}),
       ]);
-      const blocks = new Map<string, { lesson: Lesson; block: AnswerableBlock; prompt: string }>();
-      for (const lesson of lessons) for (const b of lesson.blocks) if (isAnswerable(b) && b.feedback) blocks.set(b.id, { lesson, block: b, prompt: b.prompt });
-      const names = new Map(users.map((u) => [u.id, u.name]));
-      return answers
-        .filter((a) => blocks.has(a.blockId) && isAnswered(blocks.get(a.blockId)!.block, a))
-        .map((a) => ({ a, state: feedbackState(a, feedback) }))
-        .filter(({ state }) => state === "open" || state === "changed_after_feedback")
-        .sort((x, y) => x.a.updatedAt.localeCompare(y.a.updatedAt))
+      return requests
+        .filter((r) => matchesRequest(r, { status, moduleId }))
+        .sort((x, y) => x.submittedAt.localeCompare(y.submittedAt))
         .slice(0, limit)
-        .map(({ a, state }) => ({
-          answerId: a.id,
-          student: { id: a.userId, name: names.get(a.userId) ?? "?" },
-          lesson: { id: a.lessonId, title: blocks.get(a.blockId)!.lesson.title },
-          question: blocks.get(a.blockId)!.prompt,
-          answer: answerText(a),
-          state: state === "open" ? "wacht op feedback" : "aangepast na feedback",
-          updatedAt: a.updatedAt,
-          previousFeedback: feedback.filter((f) => f.answerId === a.id).map((f) => ({ at: f.createdAt, text: f.text })),
-        }));
+        .map((r) => {
+          const concept = feedback.find((f) => f.versionId === r.versionId && !f.sentAt);
+          return {
+            versionId: r.versionId,
+            version: r.version,
+            student: { id: r.userId, name: r.studentName },
+            module: r.moduleTitle,
+            lesson: { id: r.lessonId, title: r.lessonTitle ?? "(les verwijderd)" },
+            assignment: assignmentTitle(r.assignment),
+            finalAssignment: r.assignment.graded,
+            assignmentStatus: STATUS_LABELS[r.submissionStatus],
+            feedbackRequested: r.feedbackRequested,
+            questionForSabine: r.questionForSabine || null,
+            answers: readable(r.assignment, r.answers),
+            files: answersAsText(r.assignment, r.answers).flatMap((l) => l.files.map((f) => f.name)),
+            status: FEEDBACK_STATUS_LABELS[r.feedbackStatus].toLowerCase(),
+            statusCode: r.feedbackStatus,
+            submittedAt: r.submittedAt,
+            concept: concept ? { text: concept.text, assessment: concept.assessment, updatedAt: concept.updatedAt } : null,
+            previousFeedback: feedback.filter((f) => f.submissionId === r.submissionId && f.sentAt).map((f) => ({ at: f.sentAt, text: f.text })),
+          };
+        });
     },
   }),
 
   defineTool({
     name: "academy_get_answers",
     title: "Academy: antwoorden van een cursist",
-    description: "Alle antwoorden van een cursist, per les, met de vraag en de gegeven feedback. Optioneel voor één les.",
+    description: "Alle opdrachten van een cursist, per les: status (concept, ingediend, verbetering nodig, voldoende), het huidige concept, elke ingediende versie met de antwoorden en de gegeven feedback. Optioneel voor één les.",
     scope: "read",
     input: z.object({ studentId: id.describe("Id of e-mailadres van de cursist"), lessonId: id.optional() }),
     async run({ studentId, lessonId }) {
       const user = await student(studentId);
       const store = getStore();
-      const [lessons, answers, feedback] = await Promise.all([
+      const [lessons, submissions, versions, feedback] = await Promise.all([
         store.listLessons(),
-        store.listAnswers({ userId: user.id, lessonId }),
-        store.listFeedback({ userId: user.id }),
+        listSubmissions({ userId: user.id, lessonId }),
+        listVersions({ userId: user.id }),
+        listAssignmentFeedback({ userId: user.id }),
       ]);
       const byId = new Map(lessons.map((l) => [l.id, l]));
-      return answers.map((a) => ({
-        answerId: a.id,
-        lesson: byId.get(a.lessonId)?.title ?? "(les verwijderd)",
-        lessonId: a.lessonId,
-        question: promptOf(byId.get(a.lessonId), a.blockId),
-        answer: answerText(a),
-        version: a.version,
-        updatedAt: a.updatedAt,
-        feedback: feedback.filter((f) => f.answerId === a.id).map((f) => ({ at: f.createdAt, text: f.text, forVersion: f.answerVersion })),
-      }));
+      return submissions.map((s) => {
+        const lesson = byId.get(s.lessonId);
+        const current = lesson ? assignmentsOf(lesson.blocks).find((a) => a.id === s.blockId) : undefined;
+        const mine = versions.filter((v) => v.submissionId === s.id).sort((a, b) => a.version - b.version);
+        const definition = current ?? mine.at(-1)?.assignment;
+        return {
+          submissionId: s.id,
+          lesson: lesson?.title ?? "(les verwijderd)",
+          lessonId: s.lessonId,
+          assignment: definition ? assignmentTitle(definition) : "(opdracht niet meer in de les)",
+          status: STATUS_LABELS[s.status],
+          feedbackRequested: s.feedbackRequested,
+          draft: definition ? readable(definition, s.draft) : s.draft,
+          draftUpdatedAt: s.updatedAt,
+          versions: mine.map((v) => ({
+            versionId: v.id,
+            version: v.version,
+            submittedAt: v.submittedAt,
+            feedbackStatus: v.feedbackStatus,
+            questionForSabine: v.questionForSabine || null,
+            answers: readable(v.assignment, v.answers),
+            feedback: feedback.filter((f) => f.versionId === v.id).map((f) => ({ at: f.sentAt ?? f.createdAt, text: f.text, sent: Boolean(f.sentAt) })),
+          })),
+        };
+      });
     },
   }),
 
   defineTool({
     name: "academy_list_content",
     title: "Academy: lesinhoud",
-    description: "De opbouw van de opleiding: modules op volgorde met hun lessen (id, titel, samenvatting, aantal vragen en feedbackopdrachten).",
+    description: "De opbouw van de opleiding: modules op volgorde met hun lessen (id, titel, samenvatting, aantal opdrachten en opdrachten waarop feedback gevraagd kan worden).",
     scope: "read",
     input: z.object({}),
     async run() {
@@ -250,8 +326,8 @@ export const academyTools = [
             id: l.id,
             title: l.title,
             summary: l.summary,
-            questions: l.blocks.filter(isAnswerable).length,
-            feedbackAssignments: l.blocks.filter((b) => isAnswerable(b) && b.feedback).length,
+            assignments: assignmentsOf(l.blocks).length,
+            feedbackAssignments: assignmentsOf(l.blocks).filter((a) => a.feedbackAllowed).length,
           })),
       }));
     },
@@ -260,7 +336,7 @@ export const academyTools = [
   defineTool({
     name: "academy_get_lesson",
     title: "Academy: les",
-    description: "Eén les met alle blokken: video's, tekst (markdown), downloads en vragen (open, reflectie, praktijk, meerkeuze, bestand), inclusief of ze verplicht zijn en of het een feedbackopdracht is.",
+    description: "Eén les met alle blokken: video's, tekst (html of markdown), afbeeldingen, downloads en opdrachten met hun onderdelen en velden (kort of lang antwoord, meerkeuze, schaal, schaal per onderwerp, upload), inclusief wat verplicht is en of de cursist feedback mag vragen.",
     scope: "read",
     input: z.object({ lessonId: id }),
     async run({ lessonId }) {
@@ -307,25 +383,52 @@ export const academyTools = [
   defineTool({
     name: "academy_give_feedback",
     title: "Academy: feedback geven",
-    description: "Geeft schriftelijke feedback op een antwoord (answerId uit academy_list_open_feedback). De cursist ziet de feedback direct bij de opdracht. Laat de gebruiker de tekst eerst goedkeuren.",
+    description: "Schrijft feedback op een ingediende versie van een opdracht (versionId uit academy_list_open_feedback of academy_get_answers). Met send=false (standaard) wordt het een concept dat alleen de opleider ziet (status in behandeling); een bestaand concept wordt bijgewerkt. Met send=true gaat het naar de cursist (mail, pushmelding en melding in de Academy) en wordt het verzoek afgerond. Bij een eindopdracht kan assessment (voldoende of verbetering_nodig) mee; die geldt zodra de feedback verstuurd is. Laat de gebruiker de tekst goedkeuren voor je verstuurt.",
     scope: "write",
-    input: z.object({ answerId: id, text: z.string().trim().min(1).max(LIMITS.feedback) }),
-    async run({ answerId, text }, ctx) {
-      const store = getStore();
-      const answer = await store.getAnswer(answerId);
-      if (!answer) throw new ToolError("Antwoord niet gevonden.");
-      await store.createFeedback({
-        id: newId(),
-        answerId: answer.id,
-        userId: answer.userId,
-        authorId: ctx.user.id,
-        text,
-        attachment: null,
-        answerVersion: answer.version,
-        createdAt: new Date().toISOString(),
-      });
-      await audit(ctx.user, "Feedback gegeven", `via ${ctx.clientName}`, answer.userId);
-      return "Feedback opgeslagen. De cursist ziet deze bij de opdracht.";
+    input: z.object({
+      versionId: id.optional().describe("Versie van de opdracht"),
+      answerId: id.optional().describe("Verouderd: id van een oud antwoord of van een opdracht; de laatste versie krijgt de feedback"),
+      text: z.string().trim().max(LIMITS.feedback).default(""),
+      send: z.boolean().default(false).describe("true: versturen naar de cursist; false: als concept bewaren"),
+      assessment: z.enum(["voldoende", "verbetering_nodig"]).optional().describe("Alleen bij een eindopdracht"),
+    }),
+    async run({ versionId, answerId, text, send, assessment }, ctx) {
+      const target = versionId ?? answerId;
+      if (!target) throw new ToolError("Geef versionId.");
+      const version = await versionFor(target);
+      if (!version) throw new ToolError("Ingediende versie niet gevonden. Een concept kan nog geen feedback krijgen.");
+      const result = await saveFeedback({ version, authorId: ctx.user.id, text, assessment: assessment ?? null, send });
+      if (!result.ok) throw new ToolError(result.error);
+      if (!send) {
+        await audit(ctx.user, "Feedback als concept bewaard", `versie ${version.version} via ${ctx.clientName}`, version.userId);
+        return "Concept bewaard. De cursist ziet het pas na versturen (send=true of in het feedbackscherm in het beheer).";
+      }
+      const submission = await getSubmissionById(version.submissionId);
+      if (submission) {
+        await notifyFeedbackSent({ studentId: version.userId, lessonId: submission.lessonId, blockId: submission.blockId, assessed: result.assessed, sentBy: ctx.user.name });
+      }
+      await audit(
+        ctx.user,
+        "Feedback verstuurd",
+        `versie ${version.version}${result.assessed ? ` · beoordeling: ${ASSESSMENT_LABELS[result.assessed]}` : ""} via ${ctx.clientName}`,
+        version.userId,
+      );
+      return `Feedback verstuurd${result.assessed ? ` met beoordeling "${ASSESSMENT_LABELS[result.assessed]}"` : ""}. De cursist krijgt er een melding van.`;
+    },
+  }),
+
+  defineTool({
+    name: "academy_set_feedback_status",
+    title: "Academy: status feedbackverzoek",
+    description: "Zet de status van een feedbackverzoek (versionId) op nieuw, in_behandeling of afgerond, bijvoorbeeld afgerond als de feedback buiten het platform is gegeven.",
+    scope: "write",
+    input: z.object({ versionId: id, status: z.enum(["nieuw", "in_behandeling", "afgerond"]) }),
+    async run({ versionId, status }, ctx) {
+      const version = await getVersion(versionId);
+      if (!version) throw new ToolError("Versie niet gevonden.");
+      if (!(await setFeedbackStatus(version.id, status))) throw new ToolError("Bij deze versie is geen feedback gevraagd en het is geen eindopdracht.");
+      await audit(ctx.user, "Status feedbackverzoek gewijzigd", `versie ${version.version}: ${FEEDBACK_STATUS_LABELS[status].toLowerCase()} via ${ctx.clientName}`, version.userId);
+      return `Status: ${FEEDBACK_STATUS_LABELS[status].toLowerCase()}.`;
     },
   }),
 
@@ -404,11 +507,11 @@ export const academyTools = [
   defineTool({
     name: "academy_set_completion",
     title: "Academy: afronding en certificaat",
-    description: "confirm_online (online deel bevestigen als afgerond), undo_online, release_certificate (certificaat vrijgeven; kan pas na confirm_online), withdraw_certificate, of practical met practicalStatus none, planned of completed.",
+    description: "confirm_online (online deel bevestigen als afgerond), undo_online, release_certificate (online certificaat vrijgeven; kan pas als alle modules van het pakket zijn afgerond, alle eindopdrachten voldoende zijn en confirm_online is gedaan; de foutmelding noemt wat nog ontbreekt), withdraw_certificate, release_practical_certificate (praktijkcertificaat; pakket B en praktijkstatus completed), withdraw_practical_certificate, of practical met practicalStatus none, planned of completed.",
     scope: "write",
     input: z.object({
       studentId: id,
-      action: z.enum(["confirm_online", "undo_online", "release_certificate", "withdraw_certificate", "practical"]),
+      action: z.enum(["confirm_online", "undo_online", "release_certificate", "withdraw_certificate", "release_practical_certificate", "withdraw_practical_certificate", "practical"]),
       practicalStatus: z.enum(["none", "planned", "completed"]).optional(),
     }),
     async run({ studentId, action, practicalStatus }, ctx) {
@@ -427,17 +530,21 @@ export const academyTools = [
           log = "Bevestiging online afronding teruggedraaid";
           break;
         case "release_certificate":
-          if (!enrollment.onlineCompletedAt) throw new ToolError("Bevestig eerst de online afronding (confirm_online).");
-          patch = {
-            certificateReleasedAt: now,
-            certificateCode: enrollment.certificateCode ?? `WPA-${new Date().getFullYear()}-${randomBytes(3).toString("hex").toUpperCase()}`,
-          };
-          log = "Online certificaat vrijgegeven";
-          break;
         case "withdraw_certificate":
-          patch = { certificateReleasedAt: null };
-          log = "Certificaat ingetrokken";
+        case "release_practical_certificate":
+        case "withdraw_practical_certificate": {
+          const op = ({
+            release_certificate: "releaseCertificate",
+            withdraw_certificate: "withdrawCertificate",
+            release_practical_certificate: "releasePractical",
+            withdraw_practical_certificate: "withdrawPractical",
+          } as const)[action];
+          const change = await certificateChange(user, enrollment, op);
+          if (!change.ok) throw new ToolError(change.error);
+          patch = change.patch;
+          log = change.log;
           break;
+        }
         case "practical":
           if (!practicalStatus) throw new ToolError("Geef practicalStatus: none, planned of completed.");
           patch = { practicalStatus };

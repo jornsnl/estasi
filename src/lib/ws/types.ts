@@ -65,6 +65,12 @@ export interface Settings {
   contact_photo_file_id: string | null;
   group_photo_intro: string;
   default_styling_places: string[];
+  /** The opening dance video for couples without the dance: a link, or an upload. */
+  dance_video_url: string;
+  dance_video_file_id: string | null;
+  /** The tour video on the couple's start page (feedback 11): a link, or an upload. */
+  tour_video_url: string;
+  tour_video_file_id: string | null;
 }
 
 export interface Task {
@@ -138,6 +144,9 @@ export interface CoupleSupplier {
   website: string;
   address: string;
   notes: string;
+  /** "Aanwezig op locatie vanaf / tot", "13:30" or "". */
+  present_from: string;
+  present_until: string;
 }
 
 export interface FileRef {
@@ -172,6 +181,16 @@ export interface Recommendation {
   photo_file_id: string | null;
   brochure_file_id: string | null;
   experience: string;
+  region: string;
+  contact_person: string;
+  instagram: string;
+  /** "Meer informatie". */
+  description: string;
+  work_area: string;
+  price_indication: string;
+  availability: string;
+  /** Position within its category. */
   position: number;
+  /** Hidden from the couples ("Zichtbaar: nee"). */
   archived: boolean;
 }

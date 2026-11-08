@@ -115,6 +115,44 @@
   .prose-academy blockquote {
     @apply my-4 border-l-2 border-gold pl-4 text-muted italic;
   }
+  .prose-academy h4 {
+    @apply mt-4 mb-1 text-lg font-semibold;
+  }
+  .prose-academy em {
+    @apply italic;
+  }
+  .prose-academy img {
+    @apply my-4 h-auto max-w-full rounded-lg;
+  }
+  .prose-academy hr {
+    @apply my-6 border-line;
+  }
+  /* Tables from the lesson editor; wide tables scroll inside the text on a phone. */
+  .prose-academy table {
+    @apply my-4 block w-full overflow-x-auto border-collapse text-sm sm:table;
+  }
+  .prose-academy th,
+  .prose-academy td {
+    @apply border border-line px-3 py-2 text-left align-top;
+  }
+  .prose-academy th {
+    @apply bg-cream font-semibold;
+  }
+  /* Placeholder of an empty lesson editor (TipTap). */
+  .tiptap p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    @apply pointer-events-none float-left h-0 text-muted;
+  }
+  .tiptap .selectedCell {
+    @apply bg-gold-soft;
+  }
+  .tiptap img.ProseMirror-selectednode {
+    @apply ring-2 ring-gold;
+  }
+  .prose-academy td p,
+  .prose-academy th p {
+    @apply my-0;
+  }
 }
 
 /*
@@ -143,6 +181,14 @@
 .ws-theme :is(h1, h2, h3) {
   font-weight: 600;
   letter-spacing: 0;
+}
+/* The portal menu scrolls sideways without a visible scrollbar (the fades and arrows show it). */
+.ws-nav-scroll {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.ws-nav-scroll::-webkit-scrollbar {
+  display: none;
 }
 .ws-theme .card {
   border: 0;
@@ -183,4 +229,31 @@
   .ws-theme nav[aria-label="Onderdelen"] {
     display: none !important;
   }
+}
+
+/* Hue slider of the colour picker in the styling plan. */
+.ws-hue {
+  appearance: none;
+  height: 0.875rem;
+  border-radius: 9999px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+.ws-hue::-webkit-slider-thumb {
+  appearance: none;
+  height: 1.25rem;
+  width: 1.25rem;
+  border-radius: 9999px;
+  border: 2px solid #fff;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+.ws-hue::-moz-range-thumb {
+  height: 1.25rem;
+  width: 1.25rem;
+  border-radius: 9999px;
+  border: 2px solid #fff;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
 }

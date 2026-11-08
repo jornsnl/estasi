@@ -43,6 +43,7 @@ export async function suppliersFor(coupleId: string) {
   return query<CoupleSupplier & { documents: number; category_couple_id: string | null }>(
     `select s.id, c.id as category_id, c.name as category_name, c.couple_id as category_couple_id, s.status,
             s.name, s.contact_person, s.phone, s.email, s.website, s.address, s.notes, s.recommendation_id,
+            s.present_from, s.present_until,
             (select count(*)::int from supplier_documents d where d.supplier_id = s.id) as documents
        from couple_suppliers s
        join supplier_categories c on c.id = s.category_id
@@ -97,8 +98,17 @@ export async function flushFavoriteMails(olderThanMinutes: number) {
     const list = events.map((e) => `• ${e.rec ?? "(verwijderde aanrader)"}${e.category ? ` (${e.category})` : ""}`).join("\n");
     await sendMail({
       to: adminNotifyEmail(),
+      log: { kind: "favorieten", coupleId: couple.id },
       subject: `${coupleName(couple)}: ${events.length === 1 ? "nieuwe favoriet" : `${events.length} nieuwe favorieten`}`,
       text: `${coupleName(couple)} ${events.length === 1 ? "heeft een nieuwe favoriet" : "hebben nieuwe favorieten"} gekozen bij de aanraders:\n\n${list}\n\nBekijken: ${appUrl()}/k/${couple.id}/leveranciers`,
     });
   }
+}
+
+/** Visible recommendations per category id (for the bordeaux bar on "Jullie leveranciers"). */
+export async function visibleRecommendationCounts(): Promise<Record<string, number>> {
+  const rows = await query<{ category_id: string; n: number }>(
+    "select category_id, count(*)::int as n from recommendations where not archived group by category_id",
+  );
+  return Object.fromEntries(rows.map((r) => [r.category_id, r.n]));
 }

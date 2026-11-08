@@ -1,23 +1,19 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { saveLesson } from "@/app/actions/lesson";
+import { markLessonRead } from "@/app/actions/assignment";
 import { AccessNotice } from "@/components/AccessNotice";
+import { AssignmentForm, type FeedbackItem, type VersionItem } from "@/components/academy/AssignmentForm";
+import { ContentBlock } from "@/components/academy/ContentBlock";
 import { Badge } from "@/components/Badge";
-import { DirtyGuard } from "@/components/DirtyGuard";
-import { FeedbackList } from "@/components/FeedbackList";
-import { Markdown } from "@/components/Markdown";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { VideoEmbed } from "@/components/VideoEmbed";
+import { courseProgress } from "@/lib/academy";
 import { requireStudent } from "@/lib/auth/session";
-import { getStore, type Answer, type Block, type Feedback } from "@/lib/data";
+import { getStore, type AssignmentAnswers, type AssignmentBlock, type Lesson, type Submission, type SubmissionVersion } from "@/lib/data";
+import { feedbackRequestsInModule, listAssignmentFeedback, listVersions, markFeedbackSeen } from "@/lib/data/assignments";
 import { hasLessonAccess } from "@/lib/domain/access";
-import { canOpenLesson, isAnswerable, moduleProgress } from "@/lib/domain/progress";
-import { LIMITS } from "@/lib/domain/input";
-import { ACCEPT_ATTR } from "@/lib/uploads";
-import { formatBytes, formatDateTime } from "@/lib/util/format";
-
-const KIND_LABEL = { open: "Open vraag", reflection: "Reflectie", practice: "Praktijkopdracht" } as const;
+import { assignmentsOf, lessonCompletion } from "@/lib/domain/assignment";
+import { canOpenLesson } from "@/lib/domain/progress";
 
 export default async function LessonPage({
   params,
@@ -29,28 +25,32 @@ export default async function LessonPage({
   const user = await requireStudent();
   const { lessonId } = await params;
   const store = getStore();
-  const [lesson, enrollment, modules, lessons, completions, settings] = await Promise.all([
-    store.getLesson(lessonId),
-    store.getEnrollmentForUser(user.id),
-    store.listModules(),
-    store.listLessons(),
-    store.listCompletions(user.id),
-    store.getSettings(),
-  ]);
+  const [lesson, enrollment, settings] = await Promise.all([store.getLesson(lessonId), store.getEnrollmentForUser(user.id), store.getSettings()]);
   if (!lesson) notFound();
   if (!hasLessonAccess(enrollment)) {
     return <AccessNotice enrollment={enrollment} contactEmail={settings.contactEmail} />;
   }
-  const progress = moduleProgress(modules, lessons, completions);
+  const { progress, completions, lessons, submissions: allSubmissions } = await courseProgress(user.id, enrollment);
+  // A concept, a hidden module or a module of the other package does not exist for this student,
+  // also not through a direct link.
+  if (!progress.some((p) => p.lessons.some((l) => l.id === lesson.id))) notFound();
   if (!canOpenLesson(progress, lesson.id)) redirect("/opleiding");
 
-  const [answers, feedback] = await Promise.all([
-    store.listAnswers({ userId: user.id, lessonId }),
-    store.listFeedback({ userId: user.id }),
+  const assignments = assignmentsOf(lesson.blocks);
+  const [versions, feedback, slots] = await Promise.all([
+    assignments.length ? listVersions({ userId: user.id }) : Promise.resolve([] as SubmissionVersion[]),
+    assignments.length ? listAssignmentFeedback({ userId: user.id, sentOnly: true }) : Promise.resolve([]),
+    Promise.all(assignments.map((a) => (a.feedbackAllowed ? feedbackRequestsInModule(user.id, lesson.moduleId, { lessonId: lesson.id, blockId: a.id }) : 0))),
   ]);
-  const byBlock = new Map(answers.map((a) => [a.blockId, a]));
-  const moduleIndex = modules.findIndex((m) => m.id === lesson.moduleId);
-  const currentModule = modules[moduleIndex];
+  const submissions = allSubmissions.filter((s) => s.lessonId === lesson.id);
+  const byBlock = new Map(submissions.map((s) => [s.blockId, s]));
+  const versionsOf = (s: Submission | undefined) => (s ? versions.filter((v) => v.submissionId === s.id).sort((a, b) => a.version - b.version) : []);
+  // Opening the lesson counts as having seen its feedback (the badge in the menu goes); this view still marks it as new.
+  const unseen = new Set(feedback.filter((f) => f.sentAt && !f.seenAt && submissions.some((s) => s.id === f.submissionId)).map((f) => f.id));
+  if (unseen.size > 0) await markFeedbackSeen(user.id, submissions.map((s) => s.id));
+
+  const moduleIndex = progress.findIndex((p) => p.module.id === lesson.moduleId);
+  const currentModule = progress[moduleIndex]?.module;
 
   // Previous/next within the open part of the course.
   const ordered = progress.filter((p) => p.state !== "locked").flatMap((p) => p.lessons);
@@ -58,7 +58,7 @@ export default async function LessonPage({
   const prev = ordered[position - 1];
   const next = ordered[position + 1];
   const completed = completions.some((c) => c.lessonId === lesson.id);
-  const hasQuestions = lesson.blocks.some(isAnswerable);
+  const completion = lessonCompletion(lesson.blocks, submissions);
 
   return (
     <article className="mx-auto max-w-3xl">
@@ -76,47 +76,53 @@ export default async function LessonPage({
         {lesson.summary && <p className="mt-2 text-lg text-muted">{lesson.summary}</p>}
       </header>
 
-      <form id="lesson-form" action={saveLesson} className="space-y-8">
-        <input type="hidden" name="lessonId" value={lesson.id} />
+      <div className="space-y-8">
         {lesson.blocks.map((block, i) => {
-          const firstQuestion = isAnswerable(block) && !lesson.blocks.slice(0, i).some(isAnswerable);
+          const firstAssignment = block.type === "assignment" && !lesson.blocks.slice(0, i).some((b) => b.type === "assignment");
           return (
             <div key={block.id}>
-              {firstQuestion && (
+              {firstAssignment && (
                 <div id="opdrachten" className="mb-8 scroll-mt-20 border-t border-line pt-8">
                   <h2 className="text-3xl">Opdrachten</h2>
                   <p className="mt-2 text-sm text-muted">{settings.answersPrivacyNotice}</p>
-                  <div className="mt-4">
-                    <Notice searchParams={searchParams} />
-                  </div>
+                  <p className="mt-2 text-sm text-muted">Je antwoorden worden vanzelf als concept bewaard. Ben je klaar, dien de opdracht dan in.</p>
                 </div>
               )}
-              <BlockView block={block} answer={byBlock.get(block.id)} feedback={feedback} />
+              {block.type === "assignment" ? (
+                <AssignmentView
+                  lessonId={lesson.id}
+                  assignment={block}
+                  submission={byBlock.get(block.id)}
+                  versions={versionsOf(byBlock.get(block.id))}
+                  feedback={feedback.filter((f) => f.submissionId === byBlock.get(block.id)?.id)}
+                  unseen={unseen}
+                  otherRequests={slots[assignments.indexOf(block)]}
+                  firstMeasurement={block.repeatOf ? findFirstMeasurement(block.repeatOf, lessons, allSubmissions, versions) : null}
+                />
+              ) : (
+                <ContentBlock block={block} />
+              )}
             </div>
           );
         })}
+      </div>
 
-        {hasQuestions ? (
-          <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-3 border-t border-line bg-white/95 px-4 py-4 backdrop-blur sm:mx-0 sm:rounded-xl sm:border">
-            {completed ? (
-              <SubmitButton name="intent" value="save" pendingText="Opslaan…">Wijzigingen opslaan</SubmitButton>
-            ) : (
-              <>
-                <SubmitButton name="intent" value="save" className="btn-secondary" pendingText="Opslaan…">Tussentijds opslaan</SubmitButton>
-                <SubmitButton name="intent" value="complete" pendingText="Bezig…">Les afronden</SubmitButton>
-              </>
-            )}
-            <DirtyGuard formId="lesson-form" />
-          </div>
+      <div id="afronden" className="mt-8 scroll-mt-20 border-t border-line pt-6">
+        <Notice searchParams={searchParams} />
+        {completed ? (
+          <p className="text-sm text-success">Je hebt deze les afgerond.</p>
+        ) : completion.byAssignments ? (
+          <p className="text-sm text-muted">
+            Deze les is afgerond zodra je de verplichte {completion.required.length === 1 ? "opdracht hebt" : "opdrachten hebt"} ingediend
+            ({completion.required.length - completion.open.length} van {completion.required.length} ingediend).
+          </p>
         ) : (
-          <div className="border-t border-line pt-6">
-            <Notice searchParams={searchParams} />
-            {!completed && (
-              <SubmitButton name="intent" value="complete" pendingText="Bezig…">Les afronden</SubmitButton>
-            )}
-          </div>
+          <form action={markLessonRead}>
+            <input type="hidden" name="lessonId" value={lesson.id} />
+            <SubmitButton pendingText="Bezig…">Les afronden</SubmitButton>
+          </form>
         )}
-      </form>
+      </div>
 
       <div className="mt-10 flex justify-between gap-4 border-t border-line pt-6 text-sm">
         {prev ? <Link href={`/les/${prev.id}`} className="btn-ghost">← {prev.title}</Link> : <span />}
@@ -126,110 +132,75 @@ export default async function LessonPage({
   );
 }
 
-function BlockView({ block, answer, feedback }: { block: Block; answer: Answer | undefined; feedback: Feedback[] }) {
-  switch (block.type) {
-    case "video":
-      return (
-        <figure>
-          <VideoEmbed url={block.url} title={block.caption || "Lesvideo"} />
-          {block.caption && <figcaption className="mt-2 text-sm text-muted">{block.caption}</figcaption>}
-        </figure>
-      );
-    case "text":
-      return <Markdown>{block.markdown}</Markdown>;
-    case "download": {
-      const href = block.file ? `/api/bestanden/${block.file.id}` : block.url;
-      return (
-        <a href={href} target="_blank" rel="noopener noreferrer" className="card flex items-center gap-4 p-4 hover:border-gold">
-          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-gold-soft text-gold-ink" aria-hidden>↓</span>
-          <span className="flex-1">
-            <span className="block font-medium">{block.label || "Download"}</span>
-            {block.description && <span className="block text-sm text-muted">{block.description}</span>}
-          </span>
-          {block.file && <span className="text-sm text-muted">{formatBytes(block.file.size)}</span>}
-        </a>
-      );
-    }
-    case "question":
-      return (
-        <QuestionShell label={KIND_LABEL[block.kind]} prompt={block.prompt} help={block.helpText} required={block.required} answer={answer} feedback={feedback} feedbackBlock={block.feedback}>
-          <textarea
-            id={`a_${block.id}`}
-            name={`a_${block.id}`}
-            defaultValue={answer?.text ?? ""}
-            rows={6}
-            maxLength={LIMITS.answer}
-            className="input min-h-36 leading-relaxed"
-            placeholder="Typ hier je antwoord…"
-          />
-        </QuestionShell>
-      );
-    case "choice":
-      return (
-        <QuestionShell label="Meerkeuze" prompt={block.prompt} help={block.helpText} required={block.required} answer={answer} feedback={feedback} feedbackBlock={block.feedback}>
-          <fieldset className="space-y-2">
-            <legend className="sr-only">{block.prompt}</legend>
-            {block.options.map((option) => (
-              <label key={option} className="flex cursor-pointer items-center gap-3 rounded-md border border-line px-4 py-3 has-[:checked]:border-gold has-[:checked]:bg-gold-soft/50">
-                <input type="radio" name={`c_${block.id}`} value={option} defaultChecked={answer?.choice === option} className="accent-[#722F37]" />
-                <span>{option}</span>
-              </label>
-            ))}
-          </fieldset>
-        </QuestionShell>
-      );
-    case "upload":
-      return (
-        <QuestionShell label="Inleveren" prompt={block.prompt} help={block.helpText} required={block.required} answer={answer} feedback={feedback} feedbackBlock={block.feedback}>
-          {answer && answer.files.length > 0 && (
-            <ul className="mb-3 space-y-2">
-              {answer.files.map((f) => (
-                <li key={f.id} className="flex items-center justify-between gap-3 rounded-md border border-line px-3 py-2 text-sm">
-                  <a href={`/api/bestanden/${f.id}`} className="text-bordeaux underline">{f.name}</a>
-                  <label className="flex items-center gap-1.5 text-muted">
-                    <input type="checkbox" name={`rm_${block.id}`} value={f.id} /> verwijderen
-                  </label>
-                </li>
-              ))}
-            </ul>
-          )}
-          <input type="file" name={`f_${block.id}`} accept={ACCEPT_ATTR} className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-cream file:px-3 file:py-2 file:text-ink" />
-        </QuestionShell>
-      );
-  }
+/** The earlier measurement a repeated assignment is compared with: its last submitted version, or else its draft. */
+function findFirstMeasurement(blockId: string, lessons: Lesson[], submissions: Submission[], versions: SubmissionVersion[]) {
+  const original = submissions.find((s) => s.blockId === blockId);
+  const definition = lessons.flatMap((l) => assignmentsOf(l.blocks)).find((a) => a.id === blockId);
+  const last = original ? versions.filter((v) => v.submissionId === original.id).sort((a, b) => b.version - a.version)[0] : undefined;
+  if (last) return { assignment: last.assignment, answers: last.answers, submittedAt: last.submittedAt };
+  if (!definition) return null;
+  return { assignment: definition, answers: (original?.draft ?? {}) as AssignmentAnswers, submittedAt: null };
 }
 
-function QuestionShell({
-  label,
-  prompt,
-  help,
-  required,
-  answer,
+function AssignmentView({
+  lessonId,
+  assignment,
+  submission,
+  versions,
   feedback,
-  feedbackBlock,
-  children,
+  unseen,
+  otherRequests,
+  firstMeasurement,
 }: {
-  label: string;
-  prompt: string;
-  help: string;
-  required: boolean;
-  answer: Answer | undefined;
-  feedback: Feedback[];
-  feedbackBlock: boolean;
-  children: React.ReactNode;
+  lessonId: string;
+  assignment: AssignmentBlock;
+  submission: Submission | undefined;
+  versions: SubmissionVersion[];
+  feedback: { id: string; versionId: string; text: string; attachment: FeedbackItem["attachment"]; sentAt: string | null; assessment: FeedbackItem["assessment"] }[];
+  unseen: Set<string>;
+  otherRequests: number;
+  firstMeasurement: ReturnType<typeof findFirstMeasurement>;
 }) {
+  const versionNumber = new Map(versions.map((v) => [v.id, v.version]));
+  const items: FeedbackItem[] = feedback
+    .filter((f) => f.sentAt)
+    .map((f) => ({
+      id: f.id,
+      version: versionNumber.get(f.versionId) ?? 1,
+      text: f.text,
+      attachment: f.attachment,
+      sentAt: f.sentAt!,
+      assessment: f.assessment,
+      isNew: unseen.has(f.id),
+    }));
+  const versionItems: VersionItem[] = versions.map((v) => ({
+    version: v.version,
+    submittedAt: v.submittedAt,
+    feedbackRequested: v.feedbackRequested,
+    feedbackStatus: v.feedbackStatus,
+  }));
   return (
-    <section className="card p-5 sm:p-6">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="eyebrow">{label}</span>
-        <Badge tone={required ? "bordeaux" : "neutral"}>{required ? "Verplicht" : "Optioneel"}</Badge>
-        {feedbackBlock && <Badge tone="gold">Je ontvangt feedback</Badge>}
-      </div>
-      <h3 className="font-sans text-lg font-medium">{prompt}</h3>
-      {help && <p className="hint mb-3">{help}</p>}
-      <div className="mt-3">{children}</div>
-      {answer && <p className="mt-2 text-xs text-muted">Laatst opgeslagen: {formatDateTime(answer.updatedAt)}</p>}
-      <FeedbackList answer={answer} feedback={feedback} />
-    </section>
+    <AssignmentForm
+      key={assignment.id}
+      lessonId={lessonId}
+      assignment={assignment}
+      initial={
+        submission
+          ? {
+              draft: submission.draft,
+              draftVersion: submission.draftVersion,
+              status: submission.status,
+              feedbackRequested: submission.feedbackRequested,
+              questionForSabine: submission.questionForSabine,
+              savedAt: submission.updatedAt,
+            }
+          : null
+      }
+      lastSubmitted={versions.at(-1)?.answers ?? null}
+      versions={versionItems}
+      feedback={items}
+      otherFeedbackRequests={otherRequests}
+      firstMeasurement={firstMeasurement}
+    />
   );
 }

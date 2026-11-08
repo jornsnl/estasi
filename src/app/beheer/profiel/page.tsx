@@ -4,12 +4,13 @@ import { removePasskey, renamePasskey } from "@/app/actions/passkeys";
 import { Badge } from "@/components/Badge";
 import { CopyField } from "@/components/CopyField";
 import { InstallApp } from "@/components/InstallApp";
+import { NotificationSettings } from "@/components/community/NotificationSettings";
 import { ManualClientForm } from "@/components/ManualClientForm";
 import { Notice } from "@/components/Notice";
 import { PasskeyRegister } from "@/components/PasskeyRegister";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireOwner } from "@/lib/auth/session";
-import { isSupabaseMode } from "@/lib/data";
+import { supabaseEnabled } from "@/lib/supabase/config";
 import { allTools } from "@/lib/mcp/tools";
 import { mcpResource } from "@/lib/oauth/config";
 import { mcpSettingsFor } from "@/lib/oauth/server";
@@ -32,7 +33,7 @@ export default async function OwnerProfilePage({ searchParams }: { searchParams:
     store.listClients(),
   ]);
   let totpLinked: boolean | null = null;
-  if (isSupabaseMode()) {
+  if (supabaseEnabled()) {
     const { data } = await (await authClient()).auth.mfa.listFactors();
     totpLinked = Boolean(data?.totp.some((f) => f.status === "verified"));
   }
@@ -50,6 +51,8 @@ export default async function OwnerProfilePage({ searchParams }: { searchParams:
         <p className="mt-2 text-sm text-muted">{owner.name} · {owner.email}</p>
       </div>
       <Notice searchParams={searchParams} />
+
+      <NotificationSettings userId={owner.id} owner />
 
       <section id="app" className="card scroll-mt-6 space-y-4 p-6">
         <div>

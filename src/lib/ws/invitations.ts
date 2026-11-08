@@ -1,6 +1,7 @@
 import "server-only";
 import ExcelJS from "exceljs";
-import { query } from "./db";
+import { query, tx } from "./db";
+import { planChildSync, type SyncChild, type SyncGuest, type SyncResponse } from "./guest-counts";
 import { matchInvitation } from "./pure";
 
 export interface Invitation {
@@ -17,27 +18,84 @@ export interface Invitation {
   position: number;
 }
 
-export type InvitationRow = Invitation & { responded: "yes" | "maybe" | "no"; match_id: string | null; candidate?: string };
+export type InvitationRow = Invitation & { responded: "yes" | "maybe" | "no"; match_id: string | null; candidate?: string; children: string[] };
 
-/** The invitation list with "Gereageerd" worked out from the RSVP responses. */
+/** The invitation list with "Gereageerd" worked out from the RSVP responses, and the children per household. */
 export async function invitationsFor(coupleId: string): Promise<InvitationRow[]> {
-  const [list, responses] = await Promise.all([
+  const [list, responses, children] = await Promise.all([
     query<Invitation>("select * from invitations where couple_id = $1 order by position, created_at", [coupleId]),
     query<{ id: string; email: string; people: string[] }>(
+      // Guests made from the children of the list itself are left out, so they never decide a match.
       `select r.id, r.email,
               array_remove(array[r.first_name || ' ' || r.last_name] || array_agg(g.first_name || ' ' || g.last_name), null) as people
-         from rsvp_responses r left join guests g on g.response_id = r.id
+         from rsvp_responses r left join guests g on g.response_id = r.id and g.invitation_child_id is null
         where r.couple_id = $1 group by r.id`,
       [coupleId],
     ),
+    query<SyncChild>("select id, invitation_id, name, linked_guest_id, position from invitation_children where couple_id = $1 order by position, created_at", [coupleId]),
   ]);
   return list.map((inv) => {
     const m = matchInvitation(inv, responses);
-    return { ...inv, responded: m.state, match_id: m.responseId, candidate: m.candidate };
+    return { ...inv, responded: m.state, match_id: m.responseId, candidate: m.candidate, children: children.filter((c) => c.invitation_id === inv.id).map((c) => c.name) };
   });
 }
 
-const HEADERS = ["Namen", "Aantal personen", "Gastengroep", "Adres", "E-mail", "Kaart versturen via", "Kaart verstuurd", "Gereageerd"];
+/**
+ * Children of households that signed up become guests of their own (or are
+ * linked to the guest the RSVP already has), so they count once everywhere
+ * and can be seated. Run after anything that changes a household, its
+ * children or the responses.
+ */
+export async function syncInvitationChildren(coupleId: string): Promise<void> {
+  const rows = await invitationsFor(coupleId);
+  if (!rows.some((r) => r.children.length)) {
+    // Nothing on the list (any more): only clean up what may be left.
+    await query("delete from guests where couple_id = $1 and invitation_child_id is not null", [coupleId]);
+    return;
+  }
+  const [children, responses, guests] = await Promise.all([
+    query<SyncChild>("select id, invitation_id, name, linked_guest_id, position from invitation_children where couple_id = $1", [coupleId]),
+    query<SyncResponse>(
+      `select r.id, r.attending, r.partial_note, r.form_id, f.group_id, r.relation
+         from rsvp_responses r left join rsvp_forms f on f.id = r.form_id where r.couple_id = $1`,
+      [coupleId],
+    ),
+    query<SyncGuest>("select id, response_id, first_name, last_name, is_kid, invitation_child_id from guests where couple_id = $1", [coupleId]),
+  ]);
+  const plan = planChildSync({
+    invitations: rows.map((r) => ({ id: r.id, names: r.names, group_id: r.group_id, response_id: r.responded === "yes" ? r.match_id : null })),
+    children,
+    responses,
+    guests,
+  });
+  if (!plan.links.length && !plan.removals.length && !plan.upserts.length) return;
+  await tx(async (db) => {
+    for (const l of plan.links) await query("update invitation_children set linked_guest_id = $2 where id = $1", [l.childId, l.guestId], db);
+    if (plan.removals.length) await query("delete from guests where couple_id = $1 and id = any($2::uuid[])", [coupleId, plan.removals], db);
+    for (const u of plan.upserts) {
+      const values = [u.responseId, u.formId, u.groupId, u.firstName, u.lastName, u.attendance, u.partialNote, u.relation, u.notes];
+      if (u.guestId) {
+        // Relation, notes and diet may have been refined in the guest list: those stay.
+        await query(
+          `update guests set response_id = $3, form_id = $4, group_id = $5, first_name = $6, last_name = $7, attendance = $8, partial_note = $9,
+                  is_kid = true where id = $1 and couple_id = $2`,
+          [u.guestId, coupleId, ...values.slice(0, 7)],
+          db,
+        );
+      } else {
+        await query(
+          `insert into guests (couple_id, invitation_child_id, response_id, form_id, group_id, first_name, last_name, attendance, partial_note, relation, notes, is_kid, created_at)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, clock_timestamp())
+           on conflict do nothing`,
+          [coupleId, u.childId, ...values],
+          db,
+        );
+      }
+    }
+  });
+}
+
+const HEADERS = ["Namen", "Aantal personen", "Waarvan kinderen", "Namen kinderen", "Gastengroep", "Adres", "E-mail", "Kaart versturen via", "Kaart verstuurd", "Gereageerd"];
 
 /** The list as an Excel file (addresses for the envelopes, among other things). */
 export async function invitationsWorkbook(rows: InvitationRow[], groups: Map<string, string>): Promise<Buffer> {
@@ -46,11 +104,11 @@ export async function invitationsWorkbook(rows: InvitationRow[], groups: Map<str
   ws.addRow(HEADERS).font = { bold: true };
   for (const r of rows) {
     ws.addRow([
-      r.names, r.party_size, r.group_id ? groups.get(r.group_id) ?? "" : "", r.address, r.email, r.send_via === "mail" ? "Mail" : "Post",
+      r.names, r.party_size, r.children.length, r.children.filter(Boolean).join(", "), r.group_id ? groups.get(r.group_id) ?? "" : "", r.address, r.email, r.send_via === "mail" ? "Mail" : "Post",
       r.sent ? "Ja" : "Nee", r.responded === "yes" ? "Ja" : r.responded === "maybe" ? "Misschien" : "Nee",
     ]);
   }
-  ws.columns.forEach((c, i) => (c.width = [32, 10, 16, 40, 30, 12, 12, 12][i]));
+  ws.columns.forEach((c, i) => (c.width = [32, 10, 10, 28, 16, 40, 30, 12, 12, 12][i]));
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 

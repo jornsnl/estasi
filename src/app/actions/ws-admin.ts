@@ -146,7 +146,12 @@ export async function shareCouple(formData: FormData) {
   }
   const unsent: { email: string; link: string }[] = [];
   for (const invite of invites) {
-    const sent = await sendMail({ to: invite.email, subject: "Jullie Wedding Space staat klaar", text: inviteText(couple, invite.link) });
+    const sent = await sendMail({
+      to: invite.email,
+      subject: "Jullie Wedding Space staat klaar",
+      text: inviteText(couple, invite.link),
+      log: { kind: "uitnodiging_portaal", coupleId: couple.id, sensitive: true },
+    });
     if (!sent) unsent.push(invite);
   }
   if (unsent.length) await showLinksOnce(unsent);
@@ -173,11 +178,16 @@ export async function resendInvite(formData: FormData) {
   } catch (err) {
     done(back, (err as Error).message, true);
   }
-  const reset = Boolean(user.activatedAt ?? user.passwordHash);
+  const reset = Boolean(user.activatedAt);
   const sent = await sendMail(
     reset
-      ? { to: user.email, subject: "Nieuw wachtwoord voor Your Wedding Space", text: `Via deze link kies je een nieuw wachtwoord:\n${link}\n\nDe link werkt één keer.` }
-      : { to: user.email, subject: "Jullie Wedding Space staat klaar", text: inviteText(couple, link) },
+      ? {
+          to: user.email,
+          subject: "Nieuw wachtwoord voor Your Wedding Space",
+          text: `Via deze link kies je een nieuw wachtwoord:\n${link}\n\nDe link werkt één keer.`,
+          log: { kind: "inloglink", coupleId: couple.id, sensitive: true },
+        }
+      : { to: user.email, subject: "Jullie Wedding Space staat klaar", text: inviteText(couple, link), log: { kind: "uitnodiging_portaal", coupleId: couple.id, sensitive: true } },
   );
   if (!sent) await showLinksOnce([{ email: user.email, link }]);
   done(back, sent ? `Nieuwe link gemaild naar ${user.email}.` : "Nieuwe link gemaakt; stuur hem hieronder zelf door.");
@@ -228,7 +238,8 @@ export async function archivePackage(formData: FormData) {
   const id = str(formData, "packageId", 40);
   const archived = formData.get("archived") === "1";
   if (isUuid(id)) await query("update packages set archived = $2 where id = $1", [id, archived]);
-  done("/beheer/bruidsparen/pakketten", archived ? "Pakket gearchiveerd; het is niet meer te kiezen bij nieuwe bruidsparen." : "Pakket weer actief.");
+  const back = str(formData, "back", 200).startsWith("/beheer/") ? str(formData, "back", 200) : "/beheer/bruidsparen/pakketten";
+  done(back, archived ? "Pakket verborgen; het is niet meer te kiezen en staat niet meer op de openingsdanspagina. Bruidsparen die het al hebben, houden het." : "Pakket weer zichtbaar.");
 }
 
 export async function addPackageTask(formData: FormData) {

@@ -3,7 +3,8 @@
 import { requireCouple, type CoupleContext } from "@/lib/ws/access";
 import { logActivity } from "@/lib/ws/couples";
 import { isUuid, one, query, tx } from "@/lib/ws/db";
-import { readInvitationFile } from "@/lib/ws/invitations";
+import { cleanChildren } from "@/lib/ws/guest-counts";
+import { readInvitationFile, syncInvitationChildren } from "@/lib/ws/invitations";
 import { done, str } from "@/lib/ws/redirect";
 
 /** "Uitnodigingslijst": Sabine and the couple may both do everything here. */
@@ -25,12 +26,22 @@ export async function addInvitation(formData: FormData) {
   const names = str(formData, "names", 300);
   if (!names) done(page(ctx.couple.id), "Vul de namen van het huishouden in.", true);
   const size = Math.max(1, Math.min(50, Math.round(Number(str(formData, "partySize", 3))) || 1));
-  await query(
-    `insert into invitations (couple_id, names, party_size, group_id, address, email, send_via, position)
-     values ($1, $2, $3, $4, $5, $6, $7, (select coalesce(max(position), 0) + 1 from invitations where couple_id = $1))`,
-    [ctx.couple.id, names, size, await groupOf(ctx, str(formData, "groupId", 40)), str(formData, "address", 300),
-     str(formData, "email", 200).toLowerCase(), str(formData, "sendVia") === "mail" ? "mail" : "post"],
-  );
+  const kidCount = Math.max(0, Math.round(Number(str(formData, "kids", 3))) || 0);
+  if (kidCount > size) done(page(ctx.couple.id), "Er zijn meer kinderen dan personen. Kinderen tellen mee in het aantal personen.", true);
+  const kids = cleanChildren(Array.from({ length: kidCount }, (_, i) => str(formData, `child_${i}`, 120)), size);
+  await tx(async (db) => {
+    const row = await one<{ id: string }>(
+      `insert into invitations (couple_id, names, party_size, group_id, address, email, send_via, position)
+       values ($1, $2, $3, $4, $5, $6, $7, (select coalesce(max(position), 0) + 1 from invitations where couple_id = $1)) returning id`,
+      [ctx.couple.id, names, size, await groupOf(ctx, str(formData, "groupId", 40)), str(formData, "address", 300),
+       str(formData, "email", 200).toLowerCase(), str(formData, "sendVia") === "mail" ? "mail" : "post"],
+      db,
+    );
+    for (const [i, name] of kids.entries()) {
+      await query("insert into invitation_children (couple_id, invitation_id, name, position) values ($1, $2, $3, $4)", [ctx.couple.id, row!.id, name, i + 1], db);
+    }
+  });
+  await syncInvitationChildren(ctx.couple.id);
   await note(ctx, "Uitnodigingslijst bijgewerkt");
   done(page(ctx.couple.id), `${names} toegevoegd.`);
 }
@@ -44,7 +55,12 @@ export async function updateInvitation(coupleId: string, invitationId: string, f
   let clean: string | number | boolean | null;
   switch (field) {
     case "names": clean = String(value).trim().slice(0, 300); if (!clean) return { ok: false, error: "Namen mogen niet leeg zijn." }; break;
-    case "party_size": clean = Math.max(1, Math.min(50, Math.round(Number(value)) || 1)); break;
+    case "party_size": {
+      clean = Math.max(1, Math.min(50, Math.round(Number(value)) || 1));
+      const kids = await one<{ n: number }>("select count(*)::int as n from invitation_children where invitation_id = $1 and couple_id = $2", [invitationId, ctx.couple.id]);
+      if ((kids?.n ?? 0) > clean) return { ok: false, error: "Minder personen dan kinderen kan niet: kinderen tellen mee in het aantal personen." };
+      break;
+    }
     case "group_id": clean = await groupOf(ctx, String(value)); break;
     case "address": clean = String(value).trim().slice(0, 300); break;
     case "email": clean = String(value).trim().toLowerCase().slice(0, 200); break;
@@ -54,7 +70,33 @@ export async function updateInvitation(coupleId: string, invitationId: string, f
   }
   // The column comes from the switch above, never from the browser.
   const updated = await one(`update invitations set ${field} = $3 where id = $1 and couple_id = $2 returning id`, [invitationId, ctx.couple.id, clean]);
+  if (updated && ["names", "email", "group_id"].includes(field)) await syncInvitationChildren(ctx.couple.id);
   return updated ? { ok: true } : { ok: false, error: "Niet gevonden." };
+}
+
+/**
+ * "Aantal kinderen" with a name per child: each child is a record of its own,
+ * kept by its place in the row (so a guest made from it, and its seat, stay).
+ */
+export async function setInvitationChildren(coupleId: string, invitationId: string, names: string[]): Promise<{ ok: boolean; error?: string }> {
+  const ctx = await requireCouple(coupleId);
+  if (!ctx.planning || !isUuid(invitationId) || !Array.isArray(names)) return { ok: false, error: "Niet gevonden." };
+  const inv = await one<{ party_size: number }>("select party_size from invitations where id = $1 and couple_id = $2", [invitationId, ctx.couple.id]);
+  if (!inv) return { ok: false, error: "Niet gevonden." };
+  if (names.length > inv.party_size) return { ok: false, error: "Meer kinderen dan personen kan niet: verhoog eerst het aantal personen." };
+  const kids = cleanChildren(names.map(String), inv.party_size);
+  await tx(async (db) => {
+    const existing = await query<{ id: string }>("select id from invitation_children where invitation_id = $1 order by position, created_at", [invitationId], db);
+    for (const [i, name] of kids.entries()) {
+      if (existing[i]) await query("update invitation_children set name = $2, position = $3 where id = $1", [existing[i].id, name, i + 1], db);
+      else await query("insert into invitation_children (couple_id, invitation_id, name, position) values ($1, $2, $3, $4)", [ctx.couple.id, invitationId, name, i + 1], db);
+    }
+    const gone = existing.slice(kids.length).map((e) => e.id);
+    if (gone.length) await query("delete from invitation_children where id = any($1::uuid[])", [gone], db);
+  });
+  await syncInvitationChildren(ctx.couple.id);
+  await note(ctx, "Uitnodigingslijst bijgewerkt");
+  return { ok: true };
 }
 
 export async function deleteInvitation(formData: FormData) {
@@ -71,6 +113,7 @@ export async function confirmInvitationResponse(formData: FormData) {
   const responseId = str(formData, "responseId", 40);
   if (isUuid(id) && isUuid(responseId) && (await one("select 1 from rsvp_responses where id = $1 and couple_id = $2", [responseId, ctx.couple.id]))) {
     await query("update invitations set response_id = $3 where id = $1 and couple_id = $2", [id, ctx.couple.id, responseId]);
+    await syncInvitationChildren(ctx.couple.id);
   }
   done(page(ctx.couple.id), "Bevestigd: dit huishouden heeft gereageerd.");
 }

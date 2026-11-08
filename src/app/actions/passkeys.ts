@@ -12,8 +12,9 @@ import {
   verifyAuthentication,
 } from "@/lib/auth/passkeys";
 import { hit, isLimited, LOGIN_PER_IP } from "@/lib/auth/rate-limit";
-import { homeFor, requireOwner, startLocalSession } from "@/lib/auth/session";
-import { isSupabaseMode } from "@/lib/data";
+import { devAuthAllowed } from "@/lib/auth/dev-mode";
+import { homeFor, requireOwner, startDevSession } from "@/lib/auth/session";
+import { supabaseEnabled } from "@/lib/supabase/config";
 import { getSecurityStore } from "@/lib/security/store";
 
 const PROFILE = "/beheer/profiel";
@@ -93,10 +94,12 @@ export async function passkeyLogin(response: AuthenticationResponseJSON, next: s
     hit(ipKey, LOGIN_PER_IP);
     return { ok: false, error: "Deze passkey is niet bekend of kon niet worden gecontroleerd." };
   }
-  if (isSupabaseMode()) {
+  if (supabaseEnabled()) {
     if (!(await startSupabaseSession(user))) return { ok: false, error: "Inloggen is niet gelukt. Probeer het opnieuw of log in met je wachtwoord." };
+  } else if (devAuthAllowed()) {
+    await startDevSession(user.id);
   } else {
-    await startLocalSession(user.id);
+    return { ok: false, error: "Inloggen is niet ingesteld op deze server." };
   }
   await audit(user, "Ingelogd met passkey");
   return { ok: true, value: safeNext(next) ?? homeFor(user) };

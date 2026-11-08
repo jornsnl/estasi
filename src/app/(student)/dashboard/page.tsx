@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AccessNotice } from "@/components/AccessNotice";
+import { NewFeedbackNotice } from "@/components/academy/NewFeedbackNotice";
 import { Badge } from "@/components/Badge";
 import { ModuleCard } from "@/components/ModuleCard";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -11,12 +12,15 @@ import { remainingDays } from "@/lib/domain/access";
 import { plural } from "@/lib/domain/labels";
 import { COURSE_STATUS_LABELS, isUnfinished } from "@/lib/domain/progress";
 import { formatDate } from "@/lib/util/format";
+import { formatDate as wsDate } from "@/lib/ws/format";
+import { viewableForStudent } from "@/lib/ws/meekijkers";
+import { draaiboekTitle } from "@/lib/ws/meekijkers-pure";
 
 export const metadata = { title: "Dashboard" };
 
 export default async function Dashboard() {
   const user = await requireStudent();
-  const [o, settings] = await Promise.all([studentOverview(user), getStore().getSettings()]);
+  const [o, settings, walkAlong] = await Promise.all([studentOverview(user), getStore().getSettings(), viewableForStudent(user.id)]);
   const next = nextLesson(o.progress);
   const current = o.progress.find((p) => p.state === "open") ?? o.progress.at(-1);
   const active = o.access === "active";
@@ -28,7 +32,23 @@ export default async function Dashboard() {
         <h1 className="mt-1 text-4xl sm:text-5xl">Welkom, {user.name.split(" ")[0]}</h1>
       </header>
 
+      {walkAlong.length > 0 && (
+        <section aria-labelledby="meeloop-titel" className="card p-6">
+          <p className="eyebrow">Meeloopbruiloft</p>
+          <h2 id="meeloop-titel" className="mt-1 text-2xl">Je mag meekijken in het draaiboek</h2>
+          <div className="mt-4 flex flex-wrap gap-3">
+            {walkAlong.map((w) => (
+              <Link key={w.id} href={`/draaiboek/${w.id}`} className="btn-primary flex-col items-start text-left">
+                <span>{draaiboekTitle(w.couple)}</span>
+                <span className="text-xs font-normal opacity-90">{w.couple.wedding_date ? wsDate(w.couple.wedding_date) : "Trouwdatum volgt"}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {!active && <AccessNotice enrollment={o.enrollment} contactEmail={settings.contactEmail} />}
+      {active && <NewFeedbackNotice userId={user.id} />}
 
       {active && o.enrollment && (
         <section className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
@@ -45,6 +65,9 @@ export default async function Dashboard() {
             <div className="mt-6">
               <ProgressBar percent={o.percent} label="Totale voortgang" />
             </div>
+            <p className="mt-3 text-sm text-muted">
+              {o.completedModules} van {plural(o.progress.length, "module", "modules")} afgerond · {plural(o.submittedAssignments, "opdracht", "opdrachten")} ingediend
+            </p>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               {next ? (
                 <Link href={`/les/${next.id}`} className="btn-primary">

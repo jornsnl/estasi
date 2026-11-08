@@ -195,7 +195,7 @@ export async function deleteFiles(sql: string, params: unknown[] = [], db: Db = 
   return rows.length;
 }
 
-const INLINE = /^(image\/(png|jpe?g|webp)|application\/pdf|audio\/(mpeg|mp4|aac|wav))$/;
+const INLINE = /^(image\/(png|jpe?g|webp)|application\/pdf|audio\/(mpeg|mp4|aac|wav)|video\/(mp4|webm|quicktime))$/;
 
 /**
  * The response for a file the caller has already decided may be seen: a

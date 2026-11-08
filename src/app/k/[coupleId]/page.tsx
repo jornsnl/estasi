@@ -2,9 +2,13 @@ import Link from "next/link";
 import { addTask, answerQuestion, askQuestion, deleteTask, toggleTask } from "@/app/actions/ws-portal";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
+import { dismissTourWelcome } from "@/app/actions/ws-tour";
 import { AnswerReveal } from "@/components/ws/AnswerReveal";
+import { hasSettingVideo } from "@/components/ws/SettingVideo";
+import { StudentAccessCouple } from "@/components/ws/StudentAccessCouple";
+import { TourButton } from "@/components/ws/TourButton";
 import { requireCouple } from "@/lib/ws/access";
-import { query } from "@/lib/ws/db";
+import { one, query } from "@/lib/ws/db";
 import { getSettings } from "@/lib/ws/settings";
 import { countdownLabel, coupleName, formatDate, formatDateTime, formatMoney, LANE_LABELS, LANES, plural, todayIso, WELCOME_TEXT } from "@/lib/ws/format";
 import type { Question, Task } from "@/lib/ws/types";
@@ -17,7 +21,7 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
   const { coupleId } = await params;
   const { couple, isAdmin, planning, dance } = await requireCouple(coupleId);
   const base = `/k/${couple.id}`;
-  const [tasks, questions, settings, upcoming, payments] = await Promise.all([
+  const [tasks, questions, settings, upcoming, payments, tourDismissed] = await Promise.all([
     query<Task>("select * from tasks where couple_id = $1 and done_at is null order by position, created_at", [couple.id]),
     query<Question>(
       `select q.* from questions q
@@ -38,7 +42,10 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
           [couple.id, todayIso()],
         )
       : [],
+    one("select 1 from tour_welcome_dismissed where couple_id = $1", [couple.id]),
   ]);
+  // De rondleiding (feedback 11): only when Sabine has set a video.
+  const tour = hasSettingVideo(settings.tour_video_file_id, settings.tour_video_url);
   const countdown = countdownLabel(couple.wedding_date);
 
   const tiles = [
@@ -67,6 +74,34 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
   return (
     <div className="space-y-10">
       <Notice searchParams={searchParams} />
+
+      {/* Feedback 13.2: Sabine's question about a student who walks along, and "Meekijkers". */}
+      <StudentAccessCouple couple={couple} isAdmin={isAdmin} />
+
+      {tour && (
+        <div className="flex justify-end">
+          <TourButton fileId={settings.tour_video_file_id} url={settings.tour_video_url} />
+        </div>
+      )}
+
+      {/* The first visit: a welcome block with the same button, until the couple closes it. */}
+      {tour && !tourDismissed && (
+        <section aria-labelledby="welkom-titel" className="relative rounded-2xl border border-gold/50 bg-white p-5 pr-12 shadow-sm sm:p-6 sm:pr-14">
+          <h2 id="welkom-titel" className="text-2xl">Welkom in Your Wedding Space!</h2>
+          <p className="mt-1 max-w-2xl text-[15px] text-muted">In de rondleiding laat Sabine jullie zien hoe alles werkt. Fijn om even te bekijken voordat jullie beginnen.</p>
+          <div className="mt-4">
+            <TourButton fileId={settings.tour_video_file_id} url={settings.tour_video_url} className="btn-gold" />
+          </div>
+          {isAdmin ? (
+            <p className="mt-3 text-xs text-muted">Het bruidspaar ziet dit welkomstblok tot ze het zelf wegklikken.</p>
+          ) : (
+            <form action={dismissTourWelcome} className="absolute top-3 right-3">
+              <input type="hidden" name="coupleId" value={couple.id} />
+              <button type="submit" aria-label="Welkomstblok sluiten" title="Sluiten" className="rounded-full px-2.5 py-1 text-2xl leading-none text-muted hover:bg-cream hover:text-ink">×</button>
+            </form>
+          )}
+        </section>
+      )}
 
       {/* Cover with names and countdown */}
       <section

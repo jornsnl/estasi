@@ -18,7 +18,8 @@ export async function StylingTab({ coupleId, isAdmin }: { coupleId: string; isAd
   );
 }
 
-export async function StylingPrint({ coupleId }: { coupleId: string }) {
+/** fileBase: where the images are served; the student's view has its own checked route (feedback 13.5). */
+export async function StylingPrint({ coupleId, fileBase = "/api/ws-bestanden/" }: { coupleId: string; fileBase?: string }) {
   const places = await stylingPlaces(coupleId, false);
   const th = "border-b border-ink py-1 pr-2 text-left font-semibold";
   return (
@@ -26,12 +27,13 @@ export async function StylingPrint({ coupleId }: { coupleId: string }) {
       {places.map((p) => (
         <div key={p.id} className="break-inside-avoid">
           <h3 className="mb-1 text-sm font-semibold">{p.name}</h3>
-          <table className="w-full border-collapse">
+          <table className="w-full table-fixed border-collapse break-words">
+            <colgroup><col /><col className="w-[34%]" /><col className="w-24" /></colgroup>
             <thead><tr><th className={th}>Wat</th><th className={th}>Wie regelt het</th><th className={th}>Klaargezet</th></tr></thead>
             <tbody>
               {p.items.map((i) => (
                 <tr key={i.id} className="border-b border-line">
-                  <td className="py-1 pr-2">{i.what}</td><td className="py-1 pr-2">{i.who}</td>
+                  <td className="py-1 pr-2 break-words">{i.what}</td><td className="py-1 pr-2 break-words">{i.who}</td>
                   <td className="py-1 pr-2"><span className="inline-block h-3.5 w-3.5 rounded-[2px] border border-ink text-center text-[10px] leading-3">{i.ready ? "✓" : ""}</span></td>
                 </tr>
               ))}
@@ -40,7 +42,7 @@ export async function StylingPrint({ coupleId }: { coupleId: string }) {
           {p.images.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element -- uploaded images behind a login check */}
-              {p.images.map((img) => <img key={img.id} src={`/api/ws-bestanden/${img.file_id}`} alt="" className="max-h-56 max-w-[48%] rounded object-contain" />)}
+              {p.images.map((img) => <img key={img.id} src={`${fileBase}${img.file_id}`} alt="" className="max-h-56 max-w-[48%] rounded object-contain" />)}
             </div>
           )}
         </div>

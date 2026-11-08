@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { studentOverview } from "@/lib/academy";
 import { getStore } from "@/lib/data";
 import { ACCESS_LABELS, DEFAULT_EXTEND_MONTHS, EXTEND_MONTHS } from "@/lib/domain/access";
+import { BANNER_DAYS, daysLeft, daysLeftText } from "@/lib/domain/expiry";
 import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
 import { COURSE_STATUS_LABELS, isUnfinished } from "@/lib/domain/progress";
 import { formatDate, formatDateTime } from "@/lib/util/format";
@@ -47,8 +48,8 @@ export default async function OwnerHome({ searchParams }: { searchParams: Promis
             <thead className="border-b border-line bg-cream/60 text-xs tracking-wide text-muted uppercase">
               <tr>
                 <th className="px-4 py-3 font-medium">Cursist</th>
-                <th className="px-4 py-3 font-medium">Pakket</th>
-                <th className="px-4 py-3 font-medium">Toegang</th>
+                <th className="px-4 py-3 font-medium">Pakket en start</th>
+                <th className="px-4 py-3 font-medium">Toegang en einddatum</th>
                 <th className="px-4 py-3 font-medium">Voortgang</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Feedback</th>
@@ -68,7 +69,8 @@ export default async function OwnerHome({ searchParams }: { searchParams: Promis
                   </td>
                   <td className="px-4 py-3">
                     <Badge tone={ACCESS_TONE[o.access]}>{o.access === "none" ? "Geen" : ACCESS_LABELS[o.access]}</Badge>
-                    <p className="mt-1 text-xs text-muted">t/m {formatDate(o.enrollment?.endsAt)}</p>
+                    <p className="mt-1 text-xs text-muted">Einddatum {formatDate(o.enrollment?.endsAt)}</p>
+                    <ExpiresSoon days={daysLeft(o.enrollment)} />
                     {o.access === "expired" && (
                       <form action={changeAccess} className="mt-2 flex items-center gap-1">
                         <input type="hidden" name="userId" value={o.user.id} />
@@ -86,7 +88,7 @@ export default async function OwnerHome({ searchParams }: { searchParams: Promis
                   </td>
                   <td className="w-40 px-4 py-3">
                     <ProgressBar percent={o.percent} />
-                    <p className="mt-1 text-xs text-muted">{o.percent}%</p>
+                    <p className="mt-1 text-xs text-muted">{o.percent}% · {plural(o.submittedAssignments, "opdracht", "opdrachten")} ingediend</p>
                   </td>
                   <td className="px-4 py-3">
                     {o.status ? (isUnfinished(o.status) ? <Badge tone="bordeaux">{COURSE_STATUS_LABELS[o.status]}</Badge> : COURSE_STATUS_LABELS[o.status]) : "–"}
@@ -115,4 +117,9 @@ function Stat({ label, value, highlight = false }: { label: string; value: numbe
       <p className={`mt-1 font-serif text-4xl ${highlight ? "text-bordeaux" : ""}`}>{value}</p>
     </div>
   );
+}
+
+function ExpiresSoon({ days }: { days: number | null }) {
+  if (days === null || days > BANNER_DAYS) return null;
+  return <p className="mt-1 text-xs font-medium text-bordeaux">Verloopt binnenkort: {daysLeftText(days)}</p>;
 }

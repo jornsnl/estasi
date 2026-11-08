@@ -6,6 +6,7 @@ import { logActivity } from "@/lib/ws/couples";
 import { isUuid, one, query } from "@/lib/ws/db";
 import { moveRow } from "@/lib/ws/order";
 import { done, str } from "@/lib/ws/redirect";
+import { syncAfterSave } from "@/lib/ws/runsheet";
 
 /**
  * Eten en allergieën. Sabine and the couple can both do everything for the
@@ -49,6 +50,8 @@ export async function updateMoment(
     );
     await note(ctx, "Eten bijgewerkt");
   }
+  // A moment with a time is a row in the day planning.
+  if (change.name !== undefined || change.active !== undefined || change.at_time !== undefined) await syncAfterSave(ctx.couple.id);
   return { ok: true, by: who(ctx) };
 }
 
@@ -83,6 +86,7 @@ export async function addMealRow(formData: FormData) {
     [ctx.couple.id, kind, name, str(formData, "role", 120)],
   );
   await note(ctx, "Eten bijgewerkt");
+  await syncAfterSave(ctx.couple.id);
   done(page(ctx, "#tabel"), `${name} toegevoegd.`);
 }
 
@@ -101,6 +105,7 @@ export async function deleteMealRow(formData: FormData) {
   const ctx = await requireCouple(str(formData, "coupleId", 40));
   const id = str(formData, "rowId", 40);
   if (isUuid(id)) await query("delete from meal_rows where id = $1 and couple_id = $2 and kind <> 'rsvp'", [id, ctx.couple.id]);
+  await syncAfterSave(ctx.couple.id);
   done(page(ctx, "#tabel"), "Verwijderd.");
 }
 
@@ -119,6 +124,8 @@ export async function setMealCell(coupleId: string, rowId: string, momentId: str
      on conflict (row_id, moment_id) do update set checked = coalesce($5, meal_cells.checked), count = coalesce($6, meal_cells.count)`,
     [rowId, momentId, Boolean(value.checked), count, value.checked === undefined ? null : Boolean(value.checked), value.count === undefined ? null : count],
   );
+  // The number of people in the day planning row.
+  await syncAfterSave(ctx.couple.id);
   return { ok: true };
 }
 
@@ -134,6 +141,7 @@ export async function setGuestMeal(coupleId: string, guestId: string, momentId: 
     else await query("insert into guest_meal_exclusions (guest_id, moment_id) values ($1, $2) on conflict do nothing", [guestId, momentId]);
   }
   await query("update guests set meals_reviewed = true where id = $1", [guestId]);
+  await syncAfterSave(ctx.couple.id);
   return { ok: true };
 }
 

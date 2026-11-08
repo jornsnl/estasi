@@ -1,8 +1,6 @@
 import "server-only";
-import { isSupabaseMode } from "@/lib/data";
 import type { McpSettings, OAuthClient, OAuthCode, OAuthGrant, Passkey } from "./types";
-import { LocalSecurityStore } from "./local-store";
-import { SupabaseSecurityStore } from "./supabase-store";
+import { PgSecurityStore } from "./pg-store";
 
 export type * from "./types";
 
@@ -42,6 +40,6 @@ export interface SecurityStore {
 let store: SecurityStore | undefined;
 
 export function getSecurityStore(): SecurityStore {
-  store ??= isSupabaseMode() ? new SupabaseSecurityStore() : new LocalSecurityStore();
+  store ??= new PgSecurityStore();
   return store;
 }
