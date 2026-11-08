@@ -42,6 +42,25 @@ export async function inviteAccount(email: string, name: string): Promise<string
   return data.user.id;
 }
 
+/**
+ * Creates the Supabase account with a password the owner chose, without any
+ * e-mail (for when the invite mail does not work). The address is confirmed
+ * right away. Returns the new user id, or throws with a message to show.
+ */
+export async function createAccountWithPassword(email: string, name: string, password: string): Promise<string> {
+  const { data, error } = await adminClient().auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { name } });
+  if (error || !data.user) {
+    console.warn(`[cursist met wachtwoord] Supabase: ${error?.code ?? ""} ${error?.message ?? "geen gebruiker"}`);
+    if (error?.code === "weak_password") throw new AccountError("Dit wachtwoord is te zwak of komt voor in bekende datalekken. Kies een ander.");
+    if (error?.code === "email_exists" || error?.code === "user_already_exists") throw new AccountError("Er bestaat in Supabase al een account met dit e-mailadres.");
+    throw new AccountError("Het account aanmaken is niet gelukt. Probeer het opnieuw.");
+  }
+  return data.user.id;
+}
+
+/** A problem with creating an account that the owner can act on; the message is shown as is. */
+export class AccountError extends Error {}
+
 /** Rolls back a Supabase account when saving the student failed halfway. */
 export async function deleteAccount(userId: string) {
   await adminClient().auth.admin.deleteUser(userId);

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { audit } from "@/lib/academy";
 import { createDevAccount, deleteDevAccount, newDevSetupLink, setDevPassword } from "@/lib/auth/dev-auth";
 import { requireOwner } from "@/lib/auth/session";
-import { deleteAccount, inviteAccount, resendAccess, setPasswordAsAdmin } from "@/lib/auth/supabase-auth";
+import { AccountError, createAccountWithPassword, deleteAccount, inviteAccount, resendAccess, setPasswordAsAdmin } from "@/lib/auth/supabase-auth";
 import { setMustChangePassword, temporaryPasswordProblem } from "@/lib/auth/temporary-password";
 import { supabaseEnabled } from "@/lib/supabase/config";
 import { getStore, type Enrollment, type PackageType, type PracticalStatus } from "@/lib/data";
@@ -47,16 +47,32 @@ export async function createStudent(formData: FormData) {
     done("/beheer/cursisten/nieuw", "Er zijn geen praktijkplekken beschikbaar. Zet ze eerst open bij Instellingen.", true);
   }
 
+  // "invite": Supabase mails a link and the student chooses a password.
+  // "password": Sabine sets the password herself and no e-mail is sent.
+  const withPassword = str(formData, "access") === "password";
+  const password = withPassword ? String(formData.get("password") ?? "").trim() : "";
+  const mustChange = withPassword && formData.get("mustChange") === "on";
+  if (withPassword) {
+    const problem = temporaryPasswordProblem(password);
+    if (problem) done("/beheer/cursisten/nieuw", problem, true);
+  }
+
   const now = new Date().toISOString();
   const supabase = supabaseEnabled();
   let userId: string;
   try {
     // With Supabase the account (and its id) comes from Supabase Auth, which also mails the invite.
     // The development login makes the account itself and shows the link on the student page.
-    userId = supabase ? await inviteAccount(email, name) : await createDevAccount(email, name);
+    if (supabase) userId = withPassword ? await createAccountWithPassword(email, name, password) : await inviteAccount(email, name);
+    else userId = await createDevAccount(email, name);
   } catch (err) {
     console.error(err);
-    done("/beheer/cursisten/nieuw", "De uitnodiging kon niet worden verstuurd. Controleer het e-mailadres en de e-mailinstellingen in Supabase.", true);
+    if (err instanceof AccountError) done("/beheer/cursisten/nieuw", err.message, true);
+    done(
+      "/beheer/cursisten/nieuw",
+      "De uitnodiging kon niet worden verstuurd. Controleer het e-mailadres en de e-mailinstellingen in Supabase, of kies \"Zelf een wachtwoord instellen\".",
+      true,
+    );
   }
   try {
     await store.createUser({
@@ -64,7 +80,7 @@ export async function createStudent(formData: FormData) {
       email,
       name,
       role: "student",
-      activatedAt: null,
+      activatedAt: withPassword ? now : null,
       createdAt: now,
       lastActiveAt: null,
     });
@@ -97,7 +113,11 @@ export async function createStudent(formData: FormData) {
       practicalCertificateCode: null,
       ownerNotes: str(formData, "ownerNotes", LIMITS.ownerNotes),
     });
-    if (!supabase) await newDevSetupLink(userId, SETUP_DAYS);
+    if (!supabase) {
+      if (withPassword) await setDevPassword(userId, password);
+      else await newDevSetupLink(userId, SETUP_DAYS);
+    }
+    if (mustChange) await setMustChangePassword(userId, true);
   } catch (err) {
     // Do not leave a half made account behind (the users row cascades away with it).
     await (supabase ? deleteAccount(userId) : deleteDevAccount(userId)).catch(() => undefined);
@@ -106,14 +126,20 @@ export async function createStudent(formData: FormData) {
   await audit(
     owner,
     "Cursist aangemaakt",
-    `Pakket ${pkg} · ${PACKAGE_LABELS[pkg]}, aankoopdatum ${formatDate(purchasedAt)}, toegang ${plural(months, "maand", "maanden")}`,
+    `Pakket ${pkg} · ${PACKAGE_LABELS[pkg]}, aankoopdatum ${formatDate(purchasedAt)}, toegang ${plural(months, "maand", "maanden")}${
+      withPassword ? `, wachtwoord ingesteld door opleider${mustChange ? " (cursist kiest bij eerste login een eigen)" : ""}` : ""
+    }`,
     userId,
   );
   done(
     studentPath(userId),
-    supabase
-      ? `Cursist aangemaakt. De uitnodiging is gemaild naar ${email}.`
-      : "Cursist aangemaakt. Stuur de activatielink hieronder naar de cursist.",
+    withPassword
+      ? `Cursist aangemaakt met het wachtwoord dat je hebt ingesteld; er is geen mail verstuurd. Geef het e-mailadres en wachtwoord zelf door aan ${name}.${
+          mustChange ? " Na het inloggen kiest de cursist een eigen wachtwoord." : ""
+        }`
+      : supabase
+        ? `Cursist aangemaakt. De uitnodiging is gemaild naar ${email}.`
+        : "Cursist aangemaakt. Stuur de activatielink hieronder naar de cursist.",
   );
 }
 
