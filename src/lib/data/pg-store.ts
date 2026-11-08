@@ -14,6 +14,14 @@ import type {
   User,
 } from "./types";
 import { fromRow, isUuid, toParams, toRow, type Table } from "./rows";
+import { normaliseBlocks } from "@/lib/domain/assignment";
+
+/** Old question, choice and upload blocks are read as assignments (migration 0025 converted the stored ones). */
+const withBlocks = (lesson: Lesson): Lesson => ({
+  ...lesson,
+  blocks: normaliseBlocks(lesson.blocks),
+  ...(lesson.draft ? { draft: { ...lesson.draft, blocks: normaliseBlocks(lesson.draft.blocks ?? []) } } : {}),
+});
 
 /**
  * The Academy's data in Postgres (schema public), straight through `pg` with
@@ -161,16 +169,17 @@ export class PgDataStore implements DataStore {
     if (isUuid(id)) await this.sql.exec("delete from public.modules where id = $1", [id]);
   }
   async listLessons(moduleId?: string) {
-    if (moduleId === undefined) return this.sql.many<Lesson>("lessons", "", [], "position");
+    if (moduleId === undefined) return (await this.sql.many<Lesson>("lessons", "", [], "position")).map(withBlocks);
     if (!isUuid(moduleId)) return [];
-    return this.sql.many<Lesson>("lessons", "module_id = $1", [moduleId], "position");
+    return (await this.sql.many<Lesson>("lessons", "module_id = $1", [moduleId], "position")).map(withBlocks);
   }
   async getLesson(id: string) {
     if (!isUuid(id)) return null;
-    return this.sql.first<Lesson>("lessons", "id = $1", [id]);
+    const lesson = await this.sql.first<Lesson>("lessons", "id = $1", [id]);
+    return lesson && withBlocks(lesson);
   }
   async saveLesson(lesson: Lesson) {
-    return this.sql.upsert<Lesson>("lessons", { ...lesson, status: lesson.status ?? "published", draft: lesson.draft ?? null, publishedAt: lesson.publishedAt ?? null }, ["id"]);
+    return withBlocks(await this.sql.upsert<Lesson>("lessons", { ...lesson, status: lesson.status ?? "published", draft: lesson.draft ?? null, publishedAt: lesson.publishedAt ?? null }, ["id"]));
   }
   async deleteLesson(id: string) {
     if (isUuid(id)) await this.sql.exec("delete from public.lessons where id = $1", [id]);

@@ -63,6 +63,9 @@ export default async function Dashboard() {
             <div className="mt-6">
               <ProgressBar percent={o.percent} label="Totale voortgang" />
             </div>
+            <p className="mt-3 text-sm text-muted">
+              {o.completedModules} van {plural(o.progress.length, "module", "modules")} afgerond · {plural(o.submittedAssignments, "opdracht", "opdrachten")} ingediend
+            </p>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               {next ? (
                 <Link href={`/les/${next.id}`} className="btn-primary">

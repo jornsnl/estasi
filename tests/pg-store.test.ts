@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Answer, Lesson, User } from "@/lib/data/types";
+import { legacyToAssignment } from "@/lib/domain/assignment";
 
 /**
  * The Postgres stores against a real, migrated database. Runs only with
@@ -72,11 +73,15 @@ describe.skipIf(!url)("Postgres stores", () => {
     // Without the newer fields a module is published and for both packages.
     expect(await store.saveModule({ id: moduleId, title: "M", description: "", position: 99 })).toMatchObject({ status: "published", packages: "AB" });
     expect(await store.saveModule({ id: moduleId, title: "M", description: "", position: 99, status: "draft", packages: "B" })).toMatchObject({ status: "draft", packages: "B" });
+    const legacy = { id: "b1", type: "question", kind: "open", prompt: "?", helpText: "", required: true, feedback: true } as const;
     const lesson: Lesson = {
       id: lessonId, moduleId, title: "L", summary: "", position: 1,
-      blocks: [{ id: "b1", type: "question", kind: "open", prompt: "?", helpText: "", required: true, feedback: true }],
+      blocks: [legacyToAssignment(legacy)],
       status: "published", draft: null, publishedAt: null,
     };
+    // An old question block in the database (live or in a draft) is read as an assignment with the same id.
+    expect(await store.saveLesson({ ...lesson, blocks: [legacy as never] })).toEqual(lesson);
+    expect((await store.saveLesson({ ...lesson, draft: { title: "L", summary: "", blocks: [legacy as never] } })).draft?.blocks).toEqual(lesson.blocks);
     expect(await store.saveLesson(lesson)).toEqual(lesson);
     expect(await store.saveLesson({ ...lesson, title: "L2" })).toEqual({ ...lesson, title: "L2" });
     // A draft of a published lesson is stored next to the live blocks.

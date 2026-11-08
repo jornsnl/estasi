@@ -4,6 +4,7 @@ import type { Block, BlockType } from "@/lib/data";
 import { LIMITS } from "@/lib/domain/input";
 import { ACCEPT_ATTR, IMAGE_ACCEPT_ATTR } from "@/lib/uploads";
 import { formatBytes } from "@/lib/util/format";
+import { AssignmentEditor, type AssignmentChoice } from "./AssignmentEditor";
 import { RichTextEditor } from "./RichTextEditor";
 
 /**
@@ -19,37 +20,15 @@ export interface BlockEditorProps<T extends Block = Block> {
   n: (field: string) => string;
   /** Element id for a field of this block. */
   id: (field: string) => string;
+  context?: BlockEditorContext;
+}
+
+/** Course-wide data some editors need (the assignment editor: other assignments for "herhaling van"). */
+export interface BlockEditorContext {
+  assignments: AssignmentChoice[];
 }
 
 type Editors = { [T in BlockType]: (props: BlockEditorProps<Extract<Block, { type: T }>>) => React.ReactNode };
-
-function Flags({ block, n }: BlockEditorProps<Extract<Block, { required: boolean; feedback: boolean }>>) {
-  return (
-    <div className="flex flex-wrap gap-5 text-sm">
-      <label className="flex items-center gap-2">
-        <input type="checkbox" name={n("required")} defaultChecked={block.required} className="accent-[#722F37]" /> Verplicht om de les af te ronden
-      </label>
-      <label className="flex items-center gap-2">
-        <input type="checkbox" name={n("feedback")} defaultChecked={block.feedback} className="accent-[#722F37]" /> Ik geef feedback op deze opdracht
-      </label>
-    </div>
-  );
-}
-
-function PromptFields({ block, n, id }: BlockEditorProps<Extract<Block, { prompt: string; helpText: string }>>) {
-  return (
-    <>
-      <div>
-        <label className="label" htmlFor={id("prompt")}>Vraag of opdracht</label>
-        <textarea id={id("prompt")} name={n("prompt")} rows={2} defaultValue={block.prompt} maxLength={LIMITS.prompt} className="input" />
-      </div>
-      <div>
-        <label className="label" htmlFor={id("help")}>Toelichting (optioneel)</label>
-        <input id={id("help")} name={n("helpText")} defaultValue={block.helpText} maxLength={LIMITS.helpText} className="input" />
-      </div>
-    </>
-  );
-}
 
 const EDITORS: Editors = {
   video: ({ block, n, id }) => (
@@ -133,41 +112,11 @@ const EDITORS: Editors = {
       <input type="file" name={n("file")} accept={ACCEPT_ATTR} className="text-sm" aria-label="Bestand uploaden" />
     </>
   ),
-  question: (props) => (
-    <>
-      <div>
-        <label className="label" htmlFor={props.id("kind")}>Soort vraag</label>
-        <select id={props.id("kind")} name={props.n("kind")} defaultValue={props.block.kind} className="input w-56">
-          <option value="open">Open vraag</option>
-          <option value="reflection">Reflectievraag</option>
-          <option value="practice">Praktijkopdracht</option>
-        </select>
-      </div>
-      <PromptFields {...props} />
-      <Flags {...props} />
-    </>
-  ),
-  choice: (props) => (
-    <>
-      <PromptFields {...props} />
-      <div>
-        <label className="label" htmlFor={props.id("opt")}>Antwoordopties (één per regel)</label>
-        <textarea id={props.id("opt")} name={props.n("options")} rows={4} defaultValue={props.block.options.join("\n")} maxLength={LIMITS.options} className="input" />
-        <p className="hint">Er is geen goed of fout antwoord; de keuze wordt alleen bewaard.</p>
-      </div>
-      <Flags {...props} />
-    </>
-  ),
-  upload: (props) => (
-    <>
-      <PromptFields {...props} />
-      <Flags {...props} />
-    </>
-  ),
+  assignment: ({ block, context }) => <AssignmentEditor block={block} others={(context?.assignments ?? []).filter((o) => o.id !== block.id)} />,
 };
 
-export function BlockFields({ block }: { block: Block }) {
-  const props: BlockEditorProps = { block, n: (field) => `b.${block.id}.${field}`, id: (field) => `${field}-${block.id}` };
+export function BlockFields({ block, context }: { block: Block; context?: BlockEditorContext }) {
+  const props: BlockEditorProps = { block, n: (field) => `b.${block.id}.${field}`, id: (field) => `${field}-${block.id}`, context };
   const Editor = EDITORS[block.type] as ((p: BlockEditorProps) => React.ReactNode) | undefined;
   return <div className="space-y-3">{Editor ? Editor(props) : <p className="text-sm text-muted">Dit soort blok kan hier niet bewerkt worden.</p>}</div>;
 }

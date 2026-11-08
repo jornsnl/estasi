@@ -102,7 +102,11 @@ export interface DownloadBlock extends BlockBase {
   file: FileRef | null;
 }
 
-export interface QuestionBlock extends BlockBase {
+// Legacy answer blocks (before migration 0025). Migration 0025 turned every one
+// of them into an assignment block with one field and the same block id; they
+// stay here to read old lesson data (normaliseBlocks in domain/assignment.ts).
+
+export interface LegacyQuestionBlock extends BlockBase {
   type: "question";
   kind: QuestionKind;
   prompt: string;
@@ -112,7 +116,7 @@ export interface QuestionBlock extends BlockBase {
   feedback: boolean;
 }
 
-export interface ChoiceBlock extends BlockBase {
+export interface LegacyChoiceBlock extends BlockBase {
   type: "choice";
   prompt: string;
   helpText: string;
@@ -121,7 +125,7 @@ export interface ChoiceBlock extends BlockBase {
   feedback: boolean;
 }
 
-export interface UploadBlock extends BlockBase {
+export interface LegacyUploadBlock extends BlockBase {
   type: "upload";
   prompt: string;
   helpText: string;
@@ -129,18 +133,173 @@ export interface UploadBlock extends BlockBase {
   feedback: boolean;
 }
 
-export type Block =
-  | VideoBlock
-  | TextBlock
-  | ImageBlock
-  | DownloadBlock
-  | QuestionBlock
-  | ChoiceBlock
-  | UploadBlock;
+export type LegacyBlock = LegacyQuestionBlock | LegacyChoiceBlock | LegacyUploadBlock;
+
+// Assignments ----------------------------------------------------------------
+
+/** File types a student may upload in an upload field. */
+export type UploadKind = "pdf" | "docx" | "xlsx" | "pptx" | "jpg" | "png" | "mp4" | "audio";
+
+export type FieldType = "short" | "long" | "single" | "multi" | "scale" | "scale_rows" | "upload";
+
+interface FieldBase {
+  id: string;
+  /** The question or instruction. */
+  label: string;
+  help: string;
+  /** Needed to submit the assignment (saving a draft is always possible). */
+  required: boolean;
+}
+
+export interface ShortField extends FieldBase {
+  type: "short";
+}
+
+export interface LongField extends FieldBase {
+  type: "long";
+}
+
+export interface ChoiceField extends FieldBase {
+  type: "single" | "multi";
+  options: string[];
+  /** Extra text box for an explanation below the options. */
+  allowComment: boolean;
+}
+
+export interface ScaleSettings {
+  min: number;
+  max: number;
+  minLabel: string;
+  maxLabel: string;
+  /** Explanation of the scores, shown above the scale. */
+  explanation: string;
+}
+
+export interface ScaleField extends FieldBase, ScaleSettings {
+  type: "scale";
+}
+
+export interface ScaleRow {
+  id: string;
+  label: string;
+}
+
+/** Pre-filled rows (topics, competences); per row a score on the scale or a text. */
+export interface ScaleRowsField extends FieldBase, ScaleSettings {
+  type: "scale_rows";
+  rows: ScaleRow[];
+  mode: "score" | "text";
+}
+
+export interface UploadField extends FieldBase {
+  type: "upload";
+  accept: UploadKind[];
+  maxFiles: number;
+}
+
+export type AssignmentField = ShortField | LongField | ChoiceField | ScaleField | ScaleRowsField | UploadField;
+
+export interface AssignmentPart {
+  id: string;
+  /** Heading, for example "Onderdeel 1: beantwoord drie vragen". May be empty for a one-part assignment. */
+  title: string;
+  intro: string;
+  fields: AssignmentField[];
+}
+
+export interface AssignmentBlock extends BlockBase {
+  type: "assignment";
+  title: string;
+  intro: string;
+  /** The lesson only counts as completed once this assignment is submitted. */
+  requiredForLesson: boolean;
+  /** The student may ask for personal feedback on it (Academy 8). */
+  feedbackAllowed: boolean;
+  /** Final assignment: assessed as "voldoende" or "verbetering nodig". */
+  graded: boolean;
+  /** Repeat of an earlier assignment (its block id), e.g. the closing competence scan. */
+  repeatOf: string | null;
+  parts: AssignmentPart[];
+}
+
+/** The answer to one field. Which keys are used depends on the field type. */
+export interface FieldAnswer {
+  text?: string;
+  choice?: string | null;
+  choices?: string[];
+  comment?: string;
+  score?: number | null;
+  /** scale_rows: per row id a score (mode score) or a text (mode text). */
+  rows?: Record<string, number | string>;
+  files?: FileRef[];
+}
+
+/** Answers per field id. */
+export type AssignmentAnswers = Record<string, FieldAnswer>;
+
+export type SubmissionStatus = "concept" | "ingediend" | "verbetering_nodig" | "voldoende";
+
+export interface Submission {
+  id: string;
+  userId: string;
+  lessonId: string;
+  blockId: string;
+  status: SubmissionStatus;
+  draft: AssignmentAnswers;
+  /** Optimistic locking: every save of the draft increments it. */
+  draftVersion: number;
+  feedbackRequested: boolean;
+  questionForSabine: string;
+  submittedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FeedbackStatus = "nieuw" | "in_behandeling" | "afgerond";
+
+/** A fixed copy made at every submit: answers, files and the assignment as it was then. */
+export interface SubmissionVersion {
+  id: string;
+  submissionId: string;
+  userId: string;
+  version: number;
+  answers: AssignmentAnswers;
+  assignment: AssignmentBlock;
+  feedbackRequested: boolean;
+  questionForSabine: string;
+  /** Null when no feedback was asked for. */
+  feedbackStatus: FeedbackStatus | null;
+  submittedAt: string;
+}
+
+export interface AssignmentFeedback {
+  id: string;
+  versionId: string;
+  submissionId: string;
+  userId: string;
+  authorId: string;
+  text: string;
+  attachment: FileRef | null;
+  /** Null while it is a draft only the owner sees. */
+  sentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Owner opened a module for one student before the previous one was completed. */
+export interface ModuleUnlock {
+  userId: string;
+  moduleId: string;
+  unlockedBy: string;
+  unlockedAt: string;
+}
+
+export type Block = VideoBlock | TextBlock | ImageBlock | DownloadBlock | AssignmentBlock;
 
 export type BlockType = Block["type"];
 
-export type AnswerableBlock = QuestionBlock | ChoiceBlock | UploadBlock;
+/** What lessons.blocks may hold: current blocks and, in old data, legacy ones. */
+export type StoredBlock = Block | LegacyBlock;
 
 /** "draft" (concept): only the owner sees it. */
 export type ContentStatus = "draft" | "published";

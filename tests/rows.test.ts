@@ -24,7 +24,8 @@ describe("database rows", () => {
       ["enrollments", seed.enrollments],
       ["modules", seed.modules],
       ["lessons", seed.lessons],
-      ["answers", seed.answers],
+      ["assignment_submissions", seed.submissions],
+      ["submission_versions", seed.versions],
       ["lesson_completions", seed.completions],
     ] as const;
     for (const [table, items] of cases) {
@@ -110,7 +111,7 @@ const sql = readdirSync(migrationsDir)
 
 function migrationColumns(table: string): Set<string> {
   const columns = new Set<string>();
-  const create = new RegExp(`create table public\\.${table} \\(([\\s\\S]*?)\\n\\);`).exec(sql);
+  const create = new RegExp(`create table (?:if not exists )?public\\.${table} \\(([\\s\\S]*?)\\n\\);`).exec(sql);
   if (!create) throw new Error(`Tabel ${table} niet gevonden in de migraties`);
   for (const raw of create[1].split("\n")) {
     const line = raw.trim();
@@ -130,7 +131,11 @@ const SAMPLES: [Table, object][] = [
   ["enrollments", seed.enrollments[0]],
   ["modules", seed.modules[0]],
   ["lessons", seed.lessons[0]],
-  ["answers", seed.answers[0]],
+  ["answers", { id: "a", userId: "u", lessonId: "l", blockId: "b", text: "t", choice: null, files: [], version: 1, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
+  ["assignment_submissions", seed.submissions[0]],
+  ["submission_versions", seed.versions[0]],
+  ["assignment_feedback", { id: "f", versionId: "v", submissionId: "s", userId: "u", authorId: "o", text: "t", attachment: null, sentAt: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
+  ["module_unlocks", { userId: "u", moduleId: "m", unlockedBy: "o", unlockedAt: "2026-01-01T00:00:00.000Z" }],
   ["feedback", { id: "f", answerId: "a", userId: "u", authorId: "o", text: "t", attachment: null, answerVersion: 1, createdAt: "2026-01-01T00:00:00.000Z" }],
   ["lesson_completions", seed.completions[0]],
   ["audit_log", { id: "x", at: "2026-01-01T00:00:00.000Z", actorId: "o", targetUserId: null, action: "a", details: "" }],
@@ -157,7 +162,7 @@ describe("database rows match the domain and the schema", () => {
   it("keeps empty strings, false and null as they are", () => {
     const settings: Settings = { ...seed.settings, welcomeText: "", practicalSpotsAvailable: false };
     expect(fromRow<Settings>("settings", toRow("settings", settings))).toEqual(settings);
-    const answer: Answer = { ...seed.answers[0], text: "", choice: null, files: [] };
+    const answer: Answer = { id: "a", userId: "u", lessonId: "l", blockId: "b", text: "", choice: null, files: [], version: 1, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
     expect(fromRow<Answer>("answers", toRow("answers", answer))).toEqual(answer);
   });
 
@@ -172,9 +177,7 @@ describe("database rows match the domain and the schema", () => {
         { id: "1", type: "video", url: "https://vimeo.com/1", caption: "c" },
         { id: "2", type: "text", markdown: "## Kop\n\n- a\n- **b**" },
         { id: "3", type: "download", label: "l", description: "d", url: "", file: { id: "f", name: "x.pdf", size: 3, mime: "application/pdf" } },
-        { id: "4", type: "question", kind: "reflection", prompt: "p", helpText: "", required: false, feedback: true },
-        { id: "5", type: "choice", prompt: "p", helpText: "h", options: ["a", "b"], required: true, feedback: false },
-        { id: "6", type: "upload", prompt: "p", helpText: "", required: false, feedback: true },
+        seed.lessons.flatMap((l) => l.blocks).find((b) => b.type === "assignment" && b.repeatOf)!,
         { id: "7", type: "text", markdown: "", html: "<p><strong>Vet</strong></p>" },
         { id: "8", type: "image", file: { id: "g", name: "a.png", size: 5, mime: "image/png" }, alt: "Bloemen", caption: "" },
       ],

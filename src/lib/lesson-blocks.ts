@@ -1,5 +1,7 @@
 import "server-only";
-import type { Block, BlockType, FileRef, QuestionKind } from "@/lib/data";
+import type { Block, BlockType, FileRef } from "@/lib/data";
+import { cleanAssignment } from "@/lib/domain/assignment";
+import { newId } from "@/lib/util/id";
 import { sanitizeLessonHtml } from "@/lib/domain/html";
 import { LIMITS, normaliseUrl } from "@/lib/domain/input";
 import { storeImageUpload, storeUpload, UploadError } from "@/lib/uploads";
@@ -57,35 +59,16 @@ const READERS: { [T in BlockType]: Reader<T> } = {
       file: file ?? (input.checked("removeFile") ? null : b.file),
     };
   },
-  question: (b, { f, checked }) => {
-    const kind = f("kind", 20);
-    return {
-      ...b,
-      kind: (["open", "reflection", "practice"].includes(kind) ? kind : "open") as QuestionKind,
-      prompt: f("prompt", LIMITS.prompt),
-      helpText: f("helpText", LIMITS.helpText),
-      required: checked("required"),
-      feedback: checked("feedback"),
-    };
+  assignment: (b, { raw }) => {
+    // The assignment editor keeps the whole assignment as JSON in one hidden field; cleaned up here.
+    const value = raw("assignment");
+    if (typeof value !== "string") return b;
+    try {
+      return cleanAssignment(JSON.parse(value), b.id, newId);
+    } catch {
+      return b;
+    }
   },
-  choice: (b, { f, checked }) => ({
-    ...b,
-    prompt: f("prompt", LIMITS.prompt),
-    helpText: f("helpText", LIMITS.helpText),
-    options: f("options", LIMITS.options)
-      .split("\n")
-      .map((o) => o.trim())
-      .filter(Boolean),
-    required: checked("required"),
-    feedback: checked("feedback"),
-  }),
-  upload: (b, { f, checked }) => ({
-    ...b,
-    prompt: f("prompt", LIMITS.prompt),
-    helpText: f("helpText", LIMITS.helpText),
-    required: checked("required"),
-    feedback: checked("feedback"),
-  }),
 };
 
 export async function readBlock(current: Block, formData: FormData, ownerId: string, uploadErrors: string[]): Promise<Block> {

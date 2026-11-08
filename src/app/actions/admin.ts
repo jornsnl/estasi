@@ -11,6 +11,7 @@ import { getStore, type Enrollment, type PackageType, type PracticalStatus } fro
 import { accessStatus, addMonths, ACCESS_MONTHS, pause, resume } from "@/lib/domain/access";
 import { LIMITS } from "@/lib/domain/input";
 import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
+import { addAssignmentFeedback, getSubmissionById, getVersion, relockModule, unlockModule } from "@/lib/data/assignments";
 import { storeUpload, UploadError } from "@/lib/uploads";
 import { formatDate, fromDateInput } from "@/lib/util/format";
 import { newId } from "@/lib/util/id";
@@ -259,12 +260,13 @@ export async function changeCompletion(formData: FormData) {
   done(path, log);
 }
 
+/** Feedback on one submitted version of an assignment; the student sees it with the assignment. */
 export async function giveFeedback(formData: FormData) {
   const owner = await requireOwner();
-  const store = getStore();
-  const answer = await store.getAnswer(str(formData, "answerId"));
-  if (!answer) redirect("/beheer");
-  const path = `${studentPath(answer.userId)}?les=${answer.lessonId}`;
+  const version = await getVersion(str(formData, "versionId"));
+  if (!version) redirect("/beheer");
+  const submission = await getSubmissionById(version.submissionId);
+  const path = `${studentPath(version.userId)}${submission ? `?les=${submission.lessonId}` : ""}`;
   const text = str(formData, "text", LIMITS.feedback);
   if (!text) done(path, "Schrijf eerst je feedback.", true);
 
@@ -272,24 +274,34 @@ export async function giveFeedback(formData: FormData) {
   let attachment = null;
   let attachmentError: string | null = null;
   try {
-    attachment = await storeUpload(formData.get("attachment"), { belongsTo: answer.userId, uploadedBy: owner.id });
+    attachment = await storeUpload(formData.get("attachment"), { belongsTo: version.userId, uploadedBy: owner.id });
   } catch (err) {
     if (!(err instanceof UploadError)) throw err;
     attachmentError = err.message;
   }
-  await store.createFeedback({
-    id: newId(),
-    answerId: answer.id,
-    userId: answer.userId,
-    authorId: owner.id,
-    text,
-    attachment,
-    answerVersion: answer.version,
-    createdAt: new Date().toISOString(),
-  });
-  await audit(owner, "Feedback gegeven", "", answer.userId);
+  await addAssignmentFeedback({ version, authorId: owner.id, text, attachment, send: true });
+  await audit(owner, "Feedback gegeven", `versie ${version.version}`, version.userId);
   if (attachmentError) done(path, `Feedback opgeslagen, maar zonder bijlage: ${attachmentError} Geef de bijlage eventueel als extra feedback.`, true);
   done(path, "Feedback opgeslagen. De cursist ziet deze bij de opdracht.");
+}
+
+/** Opens a module for one student before the previous one is completed, or takes that back. */
+export async function changeModuleUnlock(formData: FormData) {
+  const owner = await requireOwner();
+  const store = getStore();
+  const userId = str(formData, "userId");
+  const user = await store.getUser(userId);
+  const target = await store.getModule(str(formData, "moduleId"));
+  if (!user || user.role !== "student" || !target) done("/beheer", "Cursist of module niet gevonden.", true);
+  const path = studentPath(userId);
+  if (str(formData, "op") === "lock") {
+    await relockModule(userId, target.id);
+    await audit(owner, "Handmatige vrijgave ingetrokken", target.title, userId);
+    done(path, `Module "${target.title}" volgt weer de gewone volgorde.`);
+  }
+  await unlockModule(userId, target.id, owner.id);
+  await audit(owner, "Module handmatig vrijgegeven", target.title, userId);
+  done(path, `Module "${target.title}" is vrijgegeven voor ${user.name}.`);
 }
 
 /** Contact details of a student, as entered when the account was made. */

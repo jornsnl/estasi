@@ -76,6 +76,8 @@ try {
     const userIds = rows.map((r) => r.id);
     // Rows that point at these accounts without "on delete cascade".
     await client.query("delete from public.feedback where author_id = any($1)", [userIds]);
+    await client.query("delete from public.assignment_feedback where author_id = any($1)", [userIds]);
+    await client.query("delete from public.module_unlocks where unlocked_by = any($1)", [userIds]);
     await client.query("delete from public.audit_log where actor_id = any($1)", [userIds]);
     await client.query("delete from public.files where uploaded_by = any($1)", [userIds]);
     await client.query("delete from auth.users where id = any($1)", [userIds]);
@@ -107,8 +109,12 @@ try {
   let modules = 0;
   for (const m of seed.modules) modules += await insert("modules", { ...m, id: uuidFor(m.id) });
   for (const l of seed.lessons) await insert("lessons", { ...l, id: uuidFor(l.id), moduleId: uuidFor(l.moduleId) });
-  for (const a of seed.answers) {
-    await insert("answers", { ...a, id: uuidFor(a.id), userId: uuidFor(a.userId), lessonId: uuidFor(a.lessonId) });
+  // Assignment work: a submission per assignment, a version for what was handed in.
+  for (const sub of seed.submissions) {
+    await insert("assignment_submissions", { ...sub, id: uuidFor(sub.id), userId: uuidFor(sub.userId), lessonId: uuidFor(sub.lessonId) });
+  }
+  for (const v of seed.versions) {
+    await insert("submission_versions", { ...v, id: uuidFor(v.id), submissionId: uuidFor(v.submissionId), userId: uuidFor(v.userId) });
   }
   for (const c of seed.completions) {
     await insert("lesson_completions", { ...c, userId: uuidFor(c.userId), lessonId: uuidFor(c.lessonId) });

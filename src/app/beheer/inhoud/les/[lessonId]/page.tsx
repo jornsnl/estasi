@@ -7,7 +7,8 @@ import { Badge } from "@/components/Badge";
 import { DirtyGuard } from "@/components/DirtyGuard";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { getStore } from "@/lib/data";
+import { getStore, type AssignmentBlock, type Lesson, type Module } from "@/lib/data";
+import type { AssignmentChoice } from "@/components/academy/AssignmentEditor";
 import { ADD_BLOCK_OPTIONS, BLOCK_LABELS } from "@/lib/domain/blocks";
 import { LIMITS } from "@/lib/domain/input";
 import { editableContent, hasPendingChanges } from "@/lib/domain/publishing";
@@ -34,11 +35,12 @@ export default async function LessonEditor({
 }) {
   const { lessonId } = await params;
   const store = getStore();
-  const [lesson, modules] = await Promise.all([store.getLesson(lessonId), store.listModules()]);
+  const [lesson, modules, allLessons] = await Promise.all([store.getLesson(lessonId), store.listModules(), store.listLessons()]);
   if (!lesson) notFound();
   const content = editableContent(lesson);
   const published = isPublished(lesson);
   const pending = hasPendingChanges(lesson);
+  const editorContext = { assignments: assignmentChoices(modules, allLessons) };
   const parent = modules.find((m) => m.id === lesson.moduleId);
 
   return (
@@ -107,7 +109,7 @@ export default async function LessonEditor({
                     {"feedback" in block && block.feedback === true && <Badge tone="gold">Feedback</Badge>}
                   </div>
                   <input type="hidden" name={`b.${block.id}.present`} value="1" />
-                  <BlockFields block={block} />
+                  <BlockFields block={block} context={editorContext} />
                   <div className="mt-4 flex justify-end border-t border-line pt-3">
                     <SubmitButton name="intent" value={`delete:${block.id}`} className="btn-ghost px-2 text-xs text-bordeaux" confirm="Dit blok verwijderen? Je andere wijzigingen worden opgeslagen.">
                       Blok verwijderen
@@ -173,5 +175,23 @@ export default async function LessonEditor({
         )}
       </section>
     </div>
+  );
+}
+
+/** Every assignment in the course (as the editor shows it), for "herhaling van" in the assignment editor. */
+function assignmentChoices(modules: Module[], lessons: Lesson[]): AssignmentChoice[] {
+  return modules.flatMap((m, mi) =>
+    lessons
+      .filter((l) => l.moduleId === m.id)
+      .flatMap((l) => {
+        const content = editableContent(l);
+        return content.blocks
+          .filter((b): b is AssignmentBlock => b.type === "assignment")
+          .map((b, i) => ({
+            id: b.id,
+            label: `Module ${mi + 1} · ${content.title} · ${b.title || b.parts[0]?.fields[0]?.label?.slice(0, 60) || `Opdracht ${i + 1}`}`,
+            parts: b.parts,
+          }));
+      }),
   );
 }
