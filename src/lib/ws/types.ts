@@ -172,6 +172,16 @@ export interface Recommendation {
   photo_file_id: string | null;
   brochure_file_id: string | null;
   experience: string;
+  region: string;
+  contact_person: string;
+  instagram: string;
+  /** "Meer informatie". */
+  description: string;
+  work_area: string;
+  price_indication: string;
+  availability: string;
+  /** Position within its category. */
   position: number;
+  /** Hidden from the couples ("Zichtbaar: nee"). */
   archived: boolean;
 }

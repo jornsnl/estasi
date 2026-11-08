@@ -9,7 +9,8 @@ import { requirePlanning } from "@/lib/ws/access";
 import { isUuid, query } from "@/lib/ws/db";
 import { directUploads } from "@/lib/ws/files";
 import { formatDateTime } from "@/lib/ws/format";
-import { SHOWS_RECOMMENDATIONS, SUPPLIER_STATUS, suppliersFor } from "@/lib/ws/suppliers";
+import { RecommendationBar } from "@/components/ws/SupplierTable";
+import { SHOWS_RECOMMENDATIONS, SUPPLIER_STATUS, suppliersFor, visibleRecommendationCounts } from "@/lib/ws/suppliers";
 
 export const metadata = { title: "Leverancier" };
 
@@ -23,7 +24,8 @@ export default async function SupplierDetail({
   const { coupleId, supplierId } = await params;
   const { couple } = await requirePlanning(coupleId);
   if (!couple.suppliers_enabled || !isUuid(supplierId)) notFound();
-  const supplier = (await suppliersFor(couple.id)).find((s) => s.id === supplierId);
+  const [suppliers, recommendations] = await Promise.all([suppliersFor(couple.id), visibleRecommendationCounts()]);
+  const supplier = suppliers.find((s) => s.id === supplierId);
   if (!supplier) notFound();
   const documents = await query<{ id: string; file_id: string; name: string; created_at: Date }>(
     `select d.id, f.id as file_id, f.name, d.created_at from supplier_documents d join files f on f.id = d.file_id
@@ -43,10 +45,10 @@ export default async function SupplierDetail({
         <Link href={`/k/${couple.id}/leveranciers#c-${supplier.category_id}`} className="text-sm text-muted hover:text-bordeaux">← Jullie leveranciers</Link>
         <h1 className="mt-2 text-3xl">{supplier.category_name}</h1>
         <p className="mt-1 text-gold-ink">{SUPPLIER_STATUS[supplier.status]}{supplier.name ? ` · ${supplier.name}` : ""}</p>
-        {SHOWS_RECOMMENDATIONS.includes(supplier.status) && (
-          <Link href={`/k/${couple.id}/leveranciers/aanraders?categorie=${supplier.category_id}`} className="btn-secondary mt-3 py-1.5 text-xs">
-            ♡ Bekijk Estasi aanraders
-          </Link>
+        {SHOWS_RECOMMENDATIONS.includes(supplier.status) && (recommendations[supplier.category_id] ?? 0) > 0 && (
+          <div className="mt-3">
+            <RecommendationBar href={`/k/${couple.id}/leveranciers/aanraders?categorie=${supplier.category_id}`} />
+          </div>
         )}
       </header>
       <Notice searchParams={searchParams} />
