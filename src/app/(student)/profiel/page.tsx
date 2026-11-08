@@ -1,4 +1,5 @@
 import { saveProfile } from "@/app/actions/profile";
+import { NotificationSettings } from "@/components/community/NotificationSettings";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireStudent } from "@/lib/auth/session";
@@ -33,7 +34,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       <p className="eyebrow">Mijn profiel</p>
       <h1 className="mt-1 mb-2 text-4xl">Over jou</h1>
       <p className="mb-8 text-muted">
-        Deze gegevens zijn nu alleen zichtbaar voor jou en je opleider. Wat later zichtbaar wordt in de community, kies je straks zelf.
+        Deze gegevens zijn alleen zichtbaar voor jou en je opleider. In de community zien andere cursisten alleen je naam bij je berichten.
       </p>
       <Notice searchParams={searchParams} />
 
@@ -93,6 +94,10 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
         <SubmitButton pendingText="Opslaan…">Profiel opslaan</SubmitButton>
       </form>
+
+      <div className="mt-8">
+        <NotificationSettings userId={user.id} />
+      </div>
     </div>
   );
 }

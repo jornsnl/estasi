@@ -56,6 +56,42 @@ Overige commando's: `npm test` (regels voor toegang, voortgang en feedback; met 
 * Instellingen: welkomstvideo en tekst, contactadres, praktijkplekken open/dicht, privacyuitleg boven de opdrachten
 * Logboek van alle beheeracties
 
+## Community en privéberichten (Academy)
+
+Eén gezamenlijke community voor alle cursisten met actieve toegang en Sabine, plus een privégesprek tussen Sabine en elke cursist afzonderlijk. Cursist: **Community** (`/community`) en **Privéchat** (`/prive-chat`). Beheer: **Community** (`/beheer/community`) en **Privéberichten** (`/beheer/berichten`). Het menu toont het aantal ongelezen berichten (bij Sabine telt de community ook open meldingen mee).
+
+**Wat kan er**
+* Berichten met tekst, foto's, korte eigen video's, bestanden en een video van YouTube of Vimeo (ingesloten speler). Reacties op berichten, ook met bijlage
+* De schrijver kan het eigen bericht of de eigen reactie bewerken en verwijderen; een cursist kan een bericht of reactie van een ander **melden** bij Sabine (met reden). Sabine krijgt een melding meteen per mail (en push)
+* Sabine kan berichten vastpinnen (bovenaan), berichten en reacties verbergen (alleen zij en de schrijver zien ze dan nog, met een label) of verwijderen. Verbergen handelt de melding ook af. Verwijderen en verbergen van andermans berichten komt in het logboek
+* Privéberichten: één gesprek per cursist, alleen die cursist en Sabine zien het (ook de bijlagen). Sabine begint een gesprek via Privéberichten, Nieuw gesprek. Het gesprek ververst elke 30 seconden vanzelf
+* Tekst wordt nooit als HTML getoond: platte tekst, alleen http(s)-links worden klikbaar (`src/lib/community/rules.ts`, `linkify`)
+* Bruidsparen (rol `couple`) komen er niet in
+
+**Toegang verlopen, gepauzeerd of ingetrokken** (besluit): geen toegang tot de community, ook niet alleen-lezen; de foto's en bestanden daarvan openen dan ook niet. Het privégesprek met Sabine blijft leesbaar en de cursist kan Sabine antwoorden zodra er een gesprek is, maar kan zelf geen nieuw gesprek beginnen. Zonder inschrijving: geen van beide.
+
+**Bijlagen**: gewone Academy-uploads (`public.files`, bucket `academy`), met de bestaande grens van 10 MB per bestand, maximaal 6 per bericht. Foto's worden in de browser eerst verkleind (maximaal 2400 px, JPG, zoals bij Your Wedding Space). Video's alleen als ze binnen 10 MB passen (mp4, webm, mov); langere video's via een YouTube- of Vimeo-link. Bestanden: pdf, Word, Excel, PowerPoint, txt. Elk bestand gaat apart naar de server zodra het gekozen is en wordt pas aan een bericht gekoppeld bij plaatsen; nooit geplaatste uploads verdwijnen na een dag. Openen kan alleen via `/api/community/bestanden/[id]`, dat eerst dezelfde regel toepast als het bericht, de reactie of het gesprek; in `public.files` staat de uploader (of de cursist van het gesprek) als eigenaar, zodat de algemene route `/api/bestanden` ze nooit aan anderen geeft.
+
+**E-mail** (via `sendMail` uit `src/lib/ws/mail.ts`, dus Resend of SMTP, en zichtbaar in de mailgeschiedenis als *Academy community* / *Academy privébericht*): gebundeld, hoogstens één mail per uur per persoon over nieuwe berichten en reacties in de community, en hoogstens één per kwartier over privéberichten. De eerste melding na een rustig venster gaat meteen; wat daarna binnen het venster komt, gaat mee in de volgende mail. Alleen over wat iemand nog niet gezien heeft, nooit over eigen berichten, en een privébericht-mail bevat nooit de inhoud. Per persoon aan of uit op het profiel (cursist `/profiel`, Sabine `/beheer/profiel`), standaard aan. Nieuwe accounts krijgen geen mail over wat er al stond.
+
+Omdat er geen cron is, verstuurt de app de gebundelde mails zelf: direct na elk nieuw bericht, reactie of privébericht, en verder bij elke paginaweergave in de Academy of het beheer (hoogstens één keer per minuut per server). Een slot in Postgres voorkomt dubbele mails. Wie het venster precies wil halen zonder dat er iemand op de site is, kan de hosting periodiek (bijvoorbeeld elk kwartier) laten aanroepen:
+
+```bash
+curl -H "Authorization: Bearer $COMMUNITY_CRON_SECRET" https://academy.estasiweddings.nl/api/community/meldingen
+```
+
+Zonder `COMMUNITY_CRON_SECRET` (minimaal 16 tekens) staat die endpoint uit.
+
+**Pushmeldingen** (Web Push, pakket `web-push`): via de service worker van de app (`public/beheer-sw.js`, dezelfde als die van de beheer-app). Op het profiel zet ieder ze aan per apparaat. Community: hoogstens één push per uur per persoon; privéberichten en meldingen: altijd, zonder inhoud. Sleutels aanmaken (eenmalig) en in de hosting zetten:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+`VAPID_PUBLIC_KEY` en `VAPID_PRIVATE_KEY` uit de uitvoer, en `VAPID_SUBJECT` (bijvoorbeeld `mailto:academy@estasiweddings.nl`). Zonder sleutels staat er op het profiel dat pushmeldingen niet zijn ingesteld en gaat alles alleen per mail. Op iPhone en iPad werken pushmeldingen alleen als de Academy (of het beheer) op het beginscherm staat en vanaf daar geopend is (iOS 16.4 of nieuwer); daarvoor hebben cursisten nu ook een manifest (`/academy.webmanifest`). Worden de sleutels vervangen, dan moet iedereen de meldingen opnieuw aanzetten.
+
+Code: `src/lib/community/rules.ts` (wie mag wat, tekst, bundelvensters; getest in `tests/community.test.ts`), `server.ts` (queries), `notify.ts` (mail), `push.ts`, `src/app/actions/community.ts`, `src/components/community/`. Tabellen (migratie `0026`): `community_posts`, `community_comments`, `community_reports`, `private_messages`, `community_attachments`, `community_members` (gezien, mail aan/uit, bundeling) en `push_subscriptions`. Met `TEST_DATABASE_URL` test `tests/community-db.test.ts` de queries en de bundeling tegen een database.
+
 ## Opbouw
 
 ```
@@ -169,6 +205,8 @@ Er staat een `Dockerfile` (werkt op beide) en een `render.yaml` blueprint. Zet i
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | alleen als je geen Resend gebruikt: een andere SMTP-server |
 | `ADMIN_NOTIFY_EMAIL` | waar meldingen voor Sabine heen gaan |
 | `ANTHROPIC_API_KEY` | optioneel: AI-samenvattingen en concept-stylingplan |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | optioneel: pushmeldingen van de community (`npx web-push generate-vapid-keys`). Privésleutel geheim |
+| `COMMUNITY_CRON_SECRET` | optioneel: geheim voor `/api/community/meldingen` (gebundelde mails op tijd versturen) |
 
 En in Render bij Settings (met de blueprint staat dit er al in):
 * **Auto-Deploy**: *On Commit*, dan gaat elke push naar `main` live
@@ -239,6 +277,5 @@ Totdat de betaalprovider gekozen is: betaling buiten het platform (factuur of be
 ## Nog open (uit het bouwplan)
 
 * E-mails voor certificaat en vervalmelding (30 dagen vooraf). Uitnodiging en wachtwoordherstel lopen via Supabase; lokaal komt de herstellink in de serverlog en toont het beheer de activatielink
-* Fase 2: community, privéchat, pushmeldingen
 * Huisstijl: kleuren nu volgens het bouwplan (wit, goud `#A4914A`, bordeaux `#722F37`) met Cormorant Garamond en Inter, centraal in `src/app/globals.css`. Goud is voor tekst verdonkerd naar `#6F6230` vanwege leesbaarheid
 * Videoplatform (advies: Vimeo met domeinbeperking), back-ups, bewaartermijnen en privacyverklaring
