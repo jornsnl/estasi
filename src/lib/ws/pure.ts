@@ -68,7 +68,7 @@ export function isQuestionVisible(
   return wanted === "" ? given.some(Boolean) : given.includes(wanted);
 }
 
-const normName = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+export const normName = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
 
 /** "Jan & Els de Vries", "Jan, Els en Pim": the people of a household. */
 export function householdNames(names: string): string[] {

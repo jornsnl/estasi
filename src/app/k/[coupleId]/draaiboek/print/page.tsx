@@ -3,6 +3,8 @@ import { AutoPrint } from "@/components/AutoPrint";
 import { PrintButton } from "@/components/PrintButton";
 import { requirePlanning } from "@/lib/ws/access";
 import { dayGuests } from "@/lib/ws/dayguests";
+import { coverCounts, notResponded, type GroupKind } from "@/lib/ws/guest-counts";
+import { invitationsFor } from "@/lib/ws/invitations";
 import { query } from "@/lib/ws/db";
 import { coupleName, formatDate } from "@/lib/ws/format";
 import { mealsFor } from "@/lib/ws/meals";
@@ -62,6 +64,7 @@ export default async function RunSheetPrint({
             <p>{settings.business_name}</p>
             <p>{settings.contact_phone} · {settings.contact_email}</p>
           </div>
+          <CoverGuests coupleId={couple.id} />
         </section>
       )}
 
@@ -99,6 +102,38 @@ export default async function RunSheetPrint({
           </section>
         )),
       )}
+    </div>
+  );
+}
+
+/** The guest overview on the cover: signed-up guests only, each counted once. */
+async function CoverGuests({ coupleId }: { coupleId: string }) {
+  const [guests, invitations] = await Promise.all([
+    query<{ attendance: string; is_kid: boolean; group_kind: GroupKind | null }>(
+      "select g.attendance, g.is_kid, gg.kind as group_kind from guests g left join guest_groups gg on gg.id = g.group_id where g.couple_id = $1",
+      [coupleId],
+    ),
+    invitationsFor(coupleId),
+  ]);
+  const c = coverCounts(guests);
+  const open = notResponded(invitations);
+  const cell = "px-3 py-0.5 text-right tabular-nums";
+  return (
+    <div className="mt-10 break-inside-avoid text-sm">
+      <h2 className="mb-1 font-serif text-base">Gastenoverzicht</h2>
+      <table className="mx-auto border-collapse">
+        <thead>
+          <tr className="text-xs text-muted"><th /><th className={cell}>Volwassenen</th><th className={cell}>Kinderen</th><th className={cell}>Totaal</th></tr>
+        </thead>
+        <tbody>
+          <tr><th className="pr-3 text-left font-normal">Daggasten</th><td className={cell}>{c.day.adults}</td><td className={cell}>{c.day.kids}</td><td className={cell}>{c.day.adults + c.day.kids}</td></tr>
+          <tr><th className="pr-3 text-left font-normal">Avondgasten</th><td className={cell}>{c.evening.adults}</td><td className={cell}>{c.evening.kids}</td><td className={cell}>{c.evening.adults + c.evening.kids}</td></tr>
+          <tr className="border-t border-ink font-semibold"><th className="pr-3 text-left">Totaal</th><td className={cell}>{c.day.adults + c.evening.adults}</td><td className={cell}>{c.day.kids + c.evening.kids}</td><td className={cell}>{c.total}</td></tr>
+        </tbody>
+      </table>
+      <p className="mt-2 text-[10px] text-muted">
+        Nog geen reactie: {open.people}{open.households ? ` (${open.households} ${open.households === 1 ? "uitnodiging" : "uitnodigingen"})` : ""} · Geprint op {formatDate(new Date())}
+      </p>
     </div>
   );
 }

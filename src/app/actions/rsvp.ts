@@ -6,6 +6,7 @@ import { hit, isLimited } from "@/lib/auth/rate-limit";
 import { coupleMembers } from "@/lib/ws/couples";
 import { one, query, tx } from "@/lib/ws/db";
 import { coupleName, formatDate } from "@/lib/ws/format";
+import { syncInvitationChildren } from "@/lib/ws/invitations";
 import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
 import { fillTemplate, isQuestionVisible, MAX_RELATIONS, publicForm, relationOptions, splitName } from "@/lib/ws/rsvp";
 import { str } from "@/lib/ws/redirect";
@@ -110,6 +111,9 @@ export async function submitRsvp(formData: FormData) {
       );
     }
   });
+
+  // Children on the invitation list of this household now count as guests too.
+  await syncInvitationChildren(couple.id).catch((err) => console.error("[rsvp] kinderen bijwerken mislukt", err));
 
   // The mail: Sabine's text with, at the bottom, everything that was filled in.
   const names = coupleName(couple);
