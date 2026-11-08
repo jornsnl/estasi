@@ -5,8 +5,6 @@ import { Notice } from "@/components/Notice";
 import { PasskeyLogin } from "@/components/PasskeyLogin";
 import { SubmitButton } from "@/components/SubmitButton";
 import { currentUser, homeFor } from "@/lib/auth/session";
-import { isLocalMode } from "@/lib/data";
-import { DEMO_PASSWORD } from "@/lib/data/seed";
 
 export const metadata = { title: "Inloggen" };
 
@@ -39,18 +37,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <Link href="/wachtwoord-vergeten" className="text-bordeaux hover:underline">Wachtwoord vergeten?</Link>
       </p>
 
-      {isLocalMode() && (
-        <div className="mt-8 rounded-lg border border-dashed border-gold/50 bg-gold-soft/50 p-4 text-sm">
-          <p className="font-medium text-gold-ink">Lokale demo</p>
-          <p className="mt-1 text-muted">Wachtwoord voor alle accounts: <code className="text-ink">{DEMO_PASSWORD}</code></p>
-          <ul className="mt-2 space-y-0.5 text-muted">
-            <li><code className="text-ink">sabine@estasiweddings.nl</code> opleider</li>
-            <li><code className="text-ink">lotte@voorbeeld.nl</code> cursist, bezig</li>
-            <li><code className="text-ink">noor@voorbeeld.nl</code> cursist, wacht op bevestiging</li>
-            <li><code className="text-ink">eva@voorbeeld.nl</code> cursist, toegang verlopen</li>
-          </ul>
-        </div>
-      )}
     </>
   );
 }
