@@ -3,10 +3,11 @@
 import { randomBytes } from "crypto";
 import { redirect } from "next/navigation";
 import { audit } from "@/lib/academy";
-import { newToken } from "@/lib/auth/password";
+import { createDevAccount, deleteDevAccount, newDevSetupLink } from "@/lib/auth/dev-auth";
 import { requireOwner } from "@/lib/auth/session";
 import { deleteAccount, inviteAccount, resendAccess } from "@/lib/auth/supabase-auth";
-import { getStore, isSupabaseMode, type Enrollment, type PackageType, type PracticalStatus } from "@/lib/data";
+import { supabaseEnabled } from "@/lib/supabase/config";
+import { getStore, type Enrollment, type PackageType, type PracticalStatus } from "@/lib/data";
 import { accessStatus, addMonths, ACCESS_MONTHS, pause, resume } from "@/lib/domain/access";
 import { LIMITS } from "@/lib/domain/input";
 import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
@@ -41,11 +42,12 @@ export async function createStudent(formData: FormData) {
   }
 
   const now = new Date().toISOString();
-  const supabase = isSupabaseMode();
+  const supabase = supabaseEnabled();
   let userId: string;
   try {
     // With Supabase the account (and its id) comes from Supabase Auth, which also mails the invite.
-    userId = supabase ? await inviteAccount(email, name) : newId();
+    // The development login makes the account itself and shows the link on the student page.
+    userId = supabase ? await inviteAccount(email, name) : await createDevAccount(email, name);
   } catch (err) {
     console.error(err);
     done("/beheer/cursisten/nieuw", "De uitnodiging kon niet worden verstuurd. Controleer het e-mailadres en de e-mailinstellingen in Supabase.", true);
@@ -56,9 +58,6 @@ export async function createStudent(formData: FormData) {
       email,
       name,
       role: "student",
-      passwordHash: null,
-      setupToken: supabase ? null : newToken(),
-      setupTokenExpiresAt: supabase ? null : new Date(Date.now() + SETUP_DAYS * 86_400_000).toISOString(),
       activatedAt: null,
       createdAt: now,
       lastActiveAt: null,
@@ -90,9 +89,10 @@ export async function createStudent(formData: FormData) {
       practicalStatus: "none",
       ownerNotes: str(formData, "ownerNotes", LIMITS.ownerNotes),
     });
+    if (!supabase) await newDevSetupLink(userId, SETUP_DAYS);
   } catch (err) {
     // Do not leave a half made account behind (the users row cascades away with it).
-    if (supabase) await deleteAccount(userId).catch(() => undefined);
+    await (supabase ? deleteAccount(userId) : deleteDevAccount(userId)).catch(() => undefined);
     throw err;
   }
   await audit(owner, "Cursist aangemaakt", `Pakket ${pkg} · ${PACKAGE_LABELS[pkg]}, aankoopdatum ${formatDate(purchasedAt)}`, userId);
@@ -111,7 +111,7 @@ export async function newSetupLink(formData: FormData) {
   const user = await store.getUser(userId);
   if (!user || user.role !== "student") done("/beheer", "Cursist niet gevonden.", true);
 
-  if (isSupabaseMode()) {
+  if (supabaseEnabled()) {
     let kind: "invite" | "reset";
     try {
       kind = await resendAccess(user);
@@ -124,10 +124,7 @@ export async function newSetupLink(formData: FormData) {
     done(studentPath(userId), `${what} gemaild naar ${user.email}.`);
   }
 
-  await store.updateUser(userId, {
-    setupToken: newToken(),
-    setupTokenExpiresAt: new Date(Date.now() + SETUP_DAYS * 86_400_000).toISOString(),
-  });
+  await newDevSetupLink(userId, SETUP_DAYS);
   await audit(owner, "Nieuwe activatie/herstellink gemaakt", "", userId);
   done(studentPath(userId), "Nieuwe link aangemaakt.");
 }

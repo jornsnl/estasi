@@ -3,26 +3,27 @@
 // date before the new version goes live. A failed migration stops the deploy
 // and the old version keeps running.
 //
-//   DATABASE_URL=postgresql://... node scripts/migrate.mjs
+//   DATABASE_URL=postgresql://... node scripts/migrate.mjs   (or: npm run db:migrate, reads .env.local)
 //
 // DATABASE_URL is the Supabase "Session pooler" connection string (Connect
 // button in Supabase). Optional: DATABASE_CA_CERT with the contents of the
 // Supabase CA certificate (Project Settings, Database, SSL) to verify the
 // server certificate.
 
-import { readdirSync, readFileSync } from "fs";
+import { existsSync, readdirSync, readFileSync } from "fs";
 import path from "path";
 import pg from "pg";
+
+for (const file of [".env.local", ".env"]) if (!process.env.DATABASE_URL && existsSync(file)) process.loadEnvFile(file);
 
 const dir = path.resolve("supabase/migrations");
 const url = process.env.DATABASE_URL;
 
 if (!url) {
-  if (process.env.DATA_BACKEND !== "supabase") {
-    console.log("[migraties] DATA_BACKEND is niet supabase, niets te doen.");
-    process.exit(0);
-  }
-  console.error("[migraties] DATABASE_URL ontbreekt. Zet de Session pooler connection string van Supabase in de hosting.");
+  // The whole app (Academy and Your Wedding Space) lives in this database, so it is always needed.
+  console.error(
+    "[migraties] DATABASE_URL ontbreekt. In de hosting: de Session pooler connection string van Supabase. Lokaal: je eigen Postgres (zie README).",
+  );
   process.exit(1);
 }
 

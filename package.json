@@ -10,7 +10,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "reset-data": "node scripts/reset-data.mjs",
+    "db:seed": "vite-node --config vitest.config.ts scripts/seed-dev.ts",
     "supabase:setup": "vite-node --config vitest.config.ts scripts/supabase-setup.ts",
     "db:migrate": "node scripts/migrate.mjs"
   },

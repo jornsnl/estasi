@@ -1,14 +1,29 @@
-import { hashPassword } from "@/lib/auth/password";
 import { addMonths } from "@/lib/domain/access";
-import type { LocalDb } from "./local-store";
-import type { Answer, Block, Enrollment, Lesson, Module, Profile, User } from "./types";
+import type { Answer, AuditEntry, Block, Enrollment, Feedback, Lesson, LessonCompletion, Module, Profile, Settings, User } from "./types";
 
 /**
- * Demo content for local development. The lesson texts are placeholders:
- * the real course content still has to be written by Estasi.
+ * Demo content for local development (scripts/seed-dev.ts puts it in the
+ * database) and the example course of scripts/supabase-setup.ts. The lesson
+ * texts are placeholders: the real course content still has to be written by
+ * Estasi. Ids are readable ("mod-1", "user-lotte"); the scripts turn them into
+ * uuids. Pure data: no imports from the server side.
  */
 
+/** Password of every demo account (development login only). */
 export const DEMO_PASSWORD = "academy-demo";
+
+export interface SeedData {
+  users: User[];
+  profiles: Profile[];
+  enrollments: Enrollment[];
+  modules: Module[];
+  lessons: Lesson[];
+  answers: Answer[];
+  feedback: Feedback[];
+  completions: LessonCompletion[];
+  audit: AuditEntry[];
+  settings: Settings;
+}
 
 const day = 86_400_000;
 const ago = (days: number) => new Date(Date.now() - days * day).toISOString();
@@ -119,15 +134,12 @@ const lessons: Lesson[] = [
   },
 ];
 
-function user(id: string, name: string, email: string, role: User["role"], password: string, lastActiveDaysAgo: number | null): User {
+function user(id: string, name: string, email: string, role: User["role"], lastActiveDaysAgo: number | null): User {
   return {
     id,
     name,
     email,
     role,
-    passwordHash: hashPassword(password),
-    setupToken: null,
-    setupTokenExpiresAt: null,
     activatedAt: ago(200),
     createdAt: ago(200),
     lastActiveAt: lastActiveDaysAgo === null ? null : ago(lastActiveDaysAgo),
@@ -185,11 +197,11 @@ function answer(userId: string, lessonId: string, blockId: string, value: string
   };
 }
 
-export function createSeed(): LocalDb {
-  const owner = user("user-owner", "Sabine", "sabine@estasiweddings.nl", "owner", DEMO_PASSWORD, 1);
-  const lotte = user("user-lotte", "Lotte de Vries", "lotte@voorbeeld.nl", "student", DEMO_PASSWORD, 2);
-  const noor = user("user-noor", "Noor Jansen", "noor@voorbeeld.nl", "student", DEMO_PASSWORD, 5);
-  const eva = user("user-eva", "Eva Bakker", "eva@voorbeeld.nl", "student", DEMO_PASSWORD, 400);
+export function createSeed(): SeedData {
+  const owner = user("user-owner", "Sabine", "sabine@estasiweddings.nl", "owner", 1);
+  const lotte = user("user-lotte", "Lotte de Vries", "lotte@voorbeeld.nl", "student", 2);
+  const noor = user("user-noor", "Noor Jansen", "noor@voorbeeld.nl", "student", 5);
+  const eva = user("user-eva", "Eva Bakker", "eva@voorbeeld.nl", "student", 400);
 
   const lotteAnswers = [
     answer(lotte.id, "les-1-1", "b-1-1-3", "Ik organiseer al jaren feesten voor vrienden en familie en merk dat ik er energie van krijg om alles tot in de puntjes te regelen.", 40),
@@ -226,7 +238,6 @@ export function createSeed(): LocalDb {
       ...allLessonIds.map((lessonId, i) => ({ userId: noor.id, lessonId, completedAt: ago(100 - i * 5) })),
     ],
     audit: [],
-    files: [],
     settings: {
       welcomeVideoUrl: VIDEO,
       welcomeText: "Welkom bij de Wedding Plan Academy. Neem rustig de tijd voor elke les: je antwoorden worden bewaard en je kunt ze altijd later aanpassen.",

@@ -2,13 +2,14 @@ import { readFileSync } from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
 import { createSeed } from "@/lib/data/seed";
-import { fromRow, isUuid, toRow, type Table } from "@/lib/data/supabase-rows";
+import { columnsOf, fromRow, isUuid, toParams, toRow, type Table } from "@/lib/data/rows";
 import type { Answer, Enrollment, Lesson, Settings, User } from "@/lib/data/types";
+import type { Passkey } from "@/lib/security/types";
 
 const seed = createSeed();
 
-describe("supabase rows", () => {
-  it("writes snake_case columns and never the local password fields", () => {
+describe("database rows", () => {
+  it("writes snake_case columns and no password fields", () => {
     const row = toRow("users", seed.users[0]);
     expect(row).toMatchObject({ email: "sabine@estasiweddings.nl", role: "owner" });
     expect(row).toHaveProperty("last_active_at");
@@ -31,11 +32,48 @@ describe("supabase rows", () => {
     }
   });
 
-  it("reads users back with empty local auth fields", () => {
+  it("reads users back as they were", () => {
     const user = fromRow<User>("users", toRow("users", seed.users[1]));
-    expect(user.passwordHash).toBeNull();
-    expect(user.setupToken).toBeNull();
-    expect(user.email).toBe("lotte@voorbeeld.nl");
+    expect(user).toEqual(seed.users[1]);
+    expect(user).not.toHaveProperty("passwordHash");
+  });
+
+  it("turns the Date objects of pg into ISO strings", () => {
+    const user = fromRow<User>("users", {
+      ...toRow("users", seed.users[1]),
+      created_at: new Date("2026-01-02T10:00:00Z"),
+      last_active_at: null,
+    });
+    expect(user.createdAt).toBe("2026-01-02T10:00:00.000Z");
+    expect(user.lastActiveAt).toBeNull();
+  });
+
+  it("reads bigint counters (strings from pg) as numbers", () => {
+    const passkey: Passkey = {
+      id: "cred",
+      userId: "u",
+      publicKey: "pk",
+      counter: 7,
+      transports: ["internal"],
+      deviceType: "multiDevice",
+      backedUp: true,
+      name: "iPhone",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastUsedAt: null,
+    };
+    expect(fromRow<Passkey>("passkeys", { ...toRow("passkeys", passkey), counter: "7" })).toEqual(passkey);
+  });
+
+  it("sends jsonb columns as JSON text and text[] columns as arrays", () => {
+    const lesson = seed.lessons[0];
+    const lessonParams = toParams("lessons", toRow("lessons", lesson));
+    expect(lessonParams[columnsOf("lessons").indexOf("blocks")]).toBe(JSON.stringify(lesson.blocks));
+    const enrollmentParams = toParams("enrollments", toRow("enrollments", seed.enrollments[0]));
+    expect(enrollmentParams[columnsOf("enrollments").indexOf("pauses")]).toBe("[]");
+    const feedbackParams = toParams("feedback", toRow("feedback", { attachment: null, text: "x" }, true));
+    expect(feedbackParams).toEqual(["x", null]);
+    const passkeyParams = toParams("passkeys", toRow("passkeys", { transports: ["usb"] }, true));
+    expect(passkeyParams).toEqual([["usb"]]);
   });
 
   it("only writes the fields of a patch", () => {
@@ -61,8 +99,7 @@ describe("supabase rows", () => {
 });
 
 // Every domain field must have a column, and every column must exist in the
-// migrations; otherwise Supabase silently drops (or rejects) what the local
-// store keeps.
+// migrations; otherwise the database silently drops (or rejects) a field.
 
 const sql = ["0001_init.sql", "0002_supabase_auth.sql"]
   .map((f) => readFileSync(path.join(__dirname, "..", "supabase", "migrations", f), "utf8"))
@@ -81,9 +118,6 @@ function migrationColumns(table: string): Set<string> {
   return columns;
 }
 
-/** Fields that by design never go to the database (passwords live in Supabase Auth). */
-const LOCAL_ONLY: Record<string, string[]> = { users: ["passwordHash", "setupToken", "setupTokenExpiresAt"] };
-
 const SAMPLES: [Table, object][] = [
   ["users", seed.users[1]],
   ["profiles", seed.profiles[0]],
@@ -98,12 +132,11 @@ const SAMPLES: [Table, object][] = [
   ["files", { id: "f", name: "n.pdf", size: 1, mime: "application/pdf", belongsTo: null, uploadedBy: "o", createdAt: "2026-01-01T00:00:00.000Z" }],
 ];
 
-describe("supabase rows match the domain and the schema", () => {
+describe("database rows match the domain and the schema", () => {
   it.each(SAMPLES)("%s: every domain field has a column", (table, sample) => {
     const back = fromRow<Record<string, unknown>>(table, toRow(table, sample));
     for (const key of Object.keys(sample)) {
-      if (LOCAL_ONLY[table]?.includes(key)) continue;
-      expect(back, `${table}.${key} gaat verloren in Supabase`).toHaveProperty(key);
+      expect(back, `${table}.${key} gaat verloren in de database`).toHaveProperty(key);
       expect(back[key]).toEqual((sample as Record<string, unknown>)[key]);
     }
   });

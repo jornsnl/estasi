@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { completeSetup } from "@/app/actions/auth";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
-import { getStore } from "@/lib/data";
+import { devAuthAllowed, devLinkAccount } from "@/lib/auth/dev-auth";
 
 export const metadata = { title: "Account activeren" };
 
@@ -15,10 +16,11 @@ export default async function ActivatePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { token } = await params;
-  const user = await getStore().getUserBySetupToken(token);
-  const valid = user?.setupTokenExpiresAt && new Date(user.setupTokenExpiresAt) > new Date();
+  // Only the development login has these links; with Supabase the e-mail links go to /auth/bevestigen.
+  if (!devAuthAllowed()) notFound();
+  const account = await devLinkAccount(token);
 
-  if (!user || !valid) {
+  if (!account) {
     return (
       <>
         <h1 className="text-3xl">Link niet geldig</h1>
@@ -28,7 +30,8 @@ export default async function ActivatePage({
     );
   }
 
-  const isNew = !user.passwordHash;
+  const { user } = account;
+  const isNew = !account.hasPassword;
   return (
     <>
       <h1 className="text-3xl">{isNew ? `Welkom, ${user.name.split(" ")[0]}` : "Nieuw wachtwoord"}</h1>

@@ -11,7 +11,8 @@ import {
   type RegistrationResponseJSON,
 } from "@simplewebauthn/server";
 import { cookies } from "next/headers";
-import { getStore, isSupabaseMode, type User } from "@/lib/data";
+import { getStore, type User } from "@/lib/data";
+import { supabaseEnabled } from "@/lib/supabase/config";
 import { getSecurityStore, type Passkey } from "@/lib/security/store";
 import { appUrl } from "@/lib/supabase/config";
 import { adminClient, authClient } from "@/lib/supabase/server";
@@ -214,7 +215,7 @@ async function markPasskeySession(userId: string, sessionId: string) {
 
 /** True when the current Supabase session was started with a passkey. */
 export async function isPasskeySession(userId: string, sessionId: string | undefined): Promise<boolean> {
-  if (!isSupabaseMode() || !sessionId) return false;
+  if (!supabaseEnabled() || !sessionId) return false;
   const marker = readSigned<{ u: string; s: string }>("passkey-session", (await cookies()).get(MARKER_COOKIE)?.value);
   return Boolean(marker && marker.u === userId && marker.s === sessionId);
 }

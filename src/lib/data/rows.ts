@@ -1,5 +1,7 @@
-// Conversion between the domain model (camelCase, ISO dates) and the Supabase
-// tables (snake_case). Pure functions, so they are covered by unit tests.
+// Conversion between the domain model (camelCase, ISO dates) and the tables in
+// schema public (snake_case). Pure functions, so they are covered by unit tests.
+// Used by the Postgres stores (pg-store.ts, security/pg-store.ts) and the seed
+// and setup scripts.
 
 /** Columns per table, as domain field names. Fields not listed are never written. */
 const COLUMNS = {
@@ -59,10 +61,11 @@ export type Table = keyof typeof COLUMNS;
 
 const toSnake = (key: string) => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 
-/** Postgres answers "2026-01-02 10:00:00+00"; the app compares ISO strings with Z. */
+/** Postgres answers "2026-01-02 10:00:00+00" (or a Date via pg); the app compares ISO strings with Z. */
 const isDateField = (key: string) => key === "at" || key.endsWith("At");
 
 function normaliseDate(value: unknown): unknown {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
   if (typeof value !== "string") return value;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toISOString();
@@ -80,18 +83,41 @@ export function toRow(table: Table, value: object, partial = false): Record<stri
   return row;
 }
 
+/** bigint columns: pg hands them over as strings, the app wants numbers. */
+const BIGINT_FIELDS = new Set(["counter"]);
+
 /** Table row to domain object. */
 export function fromRow<T>(table: Table, row: Record<string, unknown>): T {
   const out: Record<string, unknown> = {};
   for (const key of COLUMNS[table]) {
-    const value = row[toSnake(key)];
-    out[key] = isDateField(key) ? normaliseDate(value ?? null) : (value ?? null);
-  }
-  if (table === "users") {
-    // Passwords and reset tokens live in Supabase Auth, not in this table.
-    Object.assign(out, { passwordHash: null, setupToken: null, setupTokenExpiresAt: null });
+    const value = row[toSnake(key)] ?? null;
+    if (isDateField(key)) out[key] = normaliseDate(value);
+    else if (BIGINT_FIELDS.has(key) && typeof value === "string") out[key] = Number(value);
+    else out[key] = value;
   }
   return out as T;
+}
+
+/** Columns per table (snake_case), in the order toRow writes them. */
+export const columnsOf = (table: Table): string[] => COLUMNS[table].map(toSnake);
+
+/** jsonb columns. pg would send a JS array as a Postgres array, so these go as JSON text. */
+const JSON_COLUMNS: Partial<Record<Table, string[]>> = {
+  enrollments: ["pauses"],
+  lessons: ["blocks"],
+  answers: ["files"],
+  feedback: ["attachment"],
+};
+
+/**
+ * A row from toRow as query parameters: jsonb values as JSON text (SQL null
+ * stays null), everything else as it is (text[] columns take JS arrays).
+ */
+export function toParams(table: Table, row: Record<string, unknown>): unknown[] {
+  const json = JSON_COLUMNS[table] ?? [];
+  return Object.entries(row).map(([column, value]) =>
+    json.includes(column) && value !== null && value !== undefined ? JSON.stringify(value) : value,
+  );
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

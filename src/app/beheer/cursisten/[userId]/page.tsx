@@ -6,12 +6,13 @@ import { Notice } from "@/components/Notice";
 import { ProgressBar } from "@/components/ProgressBar";
 import { SubmitButton } from "@/components/SubmitButton";
 import { studentOverview } from "@/lib/academy";
-import { getStore, isSupabaseMode, type Answer, type AnswerableBlock, type Feedback } from "@/lib/data";
+import { getStore, type Answer, type AnswerableBlock, type Feedback } from "@/lib/data";
 import { ACCESS_LABELS, DEFAULT_EXTEND_MONTHS, EXTEND_MONTHS, remainingDays } from "@/lib/domain/access";
 import { isActivated } from "@/lib/domain/account";
 import { LIMITS } from "@/lib/domain/input";
 import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
-import { appUrl } from "@/lib/supabase/config";
+import { devAuthAllowed, devPendingLink } from "@/lib/auth/dev-auth";
+import { supabaseEnabled } from "@/lib/supabase/config";
 import { COURSE_STATUS_LABELS, feedbackState, isAnswerable, isAnswered } from "@/lib/domain/progress";
 import { ACCEPT_ATTR } from "@/lib/uploads";
 import { formatDate, formatDateTime, toDateInput } from "@/lib/util/format";
@@ -43,7 +44,7 @@ export default async function StudentDetail({
   const e = o.enrollment;
   const completedAt = new Map(completions.map((c) => [c.lessonId, c.completedAt]));
   const answersByBlock = new Map(answers.map((a) => [`${a.lessonId}:${a.blockId}`, a]));
-  const setupLink = user.setupToken ? `${appUrl()}/activeren/${user.setupToken}` : null;
+  const setup = devAuthAllowed() ? await devPendingLink(user.id) : null;
   const activated = isActivated(user);
 
   return (
@@ -66,17 +67,17 @@ export default async function StudentDetail({
 
       <Notice searchParams={searchParams} />
 
-      {setupLink && (
+      {setup && (
         <section className="card border-gold/50 bg-gold-soft/40 p-5">
           <h2 className="text-xl">{activated ? "Herstellink" : "Activatielink"}</h2>
           <p className="mt-1 text-sm text-muted">
-            Stuur deze link naar de cursist. Geldig tot {formatDateTime(user.setupTokenExpiresAt)}. In fase 2 gaat dit automatisch per e-mail.
+            Stuur deze link naar de cursist. Geldig tot {formatDateTime(setup.expiresAt)}. (Ontwikkel-login: met Supabase gaat dit per e-mail.)
           </p>
-          <p className="mt-3 rounded-md border border-line bg-white p-3 font-mono text-sm break-all select-all">{setupLink}</p>
+          <p className="mt-3 rounded-md border border-line bg-white p-3 font-mono text-sm break-all select-all">{setup.link}</p>
         </section>
       )}
 
-      {isSupabaseMode() && !activated && (
+      {supabaseEnabled() && !activated && (
         <section className="card border-gold/50 bg-gold-soft/40 p-5">
           <h2 className="text-xl">Nog niet geactiveerd</h2>
           <p className="mt-1 text-sm text-muted">
@@ -339,7 +340,7 @@ export default async function StudentDetail({
           </dl>
           <form action={newSetupLink} className="mt-5">
             <input type="hidden" name="userId" value={userId} />
-            <SubmitButton className="btn-secondary">{isSupabaseMode()
+            <SubmitButton className="btn-secondary">{supabaseEnabled()
                 ? activated ? "Wachtwoord-herstellink mailen" : "Uitnodiging opnieuw mailen"
                 : activated ? "Wachtwoord-herstellink maken" : "Nieuwe activatielink maken"}</SubmitButton>
           </form>

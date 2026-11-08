@@ -4,14 +4,21 @@ Online leeromgeving van Estasi Weddings voor toekomstige weddingplanners. Gebouw
 
 > Deze app bevat ook **Your Wedding Space**, het portaal per bruidspaar (zie verderop). Sabine beheert beide vanuit hetzelfde beheer.
 
-## Lokaal draaien (zonder database)
+## Lokaal draaien (Postgres)
+
+De app bewaart alles in Postgres (`DATABASE_URL`), lokaal net als in productie. Nodig: Node 20+ en een Postgres (16). Zonder `SUPABASE_URL` gebruikt de app lokaal een eenvoudige **ontwikkel-login** (wachtwoorden in de tabel `public.dev_passwords`) en bewaart ze uploads in de database. In productie (`NODE_ENV=production`) of met `SUPABASE_URL` weigert die ontwikkel-login altijd.
 
 ```bash
 npm install
+createdb estasi
+psql estasi -f scripts/local-supabase-stub.sql   # alleen bij een kale Postgres: de schema's auth en storage van Supabase, minimaal
+cp .env.example .env.local                       # zet DATABASE_URL en SESSION_SECRET, laat SUPABASE_URL leeg
+npm run db:migrate                               # migraties uit supabase/migrations
+npm run db:seed                                  # demo-accounts en de zes voorbeeldmodules
 npm run dev
 ```
 
-Open http://localhost:3000. Alle gegevens worden bewaard in `.data/db.json` en uploads in `.data/uploads/`. Er is geen database nodig, en wat je in het portaal doet blijft bewaard na een herstart. Bij de eerste start wordt demodata aangemaakt.
+Open http://localhost:3000 en log in met een demo-account (alleen ontwikkeling):
 
 | Account | Rol |
 | --- | --- |
@@ -22,9 +29,11 @@ Open http://localhost:3000. Alle gegevens worden bewaard in `.data/db.json` en u
 
 Wachtwoord voor alle demo-accounts: `academy-demo`.
 
-Opnieuw beginnen met verse demodata: `npm run reset-data` en daarna de app herstarten.
+`npm run db:seed` vult alleen aan wat ontbreekt en kan vaker draaien. `npm run db:seed -- --reset` haalt eerst de demo-accounts (met hun antwoorden) en de demomodules weg. Helemaal opnieuw: database weggooien, opnieuw aanmaken, migreren en seeden. Het seedscript weigert met `SUPABASE_URL`, met `NODE_ENV=production` en tegen een database die niet op deze computer staat (tenzij `SEED_ALLOW_REMOTE=1`).
 
-Overige commando's: `npm test` (regels voor toegang, voortgang en feedback), `npm run typecheck`, `npm run lint`, `npm run build`.
+Nieuwe cursisten en bruidsparen krijgen lokaal een activatielink op het scherm (er gaat geen e-mail uit); bij wachtwoord vergeten staat de link in de serverlog.
+
+Overige commando's: `npm test` (regels voor toegang, voortgang en feedback; met `TEST_DATABASE_URL` erbij ook de opslag tegen een gemigreerde database), `npm run typecheck`, `npm run lint`, `npm run build`.
 
 ## Wat er werkt
 
@@ -50,27 +59,31 @@ Overige commando's: `npm test` (regels voor toegang, voortgang en feedback), `np
 ## Opbouw
 
 ```
-src/lib/data/types.ts        Domeinmodel (gedeeld door alle opslag)
+src/lib/db.ts                De Postgres-pool (DATABASE_URL), gedeeld door Academy en Your Wedding Space
+src/lib/data/types.ts        Domeinmodel
 src/lib/data/store.ts        Interface DataStore + FileStorage
-src/lib/data/local-store.ts  Lokale opslag in .data/ (JSON + uploads)
-src/lib/data/seed.ts         Demodata
+src/lib/data/pg-store.ts     Academy-opslag in Postgres (schema public)
+src/lib/data/rows.ts         Omzetting domein <-> tabelrijen (camelCase <-> snake_case)
+src/lib/data/files.ts        Uploads: Supabase Storage (bucket academy), lokaal in Postgres
+src/lib/data/seed.ts         Demodata (scripts/seed-dev.ts)
 src/lib/domain/              Pure regels: toegang/pauze, voortgang, feedbackstatus
-src/lib/auth/                Wachtwoorden (scrypt) en ondertekende sessiecookie
+src/lib/auth/                Supabase Auth, sessies, passkeys; dev-auth.ts is de ontwikkel-login
 src/app/(student)/           Cursistschermen
 src/app/beheer/              Beheeromgeving
 src/app/actions/             Server actions (alle schrijfacties, met rolcontrole)
-src/lib/data/supabase-store.ts  Opslag in Supabase (database + Storage)
 supabase/migrations/         Databaseschema met row level security voor Supabase
 ```
+
+Database: één pool in `src/lib/db.ts` (`query`, `one`, `tx`, `isUuid`). De zoekvolgorde is `wedding_space, public`, dus Academy-queries noemen altijd het schema (`select * from public.lessons ...`; beide schema's hebben een tabel `files`). Bestaande Academy-entiteiten gaan via `getStore()` (`src/lib/data/pg-store.ts`, omzetting in `rows.ts`); nieuwe Academy-tabellen krijgen een migratie in `supabase/migrations` met `enable row level security` en worden met `query`/`tx` uit `@/lib/db` gelezen en geschreven.
 
 Alle schrijfacties lopen via server actions die eerst de rol controleren; bestanden gaan via `/api/bestanden/[id]` met een toegangscontrole (een cursist kan nooit bestanden van een andere cursist openen).
 
 ## Supabase (productie)
 
-Met `DATA_BACKEND=supabase` gebruikt de app Supabase voor alles: database, bestanden (privé bucket `academy`), inloggen, uitnodigingen, wachtwoordherstel per e-mail en optionele tweestapsverificatie.
+Met `SUPABASE_URL` gebruikt de app Supabase voor alles: database (via `DATABASE_URL`), bestanden (privé bucket `academy`), inloggen, uitnodigingen, wachtwoordherstel per e-mail en optionele tweestapsverificatie.
 
 Hoe het in elkaar zit:
-* Alle gegevens lopen via de server met de secret key (`src/lib/data/supabase-store.ts`). De server actions controleren eerst de rol. De tabellen zijn dicht voor de publieke API; row level security staat aan als extra slot
+* Alle gegevens lopen via de server, rechtstreeks met Postgres (`DATABASE_URL`, `src/lib/data/pg-store.ts`). De server actions controleren eerst de rol. De tabellen zijn dicht voor de publieke API; row level security staat aan als extra slot
 * Inloggen via Supabase Auth (`src/lib/auth/session.ts` en `supabase-auth.ts`). Sessies staan in cookies en worden ververst door `src/middleware.ts`
 * Uitnodiging en herstel: Supabase mailt een link naar `/auth/bevestigen`. De link wordt pas gebruikt als de cursist op Doorgaan drukt, zodat virusscanners in de mail hem niet opmaken. Daarna kiest de cursist een wachtwoord op `/wachtwoord-instellen`
 * Tweestapsverificatie is optioneel. De opleider zet hem aan via Instellingen (aanbevolen). Wie een authenticator app heeft gekoppeld, moet bij elke nieuwe login de code geven
@@ -146,13 +159,12 @@ Er staat een `Dockerfile` (werkt op beide) en een `render.yaml` blueprint. Zet i
 
 | Variabele | Waarde |
 | --- | --- |
-| `DATA_BACKEND` | `supabase` |
 | `APP_URL` | het publieke adres, bijvoorbeeld `https://academy.estasiweddings.nl` (zonder `/` aan het eind) |
 | `CONTACT_EMAIL` | `academy@estasiweddings.nl` |
 | `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `SUPABASE_ANON_KEY` | publishable key (`sb_publishable_...`) of de oude anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | secret key (`sb_secret_...`) of de oude service_role key, geheim |
-| `DATABASE_URL` | migraties én Your Wedding Space: in Supabase de knop **Connect**, dan **Session pooler** (poort 5432, niet de transaction pooler), met het databasewachtwoord ingevuld. Geheim |
+| `DATABASE_URL` | alle gegevens (Academy en Your Wedding Space) en de migraties: in Supabase de knop **Connect**, dan **Session pooler** (poort 5432, niet de transaction pooler), met het databasewachtwoord ingevuld. Geheim |
 | `RESEND_API_KEY`, `MAIL_FROM` | e-mail van Your Wedding Space (uitnodigingen, vragen, RSVP) via de API van Resend. `MAIL_FROM` moet op het bij Resend geverifieerde domein staan. Geheim |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | alleen als je geen Resend gebruikt: een andere SMTP-server |
 | `ADMIN_NOTIFY_EMAIL` | waar meldingen voor Sabine heen gaan |
@@ -190,7 +202,7 @@ Bestanden van Your Wedding Space (coverfoto, moodboard, documenten, samenvatting
 
 Grenzen (Supabase Free: 50 MB per bestand, 1 GB in totaal): foto's tot 15 MB (na verkleinen meestal een paar honderd kB), documenten tot 25 MB, audio tot 45 MB. Boven 900 MB in totaal weigert de app nieuwe uploads (`WS_STORAGE_BUDGET_BYTES`). De bucket maakt migratie `0005` aan. Oudere bestanden die nog in de database staan blijven gewoon werken. Zonder Supabase (lokaal), of met `WS_DIRECT_UPLOADS=off`, gaat het bestand zoals vroeger met het formulier mee (maximaal 10 MB).
 
-Er is geen schijf en geen `SESSION_SECRET` nodig. Wil je een demo draaien met `DATA_BACKEND=local`, dan is `SESSION_SECRET` (minimaal 32 tekens) verplicht en heb je een persistente schijf nodig met `DATA_DIR` erop.
+Er is geen schijf en geen `SESSION_SECRET` nodig. `DATA_BACKEND` is niet meer nodig: staat hij nog in de hosting, dan doet hij niets en mag hij weg.
 
 ## Your Wedding Space (portaal per bruidspaar)
 

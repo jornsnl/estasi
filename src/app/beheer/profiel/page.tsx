@@ -9,7 +9,7 @@ import { Notice } from "@/components/Notice";
 import { PasskeyRegister } from "@/components/PasskeyRegister";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireOwner } from "@/lib/auth/session";
-import { isSupabaseMode } from "@/lib/data";
+import { supabaseEnabled } from "@/lib/supabase/config";
 import { allTools } from "@/lib/mcp/tools";
 import { mcpResource } from "@/lib/oauth/config";
 import { mcpSettingsFor } from "@/lib/oauth/server";
@@ -32,7 +32,7 @@ export default async function OwnerProfilePage({ searchParams }: { searchParams:
     store.listClients(),
   ]);
   let totpLinked: boolean | null = null;
-  if (isSupabaseMode()) {
+  if (supabaseEnabled()) {
     const { data } = await (await authClient()).auth.mfa.listFactors();
     totpLinked = Boolean(data?.totp.some((f) => f.status === "verified"));
   }

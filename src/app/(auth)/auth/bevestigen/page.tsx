@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { confirmEmailLink } from "@/app/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
-import { isSupabaseMode } from "@/lib/data";
+import { supabaseEnabled } from "@/lib/supabase/config";
 
 export const metadata = { title: "Link bevestigen" };
 // The backend (local or Supabase) is only known at runtime.
@@ -17,7 +17,7 @@ const one = (value: string | string[] | undefined) => (Array.isArray(value) ? va
  * link cannot use it up before the student does.
  */
 export default async function ConfirmPage({ searchParams }: { searchParams: Promise<Search> }) {
-  if (!isSupabaseMode()) notFound();
+  if (!supabaseEnabled()) notFound();
   const params = await searchParams;
   const tokenHash = one(params.token_hash);
   const type = one(params.type);

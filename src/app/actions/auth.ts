@@ -2,10 +2,11 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { getStore, isLocalMode, isSupabaseMode } from "@/lib/data";
-import { hashPassword, MIN_PASSWORD_LENGTH, newToken, verifyPassword } from "@/lib/auth/password";
+import { getStore } from "@/lib/data";
+import { devAuthAllowed, devLinkAccount, devSignIn, newDevSetupLink, setDevPassword } from "@/lib/auth/dev-auth";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
 import { clear, hit, isLimited, LOGIN_PER_EMAIL, LOGIN_PER_IP, RESET_PER_IP } from "@/lib/auth/rate-limit";
-import { currentSession, endSession, forgetFactors, homeFor, startLocalSession } from "@/lib/auth/session";
+import { currentSession, endSession, forgetFactors, homeFor, startDevSession } from "@/lib/auth/session";
 import {
   isLinkType,
   sendPasswordReset,
@@ -14,7 +15,7 @@ import {
   verifyEmailLink,
 } from "@/lib/auth/supabase-auth";
 import { authClient } from "@/lib/supabase/server";
-import { appUrl } from "@/lib/supabase/config";
+import { supabaseEnabled } from "@/lib/supabase/config";
 
 const safeNext = (value: FormDataEntryValue | null) => {
   const next = String(value ?? "");
@@ -41,18 +42,18 @@ export async function login(formData: FormData) {
   if (isLimited(emailKey, LOGIN_PER_EMAIL) || isLimited(ipKey, LOGIN_PER_IP)) back(loginPath, TOO_MANY);
 
   const store = getStore();
-  let userId: string | null = null;
-  if (isSupabaseMode()) {
-    userId = await signInWithPassword(email, password);
-  } else {
-    const user = await store.getUserByEmail(email);
-    if (verifyPassword(password, user?.passwordHash ?? null)) userId = user!.id;
+  const supabase = supabaseEnabled();
+  if (!supabase && !devAuthAllowed()) {
+    // Production without Supabase: there is no way to sign in, and the development login stays shut.
+    console.error("[inloggen] SUPABASE_URL ontbreekt; inloggen is uitgeschakeld (de ontwikkel-login werkt niet in productie).");
+    back(loginPath, "Inloggen is op dit moment niet mogelijk. Neem contact op met de beheerder.");
   }
+  const userId = supabase ? await signInWithPassword(email, password) : await devSignIn(email, password);
   const user = userId ? await store.getUser(userId) : null;
 
   if (!user) {
     // A Supabase account without a row in users (for example made by hand) gets no access.
-    if (userId && isSupabaseMode()) {
+    if (userId && supabase) {
       console.warn(`[inloggen] ${email}: account bestaat in Supabase Auth maar niet in public.users (id ${userId})`);
       await endSession();
     }
@@ -61,7 +62,7 @@ export async function login(formData: FormData) {
     back(loginPath, "Onbekend e-mailadres of onjuist wachtwoord.");
   }
   clear(emailKey);
-  if (isLocalMode()) await startLocalSession(user!.id);
+  if (!supabase) await startDevSession(user!.id);
   // Back to where the visitor came from (for example the MCP consent screen).
   redirect(next ?? homeFor(user!));
 }
@@ -71,7 +72,7 @@ export async function logout() {
   redirect("/login");
 }
 
-const SETUP_TOKEN_HOURS = 72;
+const SETUP_TOKEN_DAYS = 3;
 
 export async function requestPasswordReset(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase().slice(0, 200);
@@ -80,16 +81,12 @@ export async function requestPasswordReset(formData: FormData) {
     hit(ipKey, RESET_PER_IP);
     const store = getStore();
     const user = await store.getUserByEmail(email);
-    if (user && isSupabaseMode()) {
+    if (user && supabaseEnabled()) {
       await sendPasswordReset(user.email);
-    } else if (user) {
-      const token = newToken();
-      await store.updateUser(user.id, {
-        setupToken: token,
-        setupTokenExpiresAt: new Date(Date.now() + SETUP_TOKEN_HOURS * 3_600_000).toISOString(),
-      });
-      // Local mode has no mail provider; the link goes to the server log.
-      console.info(`[wachtwoord herstellen] ${user.email}: ${appUrl()}/activeren/${token}`);
+    } else if (user && devAuthAllowed()) {
+      // The development login has no mail provider; the link goes to the server log.
+      const link = await newDevSetupLink(user.id, SETUP_TOKEN_DAYS);
+      console.info(`[wachtwoord herstellen] ${user.email}: ${link}`);
     }
   }
   // Same answer whether or not the address exists, so accounts cannot be probed.
@@ -109,24 +106,17 @@ function checkNewPassword(formData: FormData, path: string): string {
   return password;
 }
 
-/** Local mode: activation and reset via /activeren/[token]. */
+/** Development login: activation and reset via /activeren/[token]. */
 export async function completeSetup(formData: FormData) {
+  if (!devAuthAllowed()) redirect("/login");
   const token = String(formData.get("token") ?? "");
   const path = `/activeren/${token}`;
-  const store = getStore();
-  const user = token ? await store.getUserBySetupToken(token) : null;
-  if (!user || !user.setupTokenExpiresAt || new Date(user.setupTokenExpiresAt) < new Date()) {
-    back(path, "Deze link is verlopen of al gebruikt. Vraag een nieuwe link aan.");
-  }
+  const account = await devLinkAccount(token);
+  if (!account) back(path, "Deze link is verlopen of al gebruikt. Vraag een nieuwe link aan.");
   const password = checkNewPassword(formData, path);
-  await store.updateUser(user!.id, {
-    passwordHash: hashPassword(password),
-    setupToken: null,
-    setupTokenExpiresAt: null,
-    activatedAt: user!.activatedAt ?? new Date().toISOString(),
-  });
-  await startLocalSession(user!.id);
-  redirect(homeFor(user!));
+  await setDevPassword(account!.user.id, password);
+  await startDevSession(account!.user.id);
+  redirect(homeFor(account!.user));
 }
 
 /**

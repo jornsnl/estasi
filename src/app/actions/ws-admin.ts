@@ -178,7 +178,7 @@ export async function resendInvite(formData: FormData) {
   } catch (err) {
     done(back, (err as Error).message, true);
   }
-  const reset = Boolean(user.activatedAt ?? user.passwordHash);
+  const reset = Boolean(user.activatedAt);
   const sent = await sendMail(
     reset
       ? {

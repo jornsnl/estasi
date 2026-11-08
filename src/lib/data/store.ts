@@ -13,15 +13,13 @@ import type {
 } from "./types";
 
 /**
- * Everything the app needs from persistence. The local JSON implementation
- * lives in local-store.ts; a Supabase implementation only has to satisfy this
- * interface (plus the schema in supabase/migrations).
+ * Everything the Academy needs from persistence. Implemented by PgDataStore
+ * (pg-store.ts) on the tables in schema public (supabase/migrations).
  */
 export interface DataStore {
   // Users
   getUser(id: string): Promise<User | null>;
   getUserByEmail(email: string): Promise<User | null>;
-  getUserBySetupToken(token: string): Promise<User | null>;
   listUsers(role?: User["role"]): Promise<User[]>;
   createUser(user: User): Promise<User>;
   updateUser(id: string, patch: Partial<User>): Promise<User>;
@@ -72,7 +70,7 @@ export interface StoredFileMeta extends FileRef {
   createdAt: string;
 }
 
-/** Binary storage for uploads (local disk now, Supabase Storage later). */
+/** Binary storage for uploads (Supabase Storage in production, Postgres in development). */
 export interface FileStorage {
   save(
     data: Buffer,

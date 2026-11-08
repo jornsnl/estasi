@@ -1,11 +1,11 @@
 import "server-only";
 import type { EmailOtpType } from "@supabase/supabase-js";
-import { getStore, isSupabaseMode, type User } from "@/lib/data";
+import { getStore, type User } from "@/lib/data";
+import { createDevAccount, deleteDevAccount, newDevSetupLink } from "@/lib/auth/dev-auth";
+import { supabaseEnabled } from "@/lib/supabase/config";
 import { isActivated } from "@/lib/domain/account";
-import { newToken } from "@/lib/auth/password";
 import { CONFIRM_PATH } from "@/lib/auth/supabase-auth";
 import { adminClient } from "@/lib/supabase/server";
-import { newId } from "@/lib/util/id";
 import { appUrl } from "./mail";
 
 /**
@@ -27,11 +27,14 @@ export async function ensureCoupleUser(email: string, name: string): Promise<Use
     if (existing.role !== "couple") throw new LoginError(`${email} heeft al een account in de Academy. Gebruik een ander e-mailadres.`);
     return existing;
   }
-  let id: string = newId();
-  if (isSupabaseMode()) {
+  const supabase = supabaseEnabled();
+  let id: string;
+  if (supabase) {
     const { data, error } = await adminClient().auth.admin.createUser({ email, email_confirm: false, user_metadata: { name } });
     if (error || !data.user) throw new LoginError(`Account aanmaken mislukt: ${error?.message ?? "onbekende fout"}`);
     id = data.user.id;
+  } else {
+    id = await createDevAccount(email, name);
   }
   const now = new Date().toISOString();
   try {
@@ -40,22 +43,19 @@ export async function ensureCoupleUser(email: string, name: string): Promise<Use
       email,
       name,
       role: "couple",
-      passwordHash: null,
-      setupToken: null,
-      setupTokenExpiresAt: null,
       activatedAt: null,
       createdAt: now,
       lastActiveAt: null,
     });
   } catch (err) {
-    if (isSupabaseMode()) await adminClient().auth.admin.deleteUser(id).catch(() => undefined);
+    await (supabase ? adminClient().auth.admin.deleteUser(id) : deleteDevAccount(id)).catch(() => undefined);
     throw err;
   }
 }
 
 /** A one-time link to choose a password (invite) or a new one (reset). */
 export async function loginLink(user: User): Promise<string> {
-  if (isSupabaseMode()) {
+  if (supabaseEnabled()) {
     const type: "invite" | "recovery" = isActivated(user) ? "recovery" : "invite";
     // An invited user who already opened a link is confirmed; then only "recovery" works.
     let result = await adminClient().auth.admin.generateLink({ type, email: user.email, options: { redirectTo: `${appUrl()}${CONFIRM_PATH}` } } as never);
@@ -68,11 +68,6 @@ export async function loginLink(user: User): Promise<string> {
     if (result.error || !hashed) throw new LoginError(`Link maken mislukt: ${result.error?.message ?? "onbekende fout"}`);
     return `${appUrl()}${CONFIRM_PATH}?token_hash=${encodeURIComponent(hashed)}&type=${used}`;
   }
-  // Local mode: the Academy's own activation link.
-  const token = newToken();
-  await getStore().updateUser(user.id, {
-    setupToken: token,
-    setupTokenExpiresAt: new Date(Date.now() + LOCAL_LINK_DAYS * 86_400_000).toISOString(),
-  });
-  return `${appUrl()}/activeren/${token}`;
+  // Development login: its own activation link.
+  return newDevSetupLink(user.id, LOCAL_LINK_DAYS);
 }

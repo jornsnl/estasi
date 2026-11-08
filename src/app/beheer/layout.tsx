@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { AdminPwa } from "@/components/AdminPwa";
 import { AppShell } from "@/components/AppShell";
 import { requireOwner } from "@/lib/auth/session";
-import { isLocalMode } from "@/lib/data";
+import { devAuthAllowed } from "@/lib/auth/dev-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -43,8 +43,8 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
         { href: "/beheer/bruidsparen/instellingen", label: "Instellingen portaal" },
       ]}
       footer={
-        isLocalMode() ? (
-          <p className="rounded-lg bg-gold-soft p-3 text-xs text-gold-ink">Lokale modus: gegevens staan in .data/db.json</p>
+        devAuthAllowed() ? (
+          <p className="rounded-lg bg-gold-soft p-3 text-xs text-gold-ink">Ontwikkelomgeving: lokale database, ontwikkel-login zonder Supabase</p>
         ) : undefined
       }
     >

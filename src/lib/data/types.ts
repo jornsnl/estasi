@@ -1,5 +1,5 @@
-// Domain model of the Academy. These shapes are shared by every storage
-// backend (local JSON file now, Supabase later), so keep them plain data.
+// Domain model of the Academy. Plain data; rows.ts maps it to the tables in
+// schema public.
 
 /** "couple": a bridal couple with access to their Your Wedding Space only. */
 export type Role = "student" | "owner" | "couple";
@@ -9,12 +9,7 @@ export interface User {
   email: string;
   name: string;
   role: Role;
-  /** Local mode only; with Supabase the password lives in Supabase Auth. */
-  passwordHash: string | null;
-  /** Local mode only. One-time token for activating an account or resetting a password. */
-  setupToken: string | null;
-  setupTokenExpiresAt: string | null;
-  /** When the account got its first password. */
+  /** When the account got its first password. Passwords live in Supabase Auth (development: dev_passwords). */
   activatedAt: string | null;
   createdAt: string;
   lastActiveAt: string | null;

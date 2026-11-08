@@ -2,7 +2,8 @@ import Link from "next/link";
 import { saveSettings } from "@/app/actions/content";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { getStore, isSupabaseMode } from "@/lib/data";
+import { getStore } from "@/lib/data";
+import { supabaseEnabled } from "@/lib/supabase/config";
 import { LIMITS } from "@/lib/domain/input";
 import { authClient } from "@/lib/supabase/server";
 
@@ -11,7 +12,7 @@ export const metadata = { title: "Instellingen" };
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await getStore().getSettings();
   let mfaLinked: boolean | null = null;
-  if (isSupabaseMode()) {
+  if (supabaseEnabled()) {
     const { data } = await (await authClient()).auth.mfa.listFactors();
     mfaLinked = Boolean(data?.totp.some((f) => f.status === "verified"));
   }
