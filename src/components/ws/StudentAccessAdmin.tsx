@@ -12,6 +12,7 @@ export async function StudentAccessAdmin({ couple }: { couple: Couple }) {
   const views = await recentViews(accesses.map((a) => a.id));
   const busy = new Set(accesses.filter((a) => a.state === "wacht" || a.state === "actief").map((a) => a.student_user_id));
   const choices = students.filter((s) => !busy.has(s.id));
+  const eligible = new Set(students.map((s) => s.id));
   const until = lastDay(couple.wedding_date);
 
   return (
@@ -32,6 +33,9 @@ export async function StudentAccessAdmin({ couple }: { couple: Couple }) {
                   <div className="min-w-0">
                     <p className="font-medium">{a.student_name} <span className="font-normal text-muted">· {a.student_email}</span></p>
                     <div className="mt-1"><Badge tone={STATE_TONES[a.state]}>{stateLabel(a.state, a.revoked_by)}</Badge></div>
+                    {(a.state === "actief" || a.state === "wacht") && !eligible.has(a.student_user_id) && (
+                      <p className="mt-1 text-xs text-bordeaux">Op dit moment geen toegang: de cursist heeft geen actief pakket B (gepauzeerd, verlopen of pakket A).</p>
+                    )}
                     <p className="mt-1 text-xs text-muted">
                       Gevraagd {formatDateTime(a.created_at)}{a.granted_by_name ? ` door ${a.granted_by_name}` : ""}
                       {a.decided_at && ` · ${a.status === "declined" ? "Afgewezen" : "Akkoord"} ${formatDateTime(a.decided_at)} door ${a.decided_by_name || "het bruidspaar"}`}
