@@ -5,6 +5,7 @@ import { requireOwner } from "@/lib/auth/session";
 import { kickNotifications } from "@/lib/community/notify";
 import { menuCounts, viewerFor } from "@/lib/community/server";
 import { devAuthAllowed } from "@/lib/auth/dev-mode";
+import { openFeedbackRequestCount } from "@/lib/data/assignments";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,10 @@ export const viewport: Viewport = { themeColor: "#ffffff" };
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
   const user = await requireOwner();
-  const counts = await menuCounts(await viewerFor(user));
+  const [counts, feedback] = await Promise.all([
+    menuCounts(await viewerFor(user)),
+    openFeedbackRequestCount().catch(() => 0),
+  ]);
   kickNotifications();
   return (
     <AppShell
@@ -29,6 +33,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
       items={[
         { href: "/beheer", label: "Cursisten", exact: true, section: "Academy" },
         { href: "/beheer/cursisten/nieuw", label: "Cursist toevoegen" },
+        { href: "/beheer/feedback", label: "Feedback", badge: feedback },
         { href: "/beheer/inhoud", label: "Lesinhoud" },
         { href: "/beheer/community", label: "Community", badge: counts.community },
         { href: "/beheer/berichten", label: "Privéberichten", badge: counts.private },

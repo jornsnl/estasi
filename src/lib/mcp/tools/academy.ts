@@ -1,14 +1,18 @@
 import "server-only";
-import { randomBytes } from "crypto";
 import { audit, studentOverview } from "@/lib/academy";
+import { certificateChange, notifyFeedbackSent, onlineCertificateCheck } from "@/lib/academy-feedback";
 import { getStore, type AssignmentAnswers, type AssignmentBlock, type Block, type Enrollment, type User } from "@/lib/data";
 import {
-  addAssignmentFeedback,
+  getSubmissionById,
   getVersion,
   listAssignmentFeedback,
+  listFeedbackRequests,
   listSubmissions,
   listVersions,
+  saveFeedback,
+  setFeedbackStatus,
 } from "@/lib/data/assignments";
+import { ASSESSMENT_LABELS, FEEDBACK_STATUS_LABELS, matchesRequest, practicalCertificateReadiness } from "@/lib/domain/feedback";
 import { query } from "@/lib/db";
 import { ACCESS_LABELS, accessStatus, addMonths, pause, resume } from "@/lib/domain/access";
 import { LIMITS } from "@/lib/domain/input";
@@ -193,7 +197,12 @@ export const academyTools = [
           certificateReleasedAt: overview.enrollment.certificateReleasedAt,
           certificateCode: overview.enrollment.certificateCode,
           practicalStatus: overview.enrollment.practicalStatus,
+          practicalCertificateReleasedAt: overview.enrollment.practicalCertificateReleasedAt,
+          practicalCertificateCode: overview.enrollment.practicalCertificateCode,
           ownerNotes: overview.enrollment.ownerNotes,
+          // What still stands between the student and each certificate (released by hand).
+          onlineCertificateMissing: onlineCertificateCheck(overview).missing,
+          practicalCertificateMissing: practicalCertificateReadiness(overview.enrollment).missing,
         },
         modules: overview.progress.map((p) => ({
           title: p.module.title,
@@ -210,44 +219,45 @@ export const academyTools = [
 
   defineTool({
     name: "academy_list_open_feedback",
-    title: "Academy: openstaande feedback",
-    description: "Ingediende opdrachten waarop de cursist persoonlijke feedback heeft gevraagd en die nog op de opleider wachten (status nieuw of in behandeling). Met de opdracht, alle antwoorden, de eventuele vraag aan Sabine en het versionId voor academy_give_feedback. Oudste eerst.",
+    title: "Academy: feedbackverzoeken",
+    description: "Feedbackverzoeken van cursisten en ingeleverde eindopdrachten die op een beoordeling wachten. Standaard de openstaande (status nieuw of in behandeling, oudste eerst); met status ook nieuw, in_behandeling, afgerond of alle. Met de opdracht, alle antwoorden, de eventuele vraag aan Sabine, of er al een concept klaarstaat, en het versionId voor academy_give_feedback.",
     scope: "read",
     input: z.object({
       studentId: id.optional().describe("Alleen voor deze cursist"),
+      status: z.enum(["open", "nieuw", "in_behandeling", "afgerond", "alle"]).default("open"),
+      moduleId: id.optional().describe("Alleen voor deze module"),
       limit: z.number().int().min(1).max(100).default(25),
     }),
-    async run({ studentId, limit }) {
-      const store = getStore();
+    async run({ studentId, status, moduleId, limit }) {
       const only = studentId ? await student(studentId) : null;
-      const [lessons, submissions, versions, feedback, users] = await Promise.all([
-        store.listLessons(),
-        listSubmissions(only ? { userId: only.id } : {}),
-        listVersions(only ? { userId: only.id } : {}),
+      const [requests, feedback] = await Promise.all([
+        listFeedbackRequests(only ? { userId: only.id } : {}),
         listAssignmentFeedback(only ? { userId: only.id } : {}),
-        store.listUsers("student"),
       ]);
-      const names = new Map(users.map((u) => [u.id, u.name]));
-      const subs = new Map(submissions.map((s) => [s.id, s]));
-      const lessonTitle = new Map(lessons.map((l) => [l.id, l.title]));
-      return versions
-        .filter((v) => v.feedbackStatus === "nieuw" || v.feedbackStatus === "in_behandeling")
+      return requests
+        .filter((r) => matchesRequest(r, { status, moduleId }))
         .sort((x, y) => x.submittedAt.localeCompare(y.submittedAt))
         .slice(0, limit)
-        .map((v) => {
-          const sub = subs.get(v.submissionId);
+        .map((r) => {
+          const concept = feedback.find((f) => f.versionId === r.versionId && !f.sentAt);
           return {
-            versionId: v.id,
-            version: v.version,
-            student: { id: v.userId, name: names.get(v.userId) ?? "?" },
-            lesson: { id: sub?.lessonId ?? null, title: (sub && lessonTitle.get(sub.lessonId)) ?? "(les verwijderd)" },
-            assignment: assignmentTitle(v.assignment),
-            questionForSabine: v.questionForSabine || null,
-            answers: readable(v.assignment, v.answers),
-            files: answersAsText(v.assignment, v.answers).flatMap((l) => l.files.map((f) => f.name)),
-            status: v.feedbackStatus === "nieuw" ? "nieuw" : "in behandeling",
-            submittedAt: v.submittedAt,
-            previousFeedback: feedback.filter((f) => f.submissionId === v.submissionId && f.sentAt).map((f) => ({ at: f.sentAt, text: f.text })),
+            versionId: r.versionId,
+            version: r.version,
+            student: { id: r.userId, name: r.studentName },
+            module: r.moduleTitle,
+            lesson: { id: r.lessonId, title: r.lessonTitle ?? "(les verwijderd)" },
+            assignment: assignmentTitle(r.assignment),
+            finalAssignment: r.assignment.graded,
+            assignmentStatus: STATUS_LABELS[r.submissionStatus],
+            feedbackRequested: r.feedbackRequested,
+            questionForSabine: r.questionForSabine || null,
+            answers: readable(r.assignment, r.answers),
+            files: answersAsText(r.assignment, r.answers).flatMap((l) => l.files.map((f) => f.name)),
+            status: FEEDBACK_STATUS_LABELS[r.feedbackStatus].toLowerCase(),
+            statusCode: r.feedbackStatus,
+            submittedAt: r.submittedAt,
+            concept: concept ? { text: concept.text, assessment: concept.assessment, updatedAt: concept.updatedAt } : null,
+            previousFeedback: feedback.filter((f) => f.submissionId === r.submissionId && f.sentAt).map((f) => ({ at: f.sentAt, text: f.text })),
           };
         });
     },
@@ -373,21 +383,52 @@ export const academyTools = [
   defineTool({
     name: "academy_give_feedback",
     title: "Academy: feedback geven",
-    description: "Geeft schriftelijke feedback op een ingediende versie van een opdracht (versionId uit academy_list_open_feedback of academy_get_answers). De cursist ziet de feedback direct bij de opdracht en het verzoek gaat naar afgerond. Laat de gebruiker de tekst eerst goedkeuren.",
+    description: "Schrijft feedback op een ingediende versie van een opdracht (versionId uit academy_list_open_feedback of academy_get_answers). Met send=false (standaard) wordt het een concept dat alleen de opleider ziet (status in behandeling); een bestaand concept wordt bijgewerkt. Met send=true gaat het naar de cursist (mail, pushmelding en melding in de Academy) en wordt het verzoek afgerond. Bij een eindopdracht kan assessment (voldoende of verbetering_nodig) mee; die geldt zodra de feedback verstuurd is. Laat de gebruiker de tekst goedkeuren voor je verstuurt.",
     scope: "write",
     input: z.object({
       versionId: id.optional().describe("Versie van de opdracht"),
       answerId: id.optional().describe("Verouderd: id van een oud antwoord of van een opdracht; de laatste versie krijgt de feedback"),
-      text: z.string().trim().min(1).max(LIMITS.feedback),
+      text: z.string().trim().max(LIMITS.feedback).default(""),
+      send: z.boolean().default(false).describe("true: versturen naar de cursist; false: als concept bewaren"),
+      assessment: z.enum(["voldoende", "verbetering_nodig"]).optional().describe("Alleen bij een eindopdracht"),
     }),
-    async run({ versionId, answerId, text }, ctx) {
+    async run({ versionId, answerId, text, send, assessment }, ctx) {
       const target = versionId ?? answerId;
       if (!target) throw new ToolError("Geef versionId.");
       const version = await versionFor(target);
       if (!version) throw new ToolError("Ingediende versie niet gevonden. Een concept kan nog geen feedback krijgen.");
-      await addAssignmentFeedback({ version, authorId: ctx.user.id, text, attachment: null, send: true });
-      await audit(ctx.user, "Feedback gegeven", `versie ${version.version} via ${ctx.clientName}`, version.userId);
-      return "Feedback opgeslagen. De cursist ziet deze bij de opdracht.";
+      const result = await saveFeedback({ version, authorId: ctx.user.id, text, assessment: assessment ?? null, send });
+      if (!result.ok) throw new ToolError(result.error);
+      if (!send) {
+        await audit(ctx.user, "Feedback als concept bewaard", `versie ${version.version} via ${ctx.clientName}`, version.userId);
+        return "Concept bewaard. De cursist ziet het pas na versturen (send=true of in het feedbackscherm in het beheer).";
+      }
+      const submission = await getSubmissionById(version.submissionId);
+      if (submission) {
+        await notifyFeedbackSent({ studentId: version.userId, lessonId: submission.lessonId, blockId: submission.blockId, assessed: result.assessed, sentBy: ctx.user.name });
+      }
+      await audit(
+        ctx.user,
+        "Feedback verstuurd",
+        `versie ${version.version}${result.assessed ? ` · beoordeling: ${ASSESSMENT_LABELS[result.assessed]}` : ""} via ${ctx.clientName}`,
+        version.userId,
+      );
+      return `Feedback verstuurd${result.assessed ? ` met beoordeling "${ASSESSMENT_LABELS[result.assessed]}"` : ""}. De cursist krijgt er een melding van.`;
+    },
+  }),
+
+  defineTool({
+    name: "academy_set_feedback_status",
+    title: "Academy: status feedbackverzoek",
+    description: "Zet de status van een feedbackverzoek (versionId) op nieuw, in_behandeling of afgerond, bijvoorbeeld afgerond als de feedback buiten het platform is gegeven.",
+    scope: "write",
+    input: z.object({ versionId: id, status: z.enum(["nieuw", "in_behandeling", "afgerond"]) }),
+    async run({ versionId, status }, ctx) {
+      const version = await getVersion(versionId);
+      if (!version) throw new ToolError("Versie niet gevonden.");
+      if (!(await setFeedbackStatus(version.id, status))) throw new ToolError("Bij deze versie is geen feedback gevraagd en het is geen eindopdracht.");
+      await audit(ctx.user, "Status feedbackverzoek gewijzigd", `versie ${version.version}: ${FEEDBACK_STATUS_LABELS[status].toLowerCase()} via ${ctx.clientName}`, version.userId);
+      return `Status: ${FEEDBACK_STATUS_LABELS[status].toLowerCase()}.`;
     },
   }),
 
@@ -466,11 +507,11 @@ export const academyTools = [
   defineTool({
     name: "academy_set_completion",
     title: "Academy: afronding en certificaat",
-    description: "confirm_online (online deel bevestigen als afgerond), undo_online, release_certificate (certificaat vrijgeven; kan pas na confirm_online), withdraw_certificate, of practical met practicalStatus none, planned of completed.",
+    description: "confirm_online (online deel bevestigen als afgerond), undo_online, release_certificate (online certificaat vrijgeven; kan pas als alle modules van het pakket zijn afgerond, alle eindopdrachten voldoende zijn en confirm_online is gedaan; de foutmelding noemt wat nog ontbreekt), withdraw_certificate, release_practical_certificate (praktijkcertificaat; pakket B en praktijkstatus completed), withdraw_practical_certificate, of practical met practicalStatus none, planned of completed.",
     scope: "write",
     input: z.object({
       studentId: id,
-      action: z.enum(["confirm_online", "undo_online", "release_certificate", "withdraw_certificate", "practical"]),
+      action: z.enum(["confirm_online", "undo_online", "release_certificate", "withdraw_certificate", "release_practical_certificate", "withdraw_practical_certificate", "practical"]),
       practicalStatus: z.enum(["none", "planned", "completed"]).optional(),
     }),
     async run({ studentId, action, practicalStatus }, ctx) {
@@ -489,17 +530,21 @@ export const academyTools = [
           log = "Bevestiging online afronding teruggedraaid";
           break;
         case "release_certificate":
-          if (!enrollment.onlineCompletedAt) throw new ToolError("Bevestig eerst de online afronding (confirm_online).");
-          patch = {
-            certificateReleasedAt: now,
-            certificateCode: enrollment.certificateCode ?? `WPA-${new Date().getFullYear()}-${randomBytes(3).toString("hex").toUpperCase()}`,
-          };
-          log = "Online certificaat vrijgegeven";
-          break;
         case "withdraw_certificate":
-          patch = { certificateReleasedAt: null };
-          log = "Certificaat ingetrokken";
+        case "release_practical_certificate":
+        case "withdraw_practical_certificate": {
+          const op = ({
+            release_certificate: "releaseCertificate",
+            withdraw_certificate: "withdrawCertificate",
+            release_practical_certificate: "releasePractical",
+            withdraw_practical_certificate: "withdrawPractical",
+          } as const)[action];
+          const change = await certificateChange(user, enrollment, op);
+          if (!change.ok) throw new ToolError(change.error);
+          patch = change.patch;
+          log = change.log;
           break;
+        }
         case "practical":
           if (!practicalStatus) throw new ToolError("Geef practicalStatus: none, planned of completed.");
           patch = { practicalStatus };

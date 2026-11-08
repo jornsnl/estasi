@@ -198,7 +198,9 @@ describe("database rows match the domain and the schema", () => {
       onlineCompletedAt: "2026-02-01T10:00:00.000Z",
       certificateReleasedAt: "2026-02-02T10:00:00.000Z",
       certificateCode: "WPA-2026-ABC123",
-      practicalStatus: "planned",
+      practicalStatus: "completed",
+      practicalCertificateReleasedAt: "2026-06-02T10:00:00.000Z",
+      practicalCertificateCode: "WPP-2026-DEF456",
       ownerNotes: "Factuur 12",
     };
     const row = { ...JSON.parse(JSON.stringify(toRow("enrollments", enrollment))), paused_at: "2026-03-01 10:00:00+00" };

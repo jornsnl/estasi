@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AccessNotice } from "@/components/AccessNotice";
+import { NewFeedbackNotice } from "@/components/academy/NewFeedbackNotice";
 import { Badge } from "@/components/Badge";
 import { ProgressBar } from "@/components/ProgressBar";
 import { studentOverview } from "@/lib/academy";
@@ -31,6 +32,7 @@ export default async function CoursePage() {
       </header>
 
       {!active && <AccessNotice enrollment={o.enrollment} contactEmail={settings.contactEmail} />}
+      {active && <NewFeedbackNotice userId={user.id} />}
 
       <ol className="space-y-5">
         {o.progress.map((p, i) => (

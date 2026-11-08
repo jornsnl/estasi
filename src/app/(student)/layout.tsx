@@ -6,6 +6,7 @@ import { PACKAGE_LABELS } from "@/lib/domain/labels";
 import { touchActivity } from "@/lib/academy";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
+import { unseenFeedback } from "@/lib/data/assignments";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,10 @@ export default async function StudentLayout({ children }: { children: React.Reac
   const user = await requireStudent();
   await touchActivity(user);
   const [settings, enrollment] = await Promise.all([getStore().getSettings(), getStore().getEnrollmentForUser(user.id)]);
-  const counts = await menuCounts(await viewerFor(user));
+  const [counts, newFeedback] = await Promise.all([
+    menuCounts(await viewerFor(user)),
+    unseenFeedback(user.id).catch(() => []),
+  ]);
   kickNotifications();
 
   return (
@@ -28,11 +32,14 @@ export default async function StudentLayout({ children }: { children: React.Reac
       subtitle={enrollment ? `Pakket ${PACKAGE_LABELS[enrollment.package]}` : "Cursist"}
       items={[
         { href: "/dashboard", label: "Dashboard" },
-        { href: "/opleiding", label: "Mijn opleiding" },
+        // New feedback from Sabine: the badge goes once the student opens the lesson.
+        { href: "/opleiding", label: "Mijn opleiding", badge: newFeedback.length },
         { href: "/community", label: "Community", badge: counts.community },
         { href: "/prive-chat", label: "Privéchat", badge: counts.private },
         { href: "/profiel", label: "Mijn profiel" },
-        ...(enrollment?.certificateReleasedAt ? [{ href: "/certificaat", label: "Certificaat" }] : []),
+        ...(enrollment?.certificateReleasedAt || enrollment?.practicalCertificateReleasedAt
+          ? [{ href: enrollment.certificateReleasedAt ? "/certificaat" : "/certificaat/praktijk", label: "Certificaat" }]
+          : []),
       ]}
       footer={
         <div className="rounded-lg bg-cream p-3 text-sm">

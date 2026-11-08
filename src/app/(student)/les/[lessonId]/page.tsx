@@ -10,9 +10,9 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { courseProgress } from "@/lib/academy";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore, type AssignmentAnswers, type AssignmentBlock, type Lesson, type Submission, type SubmissionVersion } from "@/lib/data";
-import { feedbackRequestsInModule, listAssignmentFeedback, listVersions } from "@/lib/data/assignments";
+import { feedbackRequestsInModule, listAssignmentFeedback, listVersions, markFeedbackSeen } from "@/lib/data/assignments";
 import { hasLessonAccess } from "@/lib/domain/access";
-import { assignmentsOf, FEEDBACK_LIMIT, lessonCompletion } from "@/lib/domain/assignment";
+import { assignmentsOf, lessonCompletion } from "@/lib/domain/assignment";
 import { canOpenLesson } from "@/lib/domain/progress";
 
 export default async function LessonPage({
@@ -45,6 +45,9 @@ export default async function LessonPage({
   const submissions = allSubmissions.filter((s) => s.lessonId === lesson.id);
   const byBlock = new Map(submissions.map((s) => [s.blockId, s]));
   const versionsOf = (s: Submission | undefined) => (s ? versions.filter((v) => v.submissionId === s.id).sort((a, b) => a.version - b.version) : []);
+  // Opening the lesson counts as having seen its feedback (the badge in the menu goes); this view still marks it as new.
+  const unseen = new Set(feedback.filter((f) => f.sentAt && !f.seenAt && submissions.some((s) => s.id === f.submissionId)).map((f) => f.id));
+  if (unseen.size > 0) await markFeedbackSeen(user.id, submissions.map((s) => s.id));
 
   const moduleIndex = progress.findIndex((p) => p.module.id === lesson.moduleId);
   const currentModule = progress[moduleIndex]?.module;
@@ -92,7 +95,8 @@ export default async function LessonPage({
                   submission={byBlock.get(block.id)}
                   versions={versionsOf(byBlock.get(block.id))}
                   feedback={feedback.filter((f) => f.submissionId === byBlock.get(block.id)?.id)}
-                  slotsLeft={Math.max(0, FEEDBACK_LIMIT - slots[assignments.indexOf(block)])}
+                  unseen={unseen}
+                  otherRequests={slots[assignments.indexOf(block)]}
                   firstMeasurement={block.repeatOf ? findFirstMeasurement(block.repeatOf, lessons, allSubmissions, versions) : null}
                 />
               ) : (
@@ -144,21 +148,31 @@ function AssignmentView({
   submission,
   versions,
   feedback,
-  slotsLeft,
+  unseen,
+  otherRequests,
   firstMeasurement,
 }: {
   lessonId: string;
   assignment: AssignmentBlock;
   submission: Submission | undefined;
   versions: SubmissionVersion[];
-  feedback: { id: string; versionId: string; text: string; attachment: FeedbackItem["attachment"]; sentAt: string | null }[];
-  slotsLeft: number;
+  feedback: { id: string; versionId: string; text: string; attachment: FeedbackItem["attachment"]; sentAt: string | null; assessment: FeedbackItem["assessment"] }[];
+  unseen: Set<string>;
+  otherRequests: number;
   firstMeasurement: ReturnType<typeof findFirstMeasurement>;
 }) {
   const versionNumber = new Map(versions.map((v) => [v.id, v.version]));
   const items: FeedbackItem[] = feedback
     .filter((f) => f.sentAt)
-    .map((f) => ({ id: f.id, version: versionNumber.get(f.versionId) ?? 1, text: f.text, attachment: f.attachment, sentAt: f.sentAt! }));
+    .map((f) => ({
+      id: f.id,
+      version: versionNumber.get(f.versionId) ?? 1,
+      text: f.text,
+      attachment: f.attachment,
+      sentAt: f.sentAt!,
+      assessment: f.assessment,
+      isNew: unseen.has(f.id),
+    }));
   const versionItems: VersionItem[] = versions.map((v) => ({
     version: v.version,
     submittedAt: v.submittedAt,
@@ -185,7 +199,7 @@ function AssignmentView({
       lastSubmitted={versions.at(-1)?.answers ?? null}
       versions={versionItems}
       feedback={items}
-      feedbackSlotsLeft={slotsLeft}
+      otherFeedbackRequests={otherRequests}
       firstMeasurement={firstMeasurement}
     />
   );

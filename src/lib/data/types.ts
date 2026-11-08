@@ -52,6 +52,9 @@ export interface Enrollment {
   certificateReleasedAt: string | null;
   certificateCode: string | null;
   practicalStatus: PracticalStatus;
+  /** Practical certificate (package B, after the shadow wedding), released by hand by the owner. */
+  practicalCertificateReleasedAt: string | null;
+  practicalCertificateCode: string | null;
   ownerNotes: string;
 }
 
@@ -265,6 +268,9 @@ export interface Submission {
 
 export type FeedbackStatus = "nieuw" | "in_behandeling" | "afgerond";
 
+/** Assessment of a final assignment (graded). */
+export type Assessment = Extract<SubmissionStatus, "voldoende" | "verbetering_nodig">;
+
 /** A fixed copy made at every submit: answers, files and the assignment as it was then. */
 export interface SubmissionVersion {
   id: string;
@@ -290,6 +296,10 @@ export interface AssignmentFeedback {
   attachment: FileRef | null;
   /** Null while it is a draft only the owner sees. */
   sentAt: string | null;
+  /** Assessment of a graded assignment that goes along with this feedback (applied when sent). */
+  assessment: Assessment | null;
+  /** When the student saw the sent feedback (badge in the Academy). */
+  seenAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

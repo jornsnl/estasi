@@ -15,6 +15,8 @@ const base: Enrollment = {
   certificateReleasedAt: null,
   certificateCode: null,
   practicalStatus: "none",
+  practicalCertificateReleasedAt: null,
+  practicalCertificateCode: null,
   ownerNotes: "",
 };
 

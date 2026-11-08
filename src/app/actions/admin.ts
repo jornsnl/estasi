@@ -1,6 +1,5 @@
 "use server";
 
-import { randomBytes } from "crypto";
 import { redirect } from "next/navigation";
 import { audit } from "@/lib/academy";
 import { createDevAccount, deleteDevAccount, newDevSetupLink } from "@/lib/auth/dev-auth";
@@ -11,7 +10,9 @@ import { getStore, type Enrollment, type PackageType, type PracticalStatus } fro
 import { accessStatus, addMonths, ACCESS_MONTHS, pause, resume } from "@/lib/domain/access";
 import { LIMITS } from "@/lib/domain/input";
 import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
-import { addAssignmentFeedback, getSubmissionById, getVersion, relockModule, unlockModule } from "@/lib/data/assignments";
+import { certificateChange, notifyFeedbackSent } from "@/lib/academy-feedback";
+import { deleteFeedbackConcept, getSubmissionById, getVersion, relockModule, saveFeedback, setFeedbackStatus, unlockModule } from "@/lib/data/assignments";
+import { ASSESSMENT_LABELS, FEEDBACK_STATUS_LABELS, isAssessment, isFeedbackStatus } from "@/lib/domain/feedback";
 import { storeUpload, UploadError } from "@/lib/uploads";
 import { formatDate, fromDateInput } from "@/lib/util/format";
 import { newId } from "@/lib/util/id";
@@ -88,6 +89,8 @@ export async function createStudent(formData: FormData) {
       certificateReleasedAt: null,
       certificateCode: null,
       practicalStatus: "none",
+      practicalCertificateReleasedAt: null,
+      practicalCertificateCode: null,
       ownerNotes: str(formData, "ownerNotes", LIMITS.ownerNotes),
     });
     if (!supabase) await newDevSetupLink(userId, SETUP_DAYS);
@@ -216,17 +219,18 @@ export async function changeCompletion(formData: FormData) {
       log = "Bevestiging online afronding teruggedraaid";
       break;
     case "releaseCertificate":
-      if (!enrollment.onlineCompletedAt) done(path, "Bevestig eerst de online afronding.", true);
-      patch = {
-        certificateReleasedAt: now,
-        certificateCode: enrollment.certificateCode ?? `WPA-${new Date().getFullYear()}-${randomBytes(3).toString("hex").toUpperCase()}`,
-      };
-      log = "Online certificaat vrijgegeven";
-      break;
     case "withdrawCertificate":
-      patch = { certificateReleasedAt: null };
-      log = "Certificaat ingetrokken";
+    case "releasePractical":
+    case "withdrawPractical": {
+      // Academy 15: released by hand, after checking modules, final assignments and the practical part.
+      const user = await store.getUser(enrollment.userId);
+      if (!user) done("/beheer", "Cursist niet gevonden.", true);
+      const change = await certificateChange(user, enrollment, op);
+      if (!change.ok) done(path, change.error, true);
+      patch = change.patch;
+      log = change.log;
       break;
+    }
     case "practical": {
       const status = str(formData, "practicalStatus") as PracticalStatus;
       if (!["none", "planned", "completed"].includes(status)) done(path, "Onbekende status.", true);
@@ -260,29 +264,71 @@ export async function changeCompletion(formData: FormData) {
   done(path, log);
 }
 
-/** Feedback on one submitted version of an assignment; the student sees it with the assignment. */
+const feedbackPath = (versionId: string) => `/beheer/feedback/${versionId}`;
+
+/**
+ * The feedback screen (Academy 8): save the feedback as a concept, send it
+ * (with the assessment of a final assignment), or throw the concept away.
+ * Sending notifies the student by mail, push and a badge in the Academy.
+ */
 export async function giveFeedback(formData: FormData) {
   const owner = await requireOwner();
   const version = await getVersion(str(formData, "versionId"));
-  if (!version) redirect("/beheer");
-  const submission = await getSubmissionById(version.submissionId);
-  const path = `${studentPath(version.userId)}${submission ? `?les=${submission.lessonId}` : ""}`;
-  const text = str(formData, "text", LIMITS.feedback);
-  if (!text) done(path, "Schrijf eerst je feedback.", true);
+  if (!version) done("/beheer/feedback", "Deze versie bestaat niet meer.", true);
+  const path = feedbackPath(version.id);
+  const intent = str(formData, "intent");
 
-  // A rejected attachment must not throw away the feedback that was written.
-  let attachment = null;
+  if (intent === "delete") {
+    await deleteFeedbackConcept(version.id);
+    done(path, "Concept verwijderd.");
+  }
+  const send = intent === "send";
+  const text = str(formData, "text", LIMITS.feedback);
+  const assessmentInput = str(formData, "assessment");
+  const assessment = isAssessment(assessmentInput) ? assessmentInput : null;
+
+  // A rejected attachment must not throw away the feedback that was written: it is kept as a concept.
+  let attachment: Awaited<ReturnType<typeof storeUpload>> | undefined = formData.get("removeAttachment") === "1" ? null : undefined;
   let attachmentError: string | null = null;
   try {
-    attachment = await storeUpload(formData.get("attachment"), { belongsTo: version.userId, uploadedBy: owner.id });
+    const uploaded = await storeUpload(formData.get("attachment"), { belongsTo: version.userId, uploadedBy: owner.id });
+    if (uploaded) attachment = uploaded;
   } catch (err) {
     if (!(err instanceof UploadError)) throw err;
     attachmentError = err.message;
   }
-  await addAssignmentFeedback({ version, authorId: owner.id, text, attachment, send: true });
-  await audit(owner, "Feedback gegeven", `versie ${version.version}`, version.userId);
-  if (attachmentError) done(path, `Feedback opgeslagen, maar zonder bijlage: ${attachmentError} Geef de bijlage eventueel als extra feedback.`, true);
-  done(path, "Feedback opgeslagen. De cursist ziet deze bij de opdracht.");
+  const result = await saveFeedback({ version, authorId: owner.id, text, attachment, assessment, send: send && !attachmentError });
+  if (!result.ok) done(path, result.error, true);
+  if (attachmentError) done(path, `Je feedback is als concept bewaard, maar de bijlage niet: ${attachmentError} Kies een ander bestand of verstuur zonder bijlage.`, true);
+
+  if (!send) {
+    await audit(owner, "Feedback als concept bewaard", `versie ${version.version}`, version.userId);
+    done(path, "Concept bewaard. De cursist ziet het pas als je het verstuurt.");
+  }
+  const submission = await getSubmissionById(version.submissionId);
+  if (submission) {
+    await notifyFeedbackSent({ studentId: version.userId, lessonId: submission.lessonId, blockId: submission.blockId, assessed: result.assessed, sentBy: owner.name });
+  }
+  await audit(
+    owner,
+    "Feedback verstuurd",
+    `versie ${version.version}${result.assessed ? ` · beoordeling: ${ASSESSMENT_LABELS[result.assessed]}` : ""}`,
+    version.userId,
+  );
+  done(path, `Feedback verstuurd${result.assessed ? ` met beoordeling "${ASSESSMENT_LABELS[result.assessed]}"` : ""}. De cursist krijgt er een melding van.`);
+}
+
+/** Sets the status of a feedback request by hand (nieuw, in behandeling, afgerond). */
+export async function changeFeedbackStatus(formData: FormData) {
+  const owner = await requireOwner();
+  const version = await getVersion(str(formData, "versionId"));
+  if (!version) done("/beheer/feedback", "Deze versie bestaat niet meer.", true);
+  const status = str(formData, "status");
+  const path = feedbackPath(version.id);
+  if (!isFeedbackStatus(status)) done(path, "Onbekende status.", true);
+  if (!(await setFeedbackStatus(version.id, status))) done(path, "Bij deze versie is geen feedback gevraagd.", true);
+  await audit(owner, "Status feedbackverzoek gewijzigd", `versie ${version.version}: ${FEEDBACK_STATUS_LABELS[status].toLowerCase()}`, version.userId);
+  done(path, `Status: ${FEEDBACK_STATUS_LABELS[status].toLowerCase()}.`);
 }
 
 /** Opens a module for one student before the previous one is completed, or takes that back. */

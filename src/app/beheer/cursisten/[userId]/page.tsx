@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { changeAccess, changeCompletion, changeModuleUnlock, giveFeedback, newSetupLink, updateStudentDetails } from "@/app/actions/admin";
-import { AnswersView } from "@/components/academy/AnswersView";
-import { ScanComparisonTable } from "@/components/academy/ScanComparisonTable";
+import { changeAccess, changeCompletion, changeModuleUnlock, newSetupLink, updateStudentDetails } from "@/app/actions/admin";
+import { CertificateControls } from "@/components/academy/CertificateControls";
+import { SubmissionPanel } from "@/components/academy/SubmissionPanel";
 import { Badge } from "@/components/Badge";
 import { Notice } from "@/components/Notice";
 import { ProgressBar } from "@/components/ProgressBar";
 import { SubmitButton } from "@/components/SubmitButton";
 import { studentOverview } from "@/lib/academy";
-import { getStore, type AssignmentBlock, type AssignmentFeedback, type Lesson, type Submission, type SubmissionVersion } from "@/lib/data";
+import { onlineCertificateCheck } from "@/lib/academy-feedback";
+import { getStore, type Lesson, type Submission, type SubmissionVersion } from "@/lib/data";
 import { listAssignmentFeedback } from "@/lib/data/assignments";
-import { assignmentsOf, compareScans, isSubmitted, STATUS_LABELS } from "@/lib/domain/assignment";
+import { assignmentsOf, isSubmitted } from "@/lib/domain/assignment";
 import { ACCESS_LABELS, DEFAULT_EXTEND_MONTHS, EXTEND_MONTHS, remainingDays } from "@/lib/domain/access";
 import { isActivated } from "@/lib/domain/account";
 import { LIMITS } from "@/lib/domain/input";
@@ -18,7 +19,6 @@ import { PACKAGE_LABELS, plural } from "@/lib/domain/labels";
 import { devAuthAllowed, devPendingLink } from "@/lib/auth/dev-auth";
 import { supabaseEnabled } from "@/lib/supabase/config";
 import { COURSE_STATUS_LABELS, modulePercent } from "@/lib/domain/progress";
-import { ACCEPT_ATTR } from "@/lib/uploads";
 import { formatDate, formatDateTime, toDateInput } from "@/lib/util/format";
 
 export const metadata = { title: "Cursist" };
@@ -186,20 +186,7 @@ export default async function StudentDetail({
                   </ActionForm>
                 )}
               </Row>
-              <Row label="Online certificaat">
-                {e.certificateReleasedAt ? (
-                  <>
-                    <span>Vrijgegeven op {formatDate(e.certificateReleasedAt)} ({e.certificateCode})</span>
-                    <ActionForm action={changeCompletion} userId={userId} op="withdrawCertificate" small confirm="Certificaat intrekken?">
-                      Intrekken
-                    </ActionForm>
-                  </>
-                ) : (
-                  <ActionForm action={changeCompletion} userId={userId} op="releaseCertificate" primary disabled={!e.onlineCompletedAt}>
-                    Certificaat vrijgeven
-                  </ActionForm>
-                )}
-              </Row>
+              <CertificateControls userId={userId} enrollment={e} onlineMissing={onlineCertificateCheck(o).missing} />
               <Row label="Praktijkdeel">
                 {e.package === "B" ? (
                   <form action={changeCompletion} className="flex items-center gap-2">
@@ -231,7 +218,7 @@ export default async function StudentDetail({
             </div>
             {e.package === "B" && (
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-muted">Het praktijkcertificaat verstuur je zelf buiten het platform.</p>
+                <p className="text-xs text-muted">Het praktijkcertificaat geef je hierboven vrij zodra de meeloopbruiloft is afgerond.</p>
                 <ActionForm
                   action={changeCompletion}
                   userId={userId}
@@ -475,92 +462,4 @@ function findOriginal(blockId: string, lessons: Lesson[], submissions: Submissio
   if (last) return { assignment: last.assignment, answers: last.answers };
   const definition = lessons.flatMap((l) => assignmentsOf(l.blocks)).find((a) => a.id === blockId);
   return definition && sub ? { assignment: definition, answers: sub.draft } : null;
-}
-
-const FEEDBACK_STATUS_LABEL = { nieuw: "nieuw", in_behandeling: "in behandeling", afgerond: "afgerond" } as const;
-
-function SubmissionPanel({
-  assignment,
-  submission,
-  versions,
-  feedback,
-  original,
-}: {
-  assignment: AssignmentBlock;
-  submission: Submission | undefined;
-  versions: SubmissionVersion[];
-  feedback: AssignmentFeedback[];
-  original: ReturnType<typeof findOriginal>;
-}) {
-  const latest = versions.at(-1);
-  const title = assignment.title || assignment.parts[0]?.fields[0]?.label || "Opdracht";
-  return (
-    <div className="rounded-lg bg-cream/60 p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="font-medium">{title}</p>
-        {assignment.requiredForLesson && <Badge tone="bordeaux">Verplicht</Badge>}
-        {assignment.feedbackAllowed && <Badge tone="gold">Feedback mogelijk</Badge>}
-        {assignment.graded && <Badge tone="gold">Eindopdracht</Badge>}
-        <Badge tone={submission && isSubmitted(submission.status) ? "success" : "neutral"}>{submission ? STATUS_LABELS[submission.status] : "Nog niet begonnen"}</Badge>
-      </div>
-
-      {!latest && submission && (
-        <div className="mt-3">
-          <p className="mb-2 text-xs text-muted">Concept, laatst opgeslagen {formatDateTime(submission.updatedAt)} (nog niet ingediend):</p>
-          <AnswersView assignment={assignment} answers={submission.draft} />
-        </div>
-      )}
-      {!submission && <p className="mt-2 text-sm text-muted">Nog niets ingevuld.</p>}
-
-      {versions
-        .slice()
-        .reverse()
-        .map((v) => {
-          const items = feedback.filter((f) => f.versionId === v.id);
-          return (
-            <details key={v.id} open={v.id === latest?.id} className="mt-3 rounded-md border border-line bg-white p-3">
-              <summary className="cursor-pointer text-sm">
-                Versie {v.version} · ingediend {formatDateTime(v.submittedAt)}
-                {v.feedbackRequested && v.feedbackStatus && <span className="ml-2 text-bordeaux">feedback gevraagd ({FEEDBACK_STATUS_LABEL[v.feedbackStatus]})</span>}
-              </summary>
-              <div className="mt-3">
-                {v.questionForSabine && (
-                  <p className="mb-3 rounded-md bg-gold-soft/60 p-3 text-sm">
-                    <span className="font-medium">Vraag aan jou:</span> {v.questionForSabine}
-                  </p>
-                )}
-                <AnswersView assignment={v.assignment} answers={v.answers} />
-                {original && v.id === latest?.id && (
-                  <div className="mt-4">
-                    <p className="text-sm font-medium">Vergelijking met de beginmeting</p>
-                    <ScanComparisonTable comparison={compareScans(original, { assignment: v.assignment, answers: v.answers })} afterLabel="Eind" />
-                  </div>
-                )}
-                {items.map((f) => (
-                  <div key={f.id} className="mt-3 rounded-md border-l-2 border-gold bg-cream/40 p-3 text-sm">
-                    <p className="text-xs text-muted">
-                      Jouw feedback · {formatDateTime(f.sentAt ?? f.createdAt)}
-                      {!f.sentAt && " · concept, nog niet verstuurd"}
-                    </p>
-                    <p className="mt-1 whitespace-pre-wrap">{f.text}</p>
-                    {f.attachment && <a href={`/api/bestanden/${f.attachment.id}`} className="text-bordeaux underline">Bijlage: {f.attachment.name}</a>}
-                  </div>
-                ))}
-                <details className="mt-3" open={v.feedbackStatus === "nieuw" && v.id === latest?.id}>
-                  <summary className="cursor-pointer text-sm text-bordeaux">Feedback geven op versie {v.version}</summary>
-                  <form action={giveFeedback} className="mt-2 space-y-2">
-                    <input type="hidden" name="versionId" value={v.id} />
-                    <textarea name="text" rows={3} required maxLength={LIMITS.feedback} className="input" placeholder="Schrijf je feedback…" aria-label={`Feedback op versie ${v.version}`} />
-                    <div className="flex flex-wrap items-center gap-3">
-                      <input type="file" name="attachment" accept={ACCEPT_ATTR} className="text-sm" aria-label="Bijlage" />
-                      <SubmitButton className="btn-primary py-2" pendingText="Opslaan…">Feedback versturen</SubmitButton>
-                    </div>
-                  </form>
-                </details>
-              </div>
-            </details>
-          );
-        })}
-    </div>
-  );
 }

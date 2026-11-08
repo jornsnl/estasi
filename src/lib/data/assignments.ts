@@ -11,8 +11,10 @@ import {
   withKnownUploadKinds,
 } from "@/lib/domain/assignment";
 import { ASSIGNMENT_LIMITS } from "@/lib/domain/assignment";
+import { assessmentProblem, nextFeedbackStatus } from "@/lib/domain/feedback";
 import { fromRow, toParams, toRow, type Table } from "./rows";
 import type {
+  Assessment,
   AssignmentAnswers,
   AssignmentBlock,
   AssignmentFeedback,
@@ -236,6 +238,7 @@ export async function addDraftFile(
 export type SubmitResult =
   | { ok: true; submission: Submission; version: SubmissionVersion; feedbackRefused: boolean; lessonCompleted: boolean }
   | { ok: false; reason: "conflict"; submission: Submission }
+  | { ok: false; reason: "assessed"; submission: Submission }
   | { ok: false; reason: "missing"; submission: Submission; missing: string[]; feedbackRefused: boolean };
 
 /**
@@ -246,6 +249,9 @@ export type SubmitResult =
 export async function submitAssignment(input: DraftInput & { lesson: Lesson }): Promise<SubmitResult> {
   return tx(async (db) => {
     const now = new Date().toISOString();
+    const before = await lockSubmission(db, input.userId, input.lesson.id, input.assignment.id, now);
+    // Assessed as voldoende: done, a new version would undo the assessment.
+    if (before.status === "voldoende") return { ok: false, reason: "assessed", submission: before };
     const saved = await writeDraft(db, input, now);
     if (!saved.ok) return saved;
     const { submission, feedbackRefused } = saved;
@@ -264,9 +270,18 @@ export async function submitAssignment(input: DraftInput & { lesson: Lesson }): 
       assignment: input.assignment,
       feedbackRequested: submission.feedbackRequested,
       questionForSabine: submission.questionForSabine,
-      feedbackStatus: submission.feedbackRequested ? "nieuw" : null,
+      // A final assignment waits for the owner's assessment, also without a feedback request.
+      feedbackStatus: nextFeedbackStatus(null, { type: "submitted", requested: submission.feedbackRequested, graded: input.assignment.graded }),
       submittedAt: now,
     });
+    if (input.assignment.graded) {
+      // An earlier version that only waited for the assessment is replaced by this one.
+      await db.query(
+        `update public.submission_versions set feedback_status = null
+          where submission_id = $1 and id <> $2 and not feedback_requested and feedback_status = 'nieuw'`,
+        [submission.id, version.id],
+      );
+    }
     const { rows } = await db.query(
       "update public.assignment_submissions set status = 'ingediend', submitted_at = $2, updated_at = $2 where id = $1 returning *",
       [submission.id, now],
@@ -295,47 +310,203 @@ export async function submitAssignment(input: DraftInput & { lesson: Lesson }): 
 
 // Owner ----------------------------------------------------------------------------------------
 
-/**
- * Feedback on a version. send = false keeps it as a draft only the owner
- * sees; sending marks a feedback request on that version as done.
- */
-export async function addAssignmentFeedback(input: {
+export interface FeedbackInput {
   version: SubmissionVersion;
   authorId: string;
   text: string;
-  attachment: FileRef | null;
+  /** A new attachment; undefined keeps the one of the concept, null removes it. */
+  attachment?: FileRef | null;
+  /** Only for a final assignment (graded); applied to the submission when sent. */
+  assessment?: Assessment | null;
+  /** false: (keep) as a concept only the owner sees; true: send it to the student. */
   send: boolean;
-}): Promise<AssignmentFeedback> {
+}
+
+export type FeedbackResult =
+  | { ok: true; feedback: AssignmentFeedback; assessed: Assessment | null }
+  | { ok: false; error: string };
+
+/**
+ * Writes the owner's feedback on a version: there is at most one concept per
+ * version, which is updated until it is sent. Sending stamps it, marks the
+ * request as done and applies the assessment of a final assignment. The
+ * caller notifies the student (notifyFeedbackSent).
+ */
+export async function saveFeedback(input: FeedbackInput): Promise<FeedbackResult> {
   return tx(async (db) => {
     const now = new Date().toISOString();
-    const feedback = await insertRow<AssignmentFeedback>(db, "assignment_feedback", {
-      versionId: input.version.id,
-      submissionId: input.version.submissionId,
-      userId: input.version.userId,
-      authorId: input.authorId,
-      text: input.text,
-      attachment: input.attachment,
-      sentAt: input.send ? now : null,
-      createdAt: now,
-      updatedAt: now,
-    });
-    await db.query(
-      `update public.submission_versions set feedback_status = $2 where id = $1 and feedback_status is not null`,
-      [input.version.id, input.send ? "afgerond" : "in_behandeling"],
-    );
-    return feedback;
+    const { rows: [versionRow] } = await db.query("select * from public.submission_versions where id = $1 for update", [input.version.id]);
+    if (!versionRow) return { ok: false as const, error: "Deze versie bestaat niet meer." };
+    const version = fromRow<SubmissionVersion>("submission_versions", versionRow);
+    const { rows: [concept] } = await db.query("select * from public.assignment_feedback where version_id = $1 and sent_at is null", [version.id]);
+    const current = concept ? fromRow<AssignmentFeedback>("assignment_feedback", concept) : null;
+    const attachment = input.attachment === undefined ? (current?.attachment ?? null) : input.attachment;
+    const assessment = input.assessment ?? null;
+    const text = input.text.trim();
+    if (!text && !attachment && !assessment) return { ok: false as const, error: "Schrijf eerst je feedback." };
+
+    let assessed: Assessment | null = null;
+    if (assessment) {
+      const { rows: [sub] } = await db.query("select status from public.assignment_submissions where id = $1 for update", [version.submissionId]);
+      const { rows: [latest] } = await db.query("select max(version)::int as v from public.submission_versions where submission_id = $1", [version.submissionId]);
+      const problem = assessmentProblem({ graded: version.assignment?.graded === true, isLatest: latest?.v === version.version, status: sub?.status ?? "concept" });
+      if (problem) return { ok: false as const, error: problem };
+      if (input.send) {
+        await db.query("update public.assignment_submissions set status = $2, updated_at = $3 where id = $1", [version.submissionId, assessment, now]);
+        assessed = assessment;
+      }
+    }
+
+    const values = { text, attachment, assessment, sentAt: input.send ? now : null, updatedAt: now };
+    let feedback: AssignmentFeedback;
+    if (current) {
+      const { rows } = await db.query(
+        `update public.assignment_feedback set text = $2, attachment = $3, assessment = $4, sent_at = $5, updated_at = $6, author_id = $7
+          where id = $1 returning *`,
+        [current.id, text, attachment ? JSON.stringify(attachment) : null, assessment, values.sentAt, now, input.authorId],
+      );
+      feedback = fromRow<AssignmentFeedback>("assignment_feedback", rows[0]);
+    } else {
+      feedback = await insertRow<AssignmentFeedback>(db, "assignment_feedback", {
+        versionId: version.id,
+        submissionId: version.submissionId,
+        userId: version.userId,
+        authorId: input.authorId,
+        ...values,
+        seenAt: null,
+        createdAt: now,
+      });
+    }
+    const status = nextFeedbackStatus(version.feedbackStatus, { type: input.send ? "sent" : "concept" });
+    if (status !== version.feedbackStatus) {
+      await db.query("update public.submission_versions set feedback_status = $2 where id = $1", [version.id, status]);
+    }
+    return { ok: true as const, feedback, assessed };
   });
 }
 
-export async function setFeedbackStatus(versionId: string, status: FeedbackStatus): Promise<void> {
-  if (!isUuid(versionId)) return;
-  await query("update public.submission_versions set feedback_status = $2 where id = $1", [versionId, status]);
+/** Throws the concept of a version away (the attachment file stays, as with other uploads). */
+export async function deleteFeedbackConcept(versionId: string): Promise<boolean> {
+  if (!isUuid(versionId)) return false;
+  const rows = await query("delete from public.assignment_feedback where version_id = $1 and sent_at is null returning id", [versionId]);
+  return rows.length > 0;
 }
 
-/** Assessment of a graded assignment (final assignment): voldoende or verbetering nodig. */
-export async function assessSubmission(submissionId: string, status: Extract<SubmissionStatus, "voldoende" | "verbetering_nodig">): Promise<void> {
+/** The owner sets the status by hand; a version without a request or final assignment has none. */
+export async function setFeedbackStatus(versionId: string, status: FeedbackStatus): Promise<boolean> {
+  if (!isUuid(versionId)) return false;
+  const rows = await query("update public.submission_versions set feedback_status = $2 where id = $1 and feedback_status is not null returning id", [versionId, status]);
+  return rows.length > 0;
+}
+
+/** Assessment of a graded assignment (final assignment) without feedback text. */
+export async function assessSubmission(submissionId: string, status: Assessment): Promise<void> {
   if (!isUuid(submissionId)) return;
   await query("update public.assignment_submissions set status = $2, updated_at = now() where id = $1 and status <> 'concept'", [submissionId, status]);
+}
+
+// Feedback overview (owner) --------------------------------------------------------------
+
+export interface FeedbackRequest {
+  versionId: string;
+  version: number;
+  submissionId: string;
+  userId: string;
+  studentName: string;
+  lessonId: string;
+  lessonTitle: string | null;
+  moduleId: string | null;
+  moduleTitle: string | null;
+  modulePosition: number | null;
+  assignment: AssignmentBlock;
+  answers: AssignmentAnswers;
+  feedbackRequested: boolean;
+  feedbackStatus: FeedbackStatus;
+  questionForSabine: string;
+  submittedAt: string;
+  submissionStatus: SubmissionStatus;
+  /** There is a concept that has not been sent yet. */
+  hasConcept: boolean;
+  lastSentAt: string | null;
+}
+
+/**
+ * Every version that waits or waited for the owner: a feedback request, or
+ * the latest version of a final assignment. Newest first; the caller filters
+ * (matchesRequest).
+ */
+export async function listFeedbackRequests(filter: { userId?: string } = {}): Promise<FeedbackRequest[]> {
+  if (filter.userId && !isUuid(filter.userId)) return [];
+  const rows = await query<Record<string, unknown>>(
+    `select v.id as version_id, v.version, v.submission_id, v.user_id, u.name as student_name, s.lesson_id,
+            l.title as lesson_title, m.id as module_id, m.title as module_title, m.position as module_position,
+            v.assignment, v.answers, v.feedback_requested, v.feedback_status, v.question_for_sabine, v.submitted_at, s.status as submission_status,
+            exists (select 1 from public.assignment_feedback f where f.version_id = v.id and f.sent_at is null) as has_concept,
+            (select max(f.sent_at) from public.assignment_feedback f where f.version_id = v.id) as last_sent_at
+       from public.submission_versions v
+       join public.assignment_submissions s on s.id = v.submission_id
+       join public.users u on u.id = v.user_id
+       left join public.lessons l on l.id = s.lesson_id
+       left join public.modules m on m.id = l.module_id
+      where v.feedback_status is not null${filter.userId ? " and v.user_id = $1" : ""}
+      order by v.submitted_at desc, v.version desc`,
+    filter.userId ? [filter.userId] : [],
+  );
+  const iso = (d: unknown) => (d instanceof Date ? d.toISOString() : d ? new Date(String(d)).toISOString() : null);
+  return rows.map((r) => ({
+    versionId: String(r.version_id),
+    version: Number(r.version),
+    submissionId: String(r.submission_id),
+    userId: String(r.user_id),
+    studentName: String(r.student_name),
+    lessonId: String(r.lesson_id),
+    lessonTitle: (r.lesson_title as string | null) ?? null,
+    moduleId: r.module_id ? String(r.module_id) : null,
+    moduleTitle: (r.module_title as string | null) ?? null,
+    modulePosition: r.module_position === null || r.module_position === undefined ? null : Number(r.module_position),
+    assignment: withKnownUploadKinds(r.assignment as AssignmentBlock),
+    answers: (r.answers as AssignmentAnswers) ?? {},
+    feedbackRequested: r.feedback_requested === true,
+    feedbackStatus: r.feedback_status as FeedbackStatus,
+    questionForSabine: String(r.question_for_sabine ?? ""),
+    submittedAt: iso(r.submitted_at)!,
+    submissionStatus: r.submission_status as SubmissionStatus,
+    hasConcept: r.has_concept === true,
+    lastSentAt: iso(r.last_sent_at),
+  }));
+}
+
+/** For the counter in the admin menu: requests that wait (nieuw or in behandeling). */
+export async function openFeedbackRequestCount(): Promise<number> {
+  const row = await one<{ n: number }>(
+    "select count(*)::int as n from public.submission_versions where feedback_status in ('nieuw', 'in_behandeling')",
+  );
+  return row?.n ?? 0;
+}
+
+// Feedback seen by the student --------------------------------------------------------------
+
+/** Sent feedback the student has not opened yet (badge in the Academy menu). */
+export async function unseenFeedback(userId: string): Promise<{ id: string; submissionId: string; lessonId: string; blockId: string; sentAt: string }[]> {
+  if (!isUuid(userId)) return [];
+  const rows = await query<{ id: string; submission_id: string; lesson_id: string; block_id: string; sent_at: Date }>(
+    `select f.id, f.submission_id, s.lesson_id, s.block_id, f.sent_at
+       from public.assignment_feedback f join public.assignment_submissions s on s.id = f.submission_id
+      where f.user_id = $1 and f.sent_at is not null and f.seen_at is null
+      order by f.sent_at desc`,
+    [userId],
+  );
+  return rows.map((r) => ({ id: r.id, submissionId: r.submission_id, lessonId: r.lesson_id, blockId: r.block_id, sentAt: new Date(r.sent_at).toISOString() }));
+}
+
+/** The student opened the lesson with this feedback. */
+export async function markFeedbackSeen(userId: string, submissionIds: string[]): Promise<void> {
+  const ids = submissionIds.filter(isUuid);
+  if (!isUuid(userId) || ids.length === 0) return;
+  await query(
+    "update public.assignment_feedback set seen_at = now() where user_id = $1 and submission_id = any($2::uuid[]) and sent_at is not null and seen_at is null",
+    [userId, ids],
+  );
 }
 
 // Module unlocks ---------------------------------------------------------------------------
