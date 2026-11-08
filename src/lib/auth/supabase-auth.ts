@@ -74,6 +74,19 @@ export async function verifyEmailLink(tokenHash: string, type: EmailOtpType): Pr
   return !error;
 }
 
+/**
+ * The owner sets a (temporary) password for an account. Also confirms the
+ * e-mail address, so an invited student who never opened the mail can sign in.
+ * Returns an error message or null.
+ */
+export async function setPasswordAsAdmin(userId: string, password: string): Promise<string | null> {
+  const { error } = await adminClient().auth.admin.updateUserById(userId, { password, email_confirm: true });
+  if (!error) return null;
+  console.warn(`[tijdelijk wachtwoord] Supabase: ${error.code ?? ""} ${error.message}`);
+  if (error.code === "weak_password") return "Dit wachtwoord is te zwak of komt voor in bekende datalekken. Kies een ander.";
+  return "Het wachtwoord instellen is niet gelukt. Probeer het opnieuw.";
+}
+
 /** Sets the password of the signed in user. Returns an error message or null. */
 export async function updatePassword(password: string): Promise<string | null> {
   const { error } = await (await authClient()).auth.updateUser({ password });

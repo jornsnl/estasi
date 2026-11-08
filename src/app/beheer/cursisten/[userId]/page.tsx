@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { changeAccess, changeCompletion, changeModuleUnlock, newSetupLink, updateStudentDetails } from "@/app/actions/admin";
+import { changeAccess, changeCompletion, changeModuleUnlock, newSetupLink, setTemporaryPassword, updateStudentDetails } from "@/app/actions/admin";
+import { generateTemporaryPassword, mustChangePassword } from "@/lib/auth/temporary-password";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
 import { CertificateControls } from "@/components/academy/CertificateControls";
 import { StudentAdminSummary } from "@/components/academy/StudentAdminSummary";
 import { StudentPrivacyPanel } from "@/components/academy/StudentPrivacyPanel";
@@ -53,6 +55,7 @@ export default async function StudentDetail({
   const versionsOf = (s: Submission | undefined) => (s ? o.versions.filter((v) => v.submissionId === s.id).sort((a, b) => a.version - b.version) : []);
   const setup = devAuthAllowed() ? await devPendingLink(user.id) : null;
   const activated = isActivated(user);
+  const temporaryPending = await mustChangePassword(userId);
 
   return (
     <div className="space-y-8">
@@ -366,6 +369,29 @@ export default async function StudentDetail({
                 ? activated ? "Wachtwoord-herstellink mailen" : "Uitnodiging opnieuw mailen"
                 : activated ? "Wachtwoord-herstellink maken" : "Nieuwe activatielink maken"}</SubmitButton>
           </form>
+          <details id="tijdelijk-wachtwoord" className="mt-5 rounded-lg border border-line p-4" open={temporaryPending || undefined}>
+            <summary className="cursor-pointer text-sm font-medium">Tijdelijk wachtwoord instellen</summary>
+            {temporaryPending && (
+              <p className="mt-3 text-sm text-gold-ink">Er staat een tijdelijk wachtwoord klaar: de cursist heeft nog geen eigen wachtwoord gekozen.</p>
+            )}
+            <p className="mt-3 text-sm text-muted">
+              Noodoptie als de uitnodiging niet aankomt. Jij kent dit wachtwoord en geeft het zelf door, bijvoorbeeld telefonisch of via WhatsApp (niet in
+              dezelfde mail als het e-mailadres). Na het inloggen moet de cursist meteen een eigen wachtwoord kiezen.
+            </p>
+            <form action={setTemporaryPassword} className="mt-3 space-y-3">
+              <input type="hidden" name="userId" value={userId} />
+              <div>
+                <label htmlFor="temporaryPassword" className="label">Tijdelijk wachtwoord</label>
+                <input id="temporaryPassword" name="password" type="text" defaultValue={generateTemporaryPassword()} minLength={MIN_PASSWORD_LENGTH} maxLength={200} required autoComplete="off" spellCheck={false} className="input font-mono" />
+                <p className="hint">Voorgesteld wachtwoord; je mag het aanpassen (minimaal {MIN_PASSWORD_LENGTH} tekens). Kopieer het voordat je opslaat.</p>
+              </div>
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" name="confirm" className="mt-1 accent-[#722F37]" required />
+                <span>Ik geef dit wachtwoord zelf door aan {user.name}. Een eerder wachtwoord werkt daarna niet meer.</span>
+              </label>
+              <SubmitButton className="btn-secondary" pendingText="Instellen…">Tijdelijk wachtwoord instellen</SubmitButton>
+            </form>
+          </details>
         </section>
 
         <section className="card p-6">
