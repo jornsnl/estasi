@@ -96,33 +96,40 @@ export default async function AssignmentPage({
         />
       )}
 
-      {assignment.kind !== "sections" && <form id="answers" action={saveAnswers} className="space-y-4">
+      {(assignment.kind !== "sections" || assignment.budget) && <form id="answers" action={saveAnswers} className="space-y-4">
         <Hidden />
-        {questions.map((q, i) => (
+        {assignment.kind !== "sections" && questions.map((q, i) => (
           <div key={q.id} className="card p-5">
             <label htmlFor={`a-${q.id}`} className="block font-medium">{i + 1}. {q.prompt}</label>
             {q.help && <p className="hint">{q.help}</p>}
             <textarea id={`a-${q.id}`} name={`a-${q.id}`} rows={4} defaultValue={q.answer} className="input mt-2" />
           </div>
         ))}
-        {questions.length === 0 && <p className="card p-5 text-sm text-muted">Deze opdracht heeft nog geen vragen.</p>}
-        {questions.length > 0 && (
-          <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center justify-end gap-3 border-t border-line bg-cream/95 px-4 py-3 backdrop-blur">
-            <DirtyGuard formId="answers" />
+        {assignment.kind !== "sections" && questions.length === 0 && !assignment.budget && <p className="card p-5 text-sm text-muted">Deze opdracht heeft nog geen vragen.</p>}
+        {/* The budget table is part of this form: one save keeps the answers and the amounts, and updates Kosten. */}
+        {assignment.budget && (
+          <BudgetPlanner
+            coupleId={couple.id}
+            total={couple.total_budget_cents}
+            lines={budgetLines.map((l) => ({ id: l.id, name: l.name, kind: l.kind as "category" | "own", budget: l.budget_cents }))}
+          />
+        )}
+        {(questions.length > 0 || assignment.budget) && (
+          <div
+            className={
+              assignment.budget
+                ? "flex flex-wrap items-center justify-end gap-3"
+                : "sticky bottom-0 -mx-4 flex flex-wrap items-center justify-end gap-3 border-t border-line bg-cream/95 px-4 py-3 backdrop-blur"
+            }
+          >
+            <DirtyGuard formId="answers" message={assignment.budget ? "Niet opgeslagen" : undefined} />
             <SubmitButton name="intent" value="save" className="btn-secondary" pendingText="Opslaan…">Tussentijds opslaan</SubmitButton>
-            <SubmitButton name="intent" value="submit" className="btn-primary" pendingText="Insturen…">{assignment.submitted_at ? "Opslaan en opnieuw insturen" : "Insturen"}</SubmitButton>
+            <SubmitButton name="intent" value="submit" className="btn-primary" pendingText="Versturen…">
+              {assignment.budget ? (assignment.submitted_at ? "Opnieuw versturen" : "Versturen") : assignment.submitted_at ? "Opslaan en opnieuw insturen" : "Insturen"}
+            </SubmitButton>
           </div>
         )}
       </form>}
-
-      {assignment.budget && (
-        <BudgetPlanner
-          coupleId={couple.id}
-          total={couple.total_budget_cents}
-          back={`/k/${couple.id}/opdrachten/${assignment.id}`}
-          lines={budgetLines.map((l) => ({ id: l.id, name: l.name, kind: l.kind as "category" | "own", budget: l.budget_cents }))}
-        />
-      )}
 
       {isAdmin && (
         <section className="card space-y-4 p-5">

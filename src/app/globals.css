@@ -144,6 +144,14 @@
   font-weight: 600;
   letter-spacing: 0;
 }
+/* The portal menu scrolls sideways without a visible scrollbar (the fades and arrows show it). */
+.ws-nav-scroll {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.ws-nav-scroll::-webkit-scrollbar {
+  display: none;
+}
 .ws-theme .card {
   border: 0;
   border-radius: 1rem;
@@ -183,4 +191,31 @@
   .ws-theme nav[aria-label="Onderdelen"] {
     display: none !important;
   }
+}
+
+/* Hue slider of the colour picker in the styling plan. */
+.ws-hue {
+  appearance: none;
+  height: 0.875rem;
+  border-radius: 9999px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+.ws-hue::-webkit-slider-thumb {
+  appearance: none;
+  height: 1.25rem;
+  width: 1.25rem;
+  border-radius: 9999px;
+  border: 2px solid #fff;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+.ws-hue::-moz-range-thumb {
+  height: 1.25rem;
+  width: 1.25rem;
+  border-radius: 9999px;
+  border: 2px solid #fff;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
 }

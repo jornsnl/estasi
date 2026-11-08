@@ -4,7 +4,11 @@ import { useId, useState, useTransition } from "react";
 import { addStylingItem, deleteStylingItem, movePlace, placeImages, savePlace, updateStylingItem } from "@/app/actions/ws-styling";
 import { MoveButtons } from "@/components/MoveButtons";
 import { SubmitButton } from "@/components/SubmitButton";
+import { AutoTextarea } from "@/components/ws/AutoTextarea";
 import { FileUpload } from "@/components/ws/FileUpload";
+
+/** Column widths of the styling plan, shared by the page, the run sheet tab and the print. */
+export const STYLING_COLS = { who: "w-[28%] sm:w-56", ready: "w-16 sm:w-24", remove: "w-6 sm:w-7" } as const;
 
 export interface PlaceData {
   id: string;
@@ -53,10 +57,10 @@ export function StylingPlaces({
         <section key={place.id} id={`p-${place.id}`} className="card scroll-mt-6 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             {edit ? (
-              <form action={savePlace} className="flex items-center gap-2">
+              <form action={savePlace} className="flex min-w-0 flex-1 basis-60 items-center gap-2">
                 {hidden}
                 <input type="hidden" name="placeId" value={place.id} />
-                <input name="name" defaultValue={place.name} aria-label="Naam van de plek" className="rounded-lg border border-transparent bg-transparent px-1 font-serif text-xl font-semibold hover:border-line focus:border-line focus:bg-white" />
+                <input name="name" defaultValue={place.name} aria-label="Naam van de plek" className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-1 font-serif text-xl font-semibold hover:border-line focus:border-line focus:bg-white" />
                 <SubmitButton className="btn-ghost py-1 text-xs">Hernoemen</SubmitButton>
               </form>
             ) : (
@@ -74,24 +78,38 @@ export function StylingPlaces({
             )}
           </div>
 
-          <table className="mt-3 w-full text-sm">
+          {/* Fixed column widths, the same for every place, so the columns line up from block to block. */}
+          <table className="mt-3 w-full table-fixed text-sm">
+            <colgroup>
+              <col />
+              <col className={STYLING_COLS.who} />
+              <col className={STYLING_COLS.ready} />
+              {edit && <col className={STYLING_COLS.remove} />}
+            </colgroup>
             <thead className="text-left text-xs text-bordeaux">
-              <tr><th className="pb-1 font-medium">Wat</th><th className="pb-1 font-medium">Wie regelt het</th><th className="w-24 pb-1 text-center font-medium">Klaargezet</th>{edit && <th className="w-6" />}</tr>
+              <tr><th className="pb-1 font-medium">Wat</th><th className="pb-1 font-medium">Wie regelt het</th><th className="pb-1 text-center font-medium">Klaargezet</th>{edit && <th />}</tr>
             </thead>
             <tbody>
               {place.items.map((item) => (
                 <tr key={item.id} className={`border-t border-line align-top ${item.draft ? "bg-gold-soft/40" : ""}`}>
-                  <td className="py-1.5 pr-2">
+                  <td className="py-1.5 pr-2 break-words">
                     {edit ? (
-                      <input defaultValue={item.what} aria-label="Wat" onBlur={(e) => e.target.value !== e.target.defaultValue && save(item.id, { what: e.target.value })} className="input py-1 text-sm" />
+                      <AutoTextarea
+                        defaultValue={item.what}
+                        aria-label="Wat"
+                        maxLength={300}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
+                        onBlur={(e) => e.target.value !== e.target.defaultValue && save(item.id, { what: e.target.value })}
+                        className="input py-1 text-sm"
+                      />
                     ) : (
                       item.what
                     )}
                     {item.draft && <span className="mt-0.5 block text-[11px] text-gold-ink">Voorstel uit de samenvatting: nog niet zichtbaar voor het bruidspaar</span>}
                   </td>
-                  <td className="py-1.5 pr-2">
+                  <td className="py-1.5 pr-2 break-words">
                     {edit ? (
-                      <input list={listId} defaultValue={item.who} aria-label="Wie regelt het" placeholder="Naam (mag leeg)" onBlur={(e) => e.target.value !== e.target.defaultValue && save(item.id, { who: e.target.value })} className="input py-1 text-sm" />
+                      <input list={listId} defaultValue={item.who} title={item.who || undefined} aria-label="Wie regelt het" placeholder="Naam (mag leeg)" onBlur={(e) => e.target.value !== e.target.defaultValue && save(item.id, { who: e.target.value })} className="input py-1 text-sm" />
                     ) : (
                       item.who
                     )}

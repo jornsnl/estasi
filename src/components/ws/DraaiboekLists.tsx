@@ -232,7 +232,9 @@ export function DayGuestList({ coupleId, guests, groups, isAdmin }: { coupleId: 
               {group} <span className="font-sans text-sm font-normal text-muted">{all.length} aanwezig, waarvan {all.filter((g) => g.is_kid).length} {all.filter((g) => g.is_kid).length === 1 ? "kind" : "kinderen"}</span>
             </h3>
             <div className="card overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
+              {/* Fixed column widths, the same for every group, so the columns line up from block to block. */}
+              <table className="w-full min-w-[720px] table-fixed break-words text-sm">
+                <colgroup>{["w-[6%]", "w-[10%]", "w-[20%]", "w-[18%]", "w-[14%]", "w-[18%]", "w-[14%]"].map((w, i) => <col key={i} className={w} />)}</colgroup>
                 <thead className="table-head">
                   <tr><th className="px-2 py-2">Nr.</th><th className="px-2 py-2">Aanwezig</th><th className="px-2 py-2">Naam</th><th className="px-2 py-2">Relatie</th><th className="px-2 py-2">Mobiel</th><th className="px-2 py-2">Allergieën / dieet</th><th className="px-2 py-2">Deel van de dag</th></tr>
                 </thead>

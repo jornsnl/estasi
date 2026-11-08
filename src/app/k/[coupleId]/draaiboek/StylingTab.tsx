@@ -26,12 +26,13 @@ export async function StylingPrint({ coupleId }: { coupleId: string }) {
       {places.map((p) => (
         <div key={p.id} className="break-inside-avoid">
           <h3 className="mb-1 text-sm font-semibold">{p.name}</h3>
-          <table className="w-full border-collapse">
+          <table className="w-full table-fixed border-collapse break-words">
+            <colgroup><col /><col className="w-[34%]" /><col className="w-24" /></colgroup>
             <thead><tr><th className={th}>Wat</th><th className={th}>Wie regelt het</th><th className={th}>Klaargezet</th></tr></thead>
             <tbody>
               {p.items.map((i) => (
                 <tr key={i.id} className="border-b border-line">
-                  <td className="py-1 pr-2">{i.what}</td><td className="py-1 pr-2">{i.who}</td>
+                  <td className="py-1 pr-2 break-words">{i.what}</td><td className="py-1 pr-2 break-words">{i.who}</td>
                   <td className="py-1 pr-2"><span className="inline-block h-3.5 w-3.5 rounded-[2px] border border-ink text-center text-[10px] leading-3">{i.ready ? "✓" : ""}</span></td>
                 </tr>
               ))}

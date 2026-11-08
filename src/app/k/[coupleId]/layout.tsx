@@ -23,8 +23,8 @@ export default async function PortalLayout({ children, params }: { children: Rea
     ...(planning
       ? [
           { href: `${base}/gasten`, label: "Gastenlijst & RSVP" },
-          { href: `${base}/eten`, label: "Eten & allergieën" },
-          { href: `${base}/styling`, label: "Stylingplan & Moodboard" },
+          { href: `${base}/eten`, label: "Eten" },
+          { href: `${base}/styling`, label: "Styling" },
           { href: `${base}/opdrachten`, label: "Opdrachten" },
           { href: `${base}/kosten`, label: "Kosten" },
         ]
