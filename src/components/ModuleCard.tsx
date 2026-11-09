@@ -16,7 +16,7 @@ export function ModuleCard({ p, index, href }: { p: ModuleProgress; index: numbe
   const image = p.module.imageFileId;
   const body = (
     <>
-      <div className="relative h-[55%] shrink-0 overflow-hidden bg-gold-soft">
+      <div className="relative h-28 shrink-0 overflow-hidden bg-gold-soft sm:h-auto sm:min-h-0 sm:flex-1">
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element -- private course file behind /api/bestanden
           <img src={`/api/bestanden/${image}`} alt="" loading="lazy" className={`h-full w-full object-cover ${locked ? "opacity-60 grayscale" : ""}`} />
@@ -29,17 +29,17 @@ export function ModuleCard({ p, index, href }: { p: ModuleProgress; index: numbe
           <Badge tone={STATE_TONE[p.state]}>{STATE_LABEL[p.state]}</Badge>
         </span>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col p-4">
+      <div className="shrink-0 p-4">
         <span className="eyebrow">Module {index + 1}</span>
-        <h3 className={`mt-1 line-clamp-2 text-lg leading-snug ${locked ? "text-muted" : ""}`}>{p.module.title}</h3>
-        <p className="mt-auto pt-2 text-xs text-muted">
+        <h3 className={`mt-1 line-clamp-2 text-base leading-snug sm:text-lg ${locked ? "text-muted" : ""}`}>{p.module.title}</h3>
+        <p className="mt-1.5 text-xs text-muted">
           {p.completedCount} van {plural(p.lessons.length, "les", "lessen")} afgerond
           {p.assignments.total > 0 && ` · ${p.assignments.submitted}/${p.assignments.total} opdrachten`}
         </p>
       </div>
     </>
   );
-  const className = `card flex aspect-square flex-col overflow-hidden rounded-3xl p-0 transition ${locked ? "bg-cream/60" : "hover:-translate-y-0.5 hover:border-gold hover:shadow-md"}`;
+  const className = `card flex flex-col sm:aspect-square overflow-hidden rounded-3xl p-0 transition ${locked ? "bg-cream/60" : "hover:-translate-y-0.5 hover:border-gold hover:shadow-md"}`;
   return href && !locked ? (
     <Link href={href} className={className} title={p.module.description || undefined}>
       {body}
