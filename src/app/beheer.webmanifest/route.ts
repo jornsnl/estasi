@@ -11,7 +11,7 @@ export function GET() {
     id: "/beheer",
     name: "Estasi Beheer",
     short_name: "Estasi",
-    description: "Beheer van de Wedding Plan Academy en Your Wedding Space.",
+    description: "Beheer van de Future Weddings Academy en Your Wedding Space.",
     lang: "nl",
     dir: "ltr",
     start_url: "/beheer",

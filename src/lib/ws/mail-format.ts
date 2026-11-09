@@ -16,7 +16,7 @@ export interface Mail {
 export type MailBrand = "academy" | "wedding-space" | "estasi";
 
 const BRAND_NAMES: Record<MailBrand, string> = {
-  academy: "Wedding Plan Academy",
+  academy: "Future Weddings Academy",
   "wedding-space": "Your Wedding Space",
   estasi: "Estasi Weddings",
 };

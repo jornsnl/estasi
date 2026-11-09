@@ -23,7 +23,7 @@ export default async function StudentRunSheet({ params }: { params: Promise<{ ac
       <header className="no-print border-b border-line bg-white">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3">
           <div className="leading-tight">
-            <span className="block font-serif text-lg font-semibold">Wedding Plan Academy</span>
+            <span className="block font-serif text-lg font-semibold">Future Weddings Academy</span>
             <span className="eyebrow block text-[10px]">Meeloopbruiloft</span>
           </div>
           <Link href="/dashboard" className="btn-secondary py-1.5 text-sm">← Terug naar je dashboard</Link>

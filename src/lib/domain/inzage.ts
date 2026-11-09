@@ -72,9 +72,9 @@ export function inzageHtml(sections: InzageSection[], options: { name: string; g
     .join("\n");
   return `<!doctype html>
 <html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gegevens ${escapeHtml(options.name)} · Wedding Plan Academy</title><style>${EXPORT_STYLE}</style></head>
+<title>Gegevens ${escapeHtml(options.name)} · Future Weddings Academy</title><style>${EXPORT_STYLE}</style></head>
 <body><main>
-<p class="meta">Wedding Plan Academy · Estasi Weddings</p>
+<p class="meta">Future Weddings Academy · Estasi Weddings</p>
 <h1>Opgeslagen gegevens van ${escapeHtml(options.name)}</h1>
 <p class="meta">Gemaakt op ${escapeHtml(options.formatDate(options.generatedAt))}. Dit is alles wat de Academy over deze persoon bewaart. De opdrachten staan leesbaar in portfolio.html, alle gegevens ook in gegevens.json en de bestanden in de map bestanden.</p>
 ${body}

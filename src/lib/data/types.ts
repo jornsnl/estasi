@@ -354,6 +354,8 @@ export interface Module {
   status?: ContentStatus;
   /** Absent means both packages. */
   packages?: ModulePackages;
+  /** Photo on the module tile (course material in public.files). Absent or null: no photo. */
+  imageFileId?: string | null;
 }
 
 /** Unpublished changes to a published lesson. */
@@ -420,7 +422,11 @@ export interface AuditEntry {
 
 export interface Settings {
   welcomeVideoUrl: string;
+  /** Title of the welcome block on the main page. */
+  welcomeTitle: string;
   welcomeText: string;
+  /** Photo in the header of the main page (course material); null: the plain brand header. */
+  headerImageFileId: string | null;
   contactEmail: string;
   practicalSpotsAvailable: boolean;
   practicalSpotsNote: string;

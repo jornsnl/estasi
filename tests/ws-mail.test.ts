@@ -69,7 +69,7 @@ describe("huisstijl van de mails", () => {
     expect(html.match(/>Openen<\/a>/g)).toHaveLength(1);
   });
   it("names the brand under the monogram and in the footer", () => {
-    expect(toHtml("x", "academy")).toContain("Wedding Plan Academy");
+    expect(toHtml("x", "academy")).toContain("Future Weddings Academy");
     expect(toHtml("x", "wedding-space")).toContain("Your Wedding Space");
     expect(toHtml("x")).toContain("estasiweddings.nl");
     expect(toHtml("Eerste regel\nmeer", "estasi", "Onderwerp")).toContain("<title>Onderwerp</title>");

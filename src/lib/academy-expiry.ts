@@ -101,14 +101,14 @@ async function run(now: Date): Promise<number> {
 }
 
 export const expirySubject = (threshold: ExpiryThreshold) =>
-  threshold === 30 ? "Je toegang tot de Wedding Plan Academy loopt over een maand af" : "Je toegang tot de Wedding Plan Academy loopt over een week af";
+  threshold === 30 ? "Je toegang tot de Future Weddings Academy loopt over een maand af" : "Je toegang tot de Future Weddings Academy loopt over een week af";
 
 export function expiryText(name: string, threshold: ExpiryThreshold, endsAt: string, contactEmail: string): string {
   const base = appUrl();
   const first = name.trim().split(/\s+/)[0] || name;
   return [
     `Hoi ${first},`,
-    `Je toegang tot de Wedding Plan Academy loopt af op ${formatDate(endsAt)} (${threshold === 30 ? "binnen een maand" : "binnen een week"}).`,
+    `Je toegang tot de Future Weddings Academy loopt af op ${formatDate(endsAt)} (${threshold === 30 ? "binnen een maand" : "binnen een week"}).`,
     `Wil je je opdrachten, antwoorden, bestanden en feedback bewaren? Download dan vóór die datum je portfolio: ${base}/portfolio`,
     contactEmail ? `Wil je langer toegang? Mail Sabine: ${contactEmail}` : "Wil je langer toegang? Neem dan contact op met Sabine.",
     "Hartelijke groet,\nEstasi Weddings",

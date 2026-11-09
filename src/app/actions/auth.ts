@@ -180,7 +180,7 @@ export async function startMfaEnrollment(): Promise<MfaState> {
   }
   const { data, error } = await supabase.auth.mfa.enroll({
     factorType: "totp",
-    issuer: "Wedding Plan Academy",
+    issuer: "Future Weddings Academy",
     friendlyName: `Authenticator ${new Date().toISOString().slice(0, 16)}`,
   });
   if (error || !data) return { error: "Koppelen starten is niet gelukt. Probeer het opnieuw." };

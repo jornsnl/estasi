@@ -8,7 +8,7 @@ export const dynamic = "force-static";
 export function GET() {
   const manifest = {
     id: "/dashboard",
-    name: "Wedding Plan Academy",
+    name: "Future Weddings Academy",
     short_name: "Academy",
     description: "De online opleiding van Estasi Weddings.",
     lang: "nl",

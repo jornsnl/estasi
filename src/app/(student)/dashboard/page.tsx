@@ -27,10 +27,35 @@ export default async function Dashboard() {
 
   return (
     <div className="space-y-10">
-      <header>
-        <p className="eyebrow">Wedding Plan Academy</p>
-        <h1 className="mt-1 text-4xl sm:text-5xl">Welkom, {user.name.split(" ")[0]}</h1>
+      {/* Feedback: the main page looked empty. A header in the colours of Estasi, with Sabine's photo when she set one. */}
+      <header className="relative overflow-hidden rounded-3xl bg-bordeaux text-white shadow-sm">
+        {settings.headerImageFileId && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- private course file behind /api/bestanden */}
+            <img src={`/api/bestanden/${settings.headerImageFileId}`} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-r from-bordeaux/90 via-bordeaux/60 to-bordeaux/10" aria-hidden />
+          </>
+        )}
+        <div className="relative px-6 py-10 sm:px-10 sm:py-14">
+          <p className="text-[11px] font-semibold tracking-[0.2em] text-gold-soft uppercase">Future Weddings Academy</p>
+          <h1 className="mt-2 text-4xl text-white sm:text-5xl">Welkom, {user.name.split(" ")[0]}</h1>
+          {active && current && <p className="mt-3 max-w-xl text-[15px] text-white/85">Je bent bezig met {current.module.title}.</p>}
+          {active && next && (
+            <Link href={`/les/${next.id}`} className="btn-gold mt-6 inline-flex">Ga verder: {next.title}</Link>
+          )}
+        </div>
       </header>
+
+      {/* The welcome message, set in Instellingen; the welcome video next to it when there is one. */}
+      {(settings.welcomeText || settings.welcomeVideoUrl) && (
+        <section aria-labelledby="welkom-titel" className={`card p-6 sm:p-8 ${settings.welcomeVideoUrl ? "grid gap-6 lg:grid-cols-[1.4fr_1fr]" : ""}`}>
+          {settings.welcomeVideoUrl && <VideoEmbed url={settings.welcomeVideoUrl} title="Welkomstvideo" />}
+          <div className="self-center">
+            <h2 id="welkom-titel" className="text-2xl">{settings.welcomeTitle || "Een persoonlijk welkom"}</h2>
+            {settings.welcomeText && <p className="mt-2 whitespace-pre-line text-muted">{settings.welcomeText}</p>}
+          </div>
+        </section>
+      )}
 
       {walkAlong.length > 0 && (
         <section aria-labelledby="meeloop-titel" className="card p-6">
@@ -101,19 +126,9 @@ export default async function Dashboard() {
         </section>
       )}
 
-      {settings.welcomeVideoUrl && (
-        <section className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-          <VideoEmbed url={settings.welcomeVideoUrl} title="Welkomstvideo" />
-          <div className="self-center">
-            <h2 className="text-2xl">Een persoonlijk welkom</h2>
-            <p className="mt-2 text-muted">{settings.welcomeText}</p>
-          </div>
-        </section>
-      )}
-
       <section>
         <h2 className="mb-4 text-3xl">Modules</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
           {o.progress.map((p, i) => (
             <ModuleCard key={p.module.id} p={p} index={i} href={active ? `/opleiding#${p.module.id}` : undefined} />
           ))}

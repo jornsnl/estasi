@@ -83,7 +83,7 @@ export async function saveAssignmentSummary(assignmentId: string, summary: strin
 export function claudeSummaryHint(coupleName: string, title: string, styling: boolean): string {
   return [
     "Samenvatting maken met Claude:",
-    `Open Claude met de koppeling "Wedding Plan Academy" (MCP) en vraag bijvoorbeeld: "Maak de samenvatting van ${title} voor ${coupleName}."`,
+    `Open Claude met de Estasi-koppeling (MCP) en vraag bijvoorbeeld: "Maak de samenvatting van ${title} voor ${coupleName}."`,
     styling
       ? "Claude leest de antwoorden, schrijft het overzicht van stijl, sfeer, kleuren en materialen met per plek voorstellen, en zet alles als concept op de pagina Styling. Alleen jij ziet het tot je het vrijgeeft."
       : "Claude leest de antwoorden en zet de samenvatting bij de opdracht in het portaal. Lees hem na; het bruidspaar ziet hem daar ook.",

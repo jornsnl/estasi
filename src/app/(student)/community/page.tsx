@@ -41,7 +41,7 @@ export default async function CommunityPage({ searchParams }: { searchParams: Pr
       <p className="eyebrow">Community</p>
       <h1 className="mt-1 mb-2 text-4xl">Samen leren</h1>
       <p className="mb-6 text-muted">
-        De plek voor alle cursisten van de Wedding Plan Academy en Sabine. Deel vragen, ervaringen en inspiratie. Alleen cursisten met toegang en
+        De plek voor alle cursisten van de Future Weddings Academy en Sabine. Deel vragen, ervaringen en inspiratie. Alleen cursisten met toegang en
         Sabine zien wat hier staat.
       </p>
       <Notice searchParams={searchParams} />

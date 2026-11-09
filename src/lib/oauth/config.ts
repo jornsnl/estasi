@@ -65,7 +65,7 @@ export function protectedResourceMetadata() {
     authorization_servers: [issuer()],
     scopes_supported: SCOPES,
     bearer_methods_supported: ["header"],
-    resource_name: "Wedding Plan Academy en Your Wedding Space",
+    resource_name: "Future Weddings Academy en Your Wedding Space",
     resource_documentation: `${issuer()}/beheer/profiel`,
   };
 }

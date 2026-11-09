@@ -14,11 +14,11 @@ export const LATEST_VERSION = SUPPORTED_VERSIONS[0];
 
 const SERVER_INFO = {
   name: "wedding-plan-academy",
-  title: "Wedding Plan Academy en Your Wedding Space",
+  title: "Future Weddings Academy en Your Wedding Space",
   version: "1.0.0",
 };
 
-const INSTRUCTIONS = `Je bent verbonden met het beheer van Estasi Weddings: de Wedding Plan Academy (online opleiding voor weddingplanners: cursisten, voortgang, opdrachten en feedback) en Your Wedding Space (het portaal per bruidspaar: taken, vragen, agenda, meetings, leveranciers, kosten, RSVP en draaiboek).
+const INSTRUCTIONS = `Je bent verbonden met het beheer van Estasi Weddings: de Future Weddings Academy (online opleiding voor weddingplanners: cursisten, voortgang, opdrachten en feedback) en Your Wedding Space (het portaal per bruidspaar: taken, vragen, agenda, meetings, leveranciers, kosten, RSVP en draaiboek).
 Alle teksten zijn Nederlands; schrijf feedback en antwoorden in het Nederlands, in de stijl van Sabine (warm, persoonlijk, concreet).
 Werkwijze: zoek eerst ids op met de lijst-tools (academy_list_students, ws_list_couples) en gebruik die ids in de andere tools.
 Tools die iets wijzigen (feedback geven, toegang aanpassen, taken, antwoorden op vragen) zijn alleen beschikbaar als de eigenaar schrijven heeft toegestaan. Vraag bij twijfel eerst bevestiging aan de gebruiker voordat je iets wijzigt of een e-mail laat versturen.

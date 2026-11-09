@@ -2,7 +2,7 @@
   "name": "wedding-plan-academy",
   "version": "0.1.0",
   "private": true,
-  "description": "Wedding Plan Academy van Estasi Weddings",
+  "description": "Future Weddings Academy van Estasi Weddings",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

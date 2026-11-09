@@ -24,7 +24,7 @@ const COLUMNS = {
     "practicalCertificateCode",
     "ownerNotes",
   ],
-  modules: ["id", "title", "description", "position", "status", "packages"],
+  modules: ["id", "title", "description", "position", "status", "packages", "imageFileId"],
   lessons: ["id", "moduleId", "title", "summary", "position", "blocks", "status", "draft", "publishedAt"],
   answers: ["id", "userId", "lessonId", "blockId", "text", "choice", "files", "version", "createdAt", "updatedAt"],
   feedback: ["id", "answerId", "userId", "authorId", "text", "attachment", "answerVersion", "createdAt"],
@@ -79,7 +79,9 @@ const COLUMNS = {
   ],
   settings: [
     "welcomeVideoUrl",
+    "welcomeTitle",
     "welcomeText",
+    "headerImageFileId",
     "contactEmail",
     "practicalSpotsAvailable",
     "practicalSpotsNote",

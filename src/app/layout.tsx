@@ -13,7 +13,7 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Wedding Plan Academy", template: "%s · Wedding Plan Academy" },
+  title: { default: "Future Weddings Academy", template: "%s · Future Weddings Academy" },
   description: "De online opleiding tot weddingplanner van Estasi Weddings.",
   robots: { index: false, follow: false },
 };

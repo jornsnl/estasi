@@ -9,7 +9,7 @@ export function PrivacyNotice({ contactEmail }: { contactEmail: string }) {
   return (
     <section id="privacy" className="card space-y-3 p-6 text-sm">
       <h2 className="text-2xl">Privacy: wat we van je bewaren</h2>
-      <p>De Wedding Plan Academy bewaart alleen wat nodig is om je de opleiding te laten volgen:</p>
+      <p>De Future Weddings Academy bewaart alleen wat nodig is om je de opleiding te laten volgen:</p>
       <ul className="list-disc space-y-1 pl-5">
         <li><strong>Account en profiel:</strong> je naam, e-mailadres, telefoon, woonplaats, bedrijfsnaam, profielfoto, socials, introductie en doelen. Je wachtwoord bewaren we niet leesbaar.</li>
         <li><strong>Inschrijving:</strong> je pakket, aankoopdatum, einddatum van je toegang, eventuele pauzes, je afronding en certificaat, en notities die Sabine voor zichzelf maakt.</li>

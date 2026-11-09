@@ -378,7 +378,9 @@ export function createSeed(): SeedData {
     audit: [],
     settings: {
       welcomeVideoUrl: VIDEO,
-      welcomeText: "Welkom bij de Wedding Plan Academy. Neem rustig de tijd voor elke les: je antwoorden worden bewaard en je kunt ze altijd later aanpassen.",
+      welcomeTitle: "Een persoonlijk welkom",
+      headerImageFileId: null,
+      welcomeText: "Welkom bij de Future Weddings Academy. Neem rustig de tijd voor elke les: je antwoorden worden bewaard en je kunt ze altijd later aanpassen.",
       contactEmail: process.env.CONTACT_EMAIL ?? "academy@estasiweddings.nl",
       practicalSpotsAvailable: false,
       practicalSpotsNote: "",

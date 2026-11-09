@@ -55,11 +55,21 @@ export async function updateModule(formData: FormData) {
   const existing = await store.getModule(str(formData, "id"));
   if (!existing) done("/beheer/inhoud", "Module niet gevonden.", true);
   const packages = parseModulePackages(str(formData, "packages"));
+  // Feedback: a photo per module for its tile, like the photo of a recommendation.
+  let imageFileId = formData.get("removeImage") === "on" ? null : existing.imageFileId ?? null;
+  try {
+    const image = await storeImageUpload(formData.get("image"), owner.id);
+    if (image) imageFileId = image.id;
+  } catch (err) {
+    if (err instanceof UploadError) done(`/beheer/inhoud#${existing.id}`, err.message, true);
+    throw err;
+  }
   await store.saveModule({
     ...existing,
     title: str(formData, "title", LIMITS.moduleTitle) || existing.title,
     description: str(formData, "description", LIMITS.moduleDescription),
     packages,
+    imageFileId,
   });
   if ((existing.packages ?? "AB") !== packages) await audit(owner, "Pakket van module gewijzigd", `${existing.title}: ${packages}`);
   done(`/beheer/inhoud#${existing.id}`, "Module opgeslagen.");
@@ -277,9 +287,19 @@ export async function saveSettings(formData: FormData) {
   const store = getStore();
   const before = await store.getSettings();
   const practicalSpotsAvailable = formData.get("practicalSpotsAvailable") === "on";
+  let headerImageFileId = formData.get("removeHeaderImage") === "on" ? null : before.headerImageFileId ?? null;
+  try {
+    const image = await storeImageUpload(formData.get("headerImage"), owner.id);
+    if (image) headerImageFileId = image.id;
+  } catch (err) {
+    if (err instanceof UploadError) done("/beheer/instellingen", err.message, true);
+    throw err;
+  }
   await store.saveSettings({
     welcomeVideoUrl: normaliseUrl(str(formData, "welcomeVideoUrl", LIMITS.url)),
+    welcomeTitle: str(formData, "welcomeTitle", 120),
     welcomeText: str(formData, "welcomeText", LIMITS.welcomeText),
+    headerImageFileId,
     contactEmail: str(formData, "contactEmail", LIMITS.contactEmail) || before.contactEmail,
     practicalSpotsAvailable,
     practicalSpotsNote: str(formData, "practicalSpotsNote", LIMITS.practicalSpotsNote),

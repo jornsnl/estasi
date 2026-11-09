@@ -8,6 +8,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { getStore } from "@/lib/data";
 import { supabaseEnabled } from "@/lib/supabase/config";
 import { LIMITS } from "@/lib/domain/input";
+import { IMAGE_ACCEPT_ATTR } from "@/lib/uploads";
 import { authClient } from "@/lib/supabase/server";
 import { mailFrom, mailTransport } from "@/lib/ws/mail";
 
@@ -50,8 +51,23 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <input id="welcomeVideoUrl" name="welcomeVideoUrl" inputMode="url" autoComplete="off" defaultValue={s.welcomeVideoUrl} maxLength={LIMITS.url} className="input" />
           </div>
           <div>
-            <label htmlFor="welcomeText" className="label">Welkomsttekst</label>
-            <textarea id="welcomeText" name="welcomeText" rows={3} defaultValue={s.welcomeText} maxLength={LIMITS.welcomeText} className="input" />
+            <label htmlFor="welcomeTitle" className="label">Titel van het welkomstbericht</label>
+            <input id="welcomeTitle" name="welcomeTitle" defaultValue={s.welcomeTitle} maxLength={120} className="input" placeholder="Een persoonlijk welkom" />
+          </div>
+          <div>
+            <label htmlFor="welcomeText" className="label">Welkomstbericht</label>
+            <textarea id="welcomeText" name="welcomeText" rows={4} defaultValue={s.welcomeText} maxLength={LIMITS.welcomeText} className="input" />
+            <p className="hint">Staat als blok op de hoofdpagina van elke cursist, met de welkomstvideo ernaast als die er is. Leeg: geen welkomstblok.</p>
+          </div>
+          <div className="space-y-1">
+            <p className="label">Headerfoto op de hoofdpagina</p>
+            {s.headerImageFileId && (
+              // eslint-disable-next-line @next/next/no-img-element -- private file behind /api/bestanden
+              <img src={`/api/bestanden/${s.headerImageFileId}`} alt="" className="h-28 w-full max-w-md rounded-xl border border-line object-cover" />
+            )}
+            <input type="file" name="headerImage" accept={IMAGE_ACCEPT_ATTR} aria-label="Headerfoto kiezen" className="text-sm" />
+            {s.headerImageFileId && <label className="flex items-center gap-2 text-xs text-muted"><input type="checkbox" name="removeHeaderImage" /> Foto weghalen</label>}
+            <p className="hint">Optioneel. Zonder foto krijgt de header de kleuren van Estasi. Een brede, liggende foto werkt het mooist.</p>
           </div>
           <div>
             <label htmlFor="contactEmail" className="label">Contactadres voor cursisten</label>
@@ -110,7 +126,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <label htmlFor="testmailBrand" className="label">Kop van de mail</label>
             <select id="testmailBrand" name="brand" defaultValue="estasi" className="input">
               <option value="estasi">Estasi Weddings</option>
-              <option value="academy">Wedding Plan Academy</option>
+              <option value="academy">Future Weddings Academy</option>
               <option value="wedding-space">Your Wedding Space</option>
             </select>
             <p className="hint">Alle mails gebruiken hetzelfde ontwerp; alleen de naam onder het logo verschilt. De testmail komt ook in de mailgeschiedenis.</p>

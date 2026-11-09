@@ -35,7 +35,7 @@ const MARKER_COOKIE = "academy_passkey";
 const MARKER_TTL_MS = 60 * 60 * 24 * 30 * 1000;
 export const MAX_PASSKEYS = 10;
 
-const RP_NAME = "Wedding Plan Academy";
+const RP_NAME = "Future Weddings Academy";
 
 export function relyingParty() {
   const url = new URL(appUrl());

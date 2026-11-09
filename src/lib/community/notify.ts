@@ -133,7 +133,7 @@ async function mailCommunity(person: Person, viewer: Viewer, now: Date): Promise
     subject: items.length === 1 ? "Nieuw bericht in de community" : `${items.length} nieuwe berichten in de community`,
     text: [
       `Hoi ${firstName(person.name)},`,
-      "Er is nieuws in de community van de Wedding Plan Academy:",
+      "Er is nieuws in de community van de Future Weddings Academy:",
       lines.join("\n"),
       `Bekijk het hier: ${base}${path}`,
       `Je krijgt hierover hoogstens één mail per uur. Liever geen mails? Zet ze uit op je profiel: ${base}${profile}`,
@@ -179,7 +179,7 @@ async function mailPrivate(person: Person, viewer: Viewer, now: Date): Promise<b
         ].join("\n\n")
       : [
           `Hoi ${firstName(person.name)},`,
-          `Sabine heeft je ${items.length === 1 ? "een privébericht" : `${items.length} privéberichten`} gestuurd in de Wedding Plan Academy.`,
+          `Sabine heeft je ${items.length === 1 ? "een privébericht" : `${items.length} privéberichten`} gestuurd in de Future Weddings Academy.`,
           `Lees het hier: ${base}/prive-chat`,
           `Liever geen mails? Zet ze uit op je profiel: ${base}/profiel`,
         ].join("\n\n"),

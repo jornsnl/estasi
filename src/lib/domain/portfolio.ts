@@ -267,9 +267,9 @@ export function portfolioHtml(portfolio: PortfolioModule[], options: HtmlOptions
     .join("\n");
   return `<!doctype html>
 <html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Portfolio ${escapeHtml(options.studentName)} · Wedding Plan Academy</title><style>${EXPORT_STYLE}</style></head>
+<title>Portfolio ${escapeHtml(options.studentName)} · Future Weddings Academy</title><style>${EXPORT_STYLE}</style></head>
 <body><main>
-<p class="meta">Wedding Plan Academy · Estasi Weddings</p>
+<p class="meta">Future Weddings Academy · Estasi Weddings</p>
 <h1>Portfolio van ${escapeHtml(options.studentName)}</h1>
 <p class="meta">Gemaakt op ${escapeHtml(options.formatDate(options.generatedAt))}. Alle opdrachten met je antwoorden, bestanden, feedback en eerdere versies. De bestanden staan in de map "bestanden" naast dit document.</p>
 ${body || '<p class="empty">Er staan nog geen opdrachten in het portfolio.</p>'}

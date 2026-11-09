@@ -22,7 +22,7 @@ import { COURSE_STATUS_LABELS } from "@/lib/domain/progress";
 import { formatDate, fromDateInput } from "@/lib/util/format";
 import { defineTool, ToolError, z } from "../tool";
 
-/** MCP tools for the Wedding Plan Academy (students, progress, feedback, content). */
+/** MCP tools for the Future Weddings Academy (students, progress, feedback, content). */
 
 const id = z.string().min(1).max(100);
 
@@ -128,7 +128,7 @@ export const academyTools = [
   defineTool({
     name: "academy_overview",
     title: "Academy: overzicht",
-    description: "Kerncijfers van de Wedding Plan Academy: actieve cursisten, wie wacht op bevestiging van de online afronding, openstaande feedback en verlopen of gepauzeerde toegang. Begin hier voor een dagelijkse stand van zaken.",
+    description: "Kerncijfers van de Future Weddings Academy: actieve cursisten, wie wacht op bevestiging van de online afronding, openstaande feedback en verlopen of gepauzeerde toegang. Begin hier voor een dagelijkse stand van zaken.",
     scope: "read",
     input: z.object({}),
     async run() {

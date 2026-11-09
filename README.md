@@ -1,4 +1,4 @@
-# Wedding Plan Academy
+# Future Weddings Academy
 
 Online leeromgeving van Estasi Weddings voor toekomstige weddingplanners. Gebouwd op basis van het functioneel bouwplan (versie 1.0, 25 oktober 2026). Dit is de **fase 1** basis: cursus volgen, vragen direct op de lespagina beantwoorden, voortgang en moduleontgrendeling, beheer van inhoud, toegang, feedback en certificaat.
 
@@ -248,7 +248,7 @@ Alle e-mail loopt via Resend: die van Your Wedding Space via de API (`RESEND_API
 4. In Supabase, Authentication, SMTP: host `smtp.resend.com`, poort `465`, gebruiker `resend`, wachtwoord = dezelfde key.
 5. Test: Beheer, Instellingen, onder **E-mail** een testmail sturen naar een eigen adres (in de huisstijl). Alle verstuurde mails, ook die van de Academy en de testmails, staan onder Systeem, **Mailgeschiedenis** (`/beheer/mailgeschiedenis`), met filters op type en status en Opnieuw versturen bij mislukte mails. Of deel een portaal met een eigen e-mailadres of vul een RSVP in. Lukt het niet, dan staat de reden van Resend in de mailgeschiedenis (Systeem, Mailgeschiedenis) en in de log van Render (`[mail] versturen mislukt`).
 
-Alle mails hebben hetzelfde ontwerp (`toHtml` in `src/lib/ws/mail-format.ts`): crème achtergrond, witte kaart met het Estasi-monogram, bordeaux en goud, alleen tabellen en inline stijlen en geen afbeeldingen. Een link alleen op een regel wordt een knop. Onder het logo staat Wedding Plan Academy, Your Wedding Space of Estasi Weddings, afhankelijk van het soort mail. Subverwerkers (waaronder Resend) staan in `docs/subprocessors.md`.
+Alle mails hebben hetzelfde ontwerp (`toHtml` in `src/lib/ws/mail-format.ts`): crème achtergrond, witte kaart met het Estasi-monogram, bordeaux en goud, alleen tabellen en inline stijlen en geen afbeeldingen. Een link alleen op een regel wordt een knop. Onder het logo staat Future Weddings Academy, Your Wedding Space of Estasi Weddings, afhankelijk van het soort mail. Subverwerkers (waaronder Resend) staan in `docs/subprocessors.md`.
 
 Elke mail van Your Wedding Space gaat via `sendMail` in `src/lib/ws/mail.ts` en komt in de tabel `mail_log` (type, ontvanger, gast, onderwerp, status en foutreden). Mails met een inloglink worden zonder tekst bewaard en niet opnieuw verstuurd. Mails die Sabine aan gasten stuurt gaan één voor één (met een korte pauze, Resend staat ongeveer twee per seconde toe), met reply-to het contactadres uit Instellingen, tab Portaal.
 

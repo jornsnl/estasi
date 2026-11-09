@@ -18,6 +18,7 @@ import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { getStore, type ModulePackages } from "@/lib/data";
 import { isContentBlock } from "@/lib/domain/blocks";
+import { IMAGE_ACCEPT_ATTR } from "@/lib/uploads";
 import { LIMITS } from "@/lib/domain/input";
 import { editableContent, hasPendingChanges } from "@/lib/domain/publishing";
 import { isPublished, MODULE_PACKAGE_LABELS, MODULE_PACKAGE_OPTIONS } from "@/lib/domain/visibility";
@@ -78,6 +79,19 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
                       <input name="title" defaultValue={module.title} required maxLength={LIMITS.moduleTitle} className="input" aria-label="Titel" />
                       <textarea name="description" defaultValue={module.description} rows={2} maxLength={LIMITS.moduleDescription} className="input" aria-label="Omschrijving" />
                       <PackageSelect id={`packages-${module.id}`} defaultValue={packages} />
+                      <div className="flex flex-wrap items-center gap-4">
+                        {module.imageFileId && (
+                          // eslint-disable-next-line @next/next/no-img-element -- private file behind /api/bestanden
+                          <img src={`/api/bestanden/${module.imageFileId}`} alt="" className="h-20 w-20 rounded-2xl border border-line object-cover" />
+                        )}
+                        <div className="space-y-1">
+                          <label className="label" htmlFor={`image-${module.id}`}>{module.imageFileId ? "Andere foto kiezen" : "Foto voor de moduletegel"} (jpg, png, webp)</label>
+                          <input id={`image-${module.id}`} type="file" name="image" accept={IMAGE_ACCEPT_ATTR} className="text-sm" />
+                          {module.imageFileId && (
+                            <label className="flex items-center gap-2 text-xs text-muted"><input type="checkbox" name="removeImage" /> Foto weghalen</label>
+                          )}
+                        </div>
+                      </div>
                       <SubmitButton className="btn-secondary">Opslaan</SubmitButton>
                     </form>
                   </details>
