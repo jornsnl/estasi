@@ -2,6 +2,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { getStore, type User } from "@/lib/data";
 import { supabaseEnabled } from "@/lib/supabase/config";
 import { adminClient, authClient } from "@/lib/supabase/server";
@@ -78,7 +79,14 @@ interface SessionInfo {
   needsCode: boolean;
 }
 
-async function session(): Promise<SessionInfo | null> {
+/**
+ * Once per request: the layout and the page both ask who is signed in, and
+ * getClaims may cost a round trip to Supabase. React's cache() shares the
+ * answer within one request only (feedback: slow page changes).
+ */
+const session = cache(readSession);
+
+async function readSession(): Promise<SessionInfo | null> {
   if (!supabaseEnabled()) {
     if (!devAuthAllowed()) return null;
     const userId = decode((await cookies()).get(COOKIE)?.value);
@@ -139,11 +147,13 @@ export async function currentUser(): Promise<User | null> {
   return getStore().getUser(info.userId);
 }
 
+const userById = cache((id: string) => getStore().getUser(id));
+
 export async function requireUser(): Promise<User> {
   const info = await session();
   if (!info) redirect("/login");
   if (info.needsCode) redirect("/tweestaps");
-  const user = await getStore().getUser(info.userId);
+  const user = await userById(info.userId);
   if (!user) redirect("/login");
   return user;
 }

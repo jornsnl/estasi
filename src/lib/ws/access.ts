@@ -1,5 +1,6 @@
 import "server-only";
 import { notFound, redirect } from "next/navigation";
+import { cache } from "react";
 import { requireUser } from "@/lib/auth/session";
 import type { User } from "@/lib/data";
 import { isUuid, one, query } from "./db";
@@ -44,6 +45,11 @@ export async function coupleIdOf(userId: string): Promise<string | null> {
  * another couple's id does not even reveal that it exists.
  */
 export async function requireCouple(coupleId: unknown): Promise<CoupleContext> {
+  return loadCouple(typeof coupleId === "string" ? coupleId : "");
+}
+
+/** Once per request (layout and page both ask): the queries below are not run twice on every page change. */
+const loadCouple = cache(async (coupleId: string): Promise<CoupleContext> => {
   const account = await requireUser();
   const isAdmin = account.role === "owner";
   if (!isAdmin) {
@@ -58,7 +64,7 @@ export async function requireCouple(coupleId: unknown): Promise<CoupleContext> {
   const kinds = await packageKinds(couple.id);
   const { planning, dance } = sectionsFor(kinds, isAdmin);
   return { account, couple, isAdmin, kinds, planning, dance };
-}
+});
 
 /** Pages of the planning part (run sheet, guests, styling...): not with only the opening dance. */
 export async function requirePlanning(coupleId: unknown): Promise<CoupleContext> {
