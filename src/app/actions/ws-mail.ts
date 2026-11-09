@@ -63,7 +63,7 @@ export async function retryMail(formData: FormData) {
   await requireOwner();
   const id = str(formData, "mailId", 40);
   const custom = str(formData, "back", 300);
-  const back = custom.startsWith("/k/") || custom.startsWith("/beheer/") ? custom : "/beheer/bruidsparen/mails";
+  const back = custom.startsWith("/k/") || custom.startsWith("/beheer/") ? custom : "/beheer/mailgeschiedenis";
   const outcome = await resendLogged(id);
   done(back, outcome.ok ? "Opnieuw verstuurd." : `Opnieuw versturen mislukt: ${outcome.error}`, !outcome.ok);
 }

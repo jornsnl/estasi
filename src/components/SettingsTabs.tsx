@@ -2,10 +2,10 @@ import Link from "next/link";
 
 const TABS = [
   { key: "algemeen", href: "/beheer/instellingen", label: "Algemeen" },
-  { key: "maillog", href: "/beheer/instellingen/maillog", label: "Maillog" },
+  { key: "portaal", href: "/beheer/instellingen/portaal", label: "Portaal" },
 ] as const;
 
-/** The tabs on top of Beheer, Instellingen. */
+/** The tabs on top of Beheer, Instellingen: the Academy and admin settings, and those of the Wedding Space portal. */
 export function SettingsTabs({ active }: { active: (typeof TABS)[number]["key"] }) {
   return (
     <nav aria-label="Instellingen" className="mb-8 flex gap-1 border-b border-line">

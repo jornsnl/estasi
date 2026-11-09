@@ -10,17 +10,39 @@ export interface NavItem {
   exact?: boolean;
   /** Starts a new group in the menu with this heading. */
   section?: string;
+  /** A count next to the heading of the group (for example unread messages in the whole group). */
+  sectionBadge?: number;
+  /** Starts a new group without a heading (just some space above). */
+  group?: boolean;
   /** Unread count, shown as a small badge (not on the page you are on). */
   badge?: number;
+  /** Bold, for a link that stands on its own instead of under a heading. */
+  strong?: boolean;
+  /** Other paths where this item counts as the current page (pages reached through tabs). */
+  alsoActive?: string[];
 }
+
+const Count = ({ n, label }: { n: number; label: string }) => (
+  <span className="min-w-5 rounded-full bg-bordeaux px-1.5 text-center text-[11px] leading-5 font-semibold text-white normal-case tracking-normal">
+    <span className="sr-only">, {label}: </span>
+    {n > 9 ? "9+" : n}
+  </span>
+);
+
+const matches = (pathname: string, href: string, exact?: boolean) => (exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`));
 
 export function NavLinks({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
   return (
     <ul className="space-y-1">
-      {items.map((item) => {
+      {items.map((item, index) => {
         const heading = item.section ? (
-          <p className="mt-5 mb-1 px-3 text-[11px] font-semibold tracking-[0.14em] text-gold-ink uppercase">{item.section}</p>
+          <p className="mt-5 mb-1 flex items-center justify-between gap-2 px-3 text-[11px] font-semibold tracking-[0.14em] text-gold-ink uppercase">
+            {item.section}
+            {item.sectionBadge ? <Count n={item.sectionBadge} label="ongelezen" /> : null}
+          </p>
+        ) : item.group && index > 0 ? (
+          <div className="mt-5" aria-hidden />
         ) : null;
         if (item.soon) {
           return (
@@ -33,7 +55,7 @@ export function NavLinks({ items }: { items: NavItem[] }) {
             </li>
           );
         }
-        const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const active = matches(pathname, item.href, item.exact) || (item.alsoActive ?? []).some((p) => matches(pathname, p));
         return (
           <li key={item.href}>
             {heading}
@@ -43,17 +65,12 @@ export function NavLinks({ items }: { items: NavItem[] }) {
               className={`block rounded-md border-l-2 px-3 py-2 text-[15px] transition-colors ${
                 active
                   ? "border-bordeaux bg-bordeaux-soft font-medium text-bordeaux"
-                  : "border-transparent text-ink hover:bg-cream"
+                  : `border-transparent text-ink hover:bg-cream ${item.strong ? "font-semibold" : ""}`
               }`}
             >
               <span className="flex items-center justify-between gap-2">
                 {item.label}
-                {!active && item.badge ? (
-                  <span className="min-w-5 rounded-full bg-bordeaux px-1.5 text-center text-[11px] leading-5 font-semibold text-white">
-                    <span className="sr-only">, ongelezen: </span>
-                    {item.badge > 9 ? "9+" : item.badge}
-                  </span>
-                ) : null}
+                {!active && item.badge ? <Count n={item.badge} label="ongelezen" /> : null}
               </span>
             </Link>
           </li>

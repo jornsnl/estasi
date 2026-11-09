@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Logo } from "./Logo";
 import { NavLinks, type NavItem } from "./NavLinks";
 import { MobileMenu } from "./MobileMenu";
@@ -9,12 +10,15 @@ export function AppShell({
   userName,
   subtitle,
   footer,
+  profileHref,
   children,
 }: {
   items: NavItem[];
   userName: string;
   subtitle: string;
   footer?: React.ReactNode;
+  /** A link to the own profile, next to Uitloggen under the name. */
+  profileHref?: string;
   children: React.ReactNode;
 }) {
   const sidebar = (
@@ -29,11 +33,18 @@ export function AppShell({
       <div className="border-t border-line px-6 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <p className="truncate text-sm font-medium text-ink">{userName}</p>
         <p className="text-xs text-muted">{subtitle}</p>
-        <form action={logout} className="mt-2">
-          <button type="submit" className="text-sm text-bordeaux hover:underline">
-            Uitloggen
-          </button>
-        </form>
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          {profileHref && (
+            <Link href={profileHref} className="text-bordeaux hover:underline">
+              Profiel en beveiliging
+            </Link>
+          )}
+          <form action={logout}>
+            <button type="submit" className="text-bordeaux hover:underline">
+              Uitloggen
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

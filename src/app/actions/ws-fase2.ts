@@ -303,7 +303,7 @@ export async function manageTemplate(formData: FormData) {
 
 export async function uploadContactPhoto(formData: FormData) {
   const owner = await requireOwner();
-  const back = "/beheer/bruidsparen/instellingen";
+  const back = "/beheer/instellingen/portaal";
   const current = await one<{ contact_photo_file_id: string | null }>("select contact_photo_file_id from settings");
   if (formData.get("remove") === "on") {
     await query("update settings set contact_photo_file_id = null");

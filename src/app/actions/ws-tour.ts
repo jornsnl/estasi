@@ -11,7 +11,7 @@ import { saveVideoSetting } from "@/lib/ws/video-setting";
 
 export async function saveTourVideo(formData: FormData) {
   const owner = await requireOwner();
-  await saveVideoSetting(formData, "tour", owner.id, "/beheer/bruidsparen/instellingen#rondleiding");
+  await saveVideoSetting(formData, "tour", owner.id, "/beheer/instellingen/portaal#rondleiding");
 }
 
 /**

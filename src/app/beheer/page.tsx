@@ -32,14 +32,17 @@ export default async function OwnerHome({ searchParams }: { searchParams: Promis
           <p className="eyebrow">Beheer</p>
           <h1 className="mt-1 text-4xl">Cursisten</h1>
         </div>
-        <Link href="/beheer/cursisten/nieuw" className="btn-primary">Cursist toevoegen</Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/beheer/feedback" className="btn-secondary">Feedback</Link>
+          <Link href="/beheer/cursisten/nieuw" className="btn-primary">Cursist toevoegen</Link>
+        </div>
       </header>
       <Notice searchParams={searchParams} />
 
       <section className="grid gap-4 sm:grid-cols-3">
         <Stat label="Actieve cursisten" value={active} />
         <Stat label="Wachten op bevestiging" value={waiting} highlight={waiting > 0} />
-        <Stat label="Openstaande feedback" value={feedback} highlight={feedback > 0} />
+        <Stat label="Openstaande feedback" value={feedback} highlight={feedback > 0} href="/beheer/feedback" />
       </section>
 
       <section className="card overflow-hidden">
@@ -110,12 +113,18 @@ export default async function OwnerHome({ searchParams }: { searchParams: Promis
   );
 }
 
-function Stat({ label, value, highlight = false }: { label: string; value: number; highlight?: boolean }) {
-  return (
-    <div className={`card p-5 ${highlight ? "border-bordeaux/30" : ""}`}>
+function Stat({ label, value, highlight = false, href }: { label: string; value: number; highlight?: boolean; href?: string }) {
+  const body = (
+    <>
       <p className="text-sm text-muted">{label}</p>
       <p className={`mt-1 font-serif text-4xl ${highlight ? "text-bordeaux" : ""}`}>{value}</p>
-    </div>
+    </>
+  );
+  const className = `card p-5 ${highlight ? "border-bordeaux/30" : ""}`;
+  return href ? (
+    <Link href={href} className={`${className} block transition-colors hover:border-bordeaux/40`}>{body}</Link>
+  ) : (
+    <div className={className}>{body}</div>
   );
 }
 

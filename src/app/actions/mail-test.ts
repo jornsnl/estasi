@@ -39,7 +39,7 @@ export async function sendTestMail(formData: FormData) {
   done(
     mailTransport() === "log"
       ? "Niet verstuurd: er staat geen RESEND_API_KEY (of SMTP) ingesteld. De mail staat in de serverlog."
-      : "Versturen mislukt. De reden van Resend staat in de Maillog (tab hierboven).",
+      : "Versturen mislukt. De reden van Resend staat in de Mailgeschiedenis (Systeem, Mailgeschiedenis).",
     true,
   );
 }
