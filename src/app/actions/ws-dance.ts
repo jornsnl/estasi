@@ -11,6 +11,8 @@ import { danceName } from "@/lib/ws/package-order";
 import { done, str } from "@/lib/ws/redirect";
 import { getSettings } from "@/lib/ws/settings";
 import { saveVideoSetting } from "@/lib/ws/video-setting";
+import { videoEmbed } from "@/lib/util/video";
+import { MAX_DANCE_VIDEOS } from "@/lib/ws/dance";
 
 /** De openingsdans: the couple fills in blocks 1 to 3, Sabine block 4 (and may change everything). */
 
@@ -57,13 +59,13 @@ export async function saveDance(formData: FormData) {
       [ctx.couple.id, JSON.stringify(songs), str(formData, "songMode") === "mix" ? "mix" : "first", audio],
     );
   } else if (block === "3") {
-    const videos = rows(formData, ["videoUrl", "videoNote"]).map((r) => ({ url: url(r.videoUrl), note: r.videoNote.slice(0, 1000) })).filter((v) => v.url);
+    const videos = rows(formData, ["videoUrl", "videoNote"]).map((r) => ({ url: url(r.videoUrl), note: r.videoNote.slice(0, 1000) })).filter((v) => v.url).slice(0, MAX_DANCE_VIDEOS);
     await query("update dance_wishes set videos = $2::jsonb, clothing = $3, updated_at = now() where couple_id = $1", [
       ctx.couple.id, JSON.stringify(videos), str(formData, "clothing", 2000),
     ]);
   } else if (block === "4") {
     if (!ctx.isAdmin) done(back, "Dit blok vult Sabine in.", true);
-    const videos = rows(formData, ["videoUrl", "videoNote"]).map((r) => ({ url: url(r.videoUrl), note: r.videoNote.slice(0, 1000) })).filter((v) => v.url);
+    const videos = rows(formData, ["videoUrl", "videoNote"]).map((r) => ({ url: url(r.videoUrl), note: r.videoNote.slice(0, 1000) })).filter((v) => v.url).slice(0, MAX_DANCE_VIDEOS);
     await query("update dance_wishes set sabine_notes = $2, sabine_videos = $3::jsonb, updated_at = now() where couple_id = $1", [
       ctx.couple.id, str(formData, "notes", 20_000), JSON.stringify(videos),
     ]);
@@ -126,6 +128,16 @@ export async function requestDance(formData: FormData) {
 export async function saveDanceVideo(formData: FormData) {
   const owner = await requireOwner();
   await saveVideoSetting(formData, "dance", owner.id, "/beheer/bruidsparen/openingsdans#video");
+}
+
+/** Videos two and three on the information page: YouTube or Vimeo links (the first is the video above). */
+export async function saveDanceExtraVideos(formData: FormData) {
+  await requireOwner();
+  const back = "/beheer/bruidsparen/openingsdans#video";
+  const links = formData.getAll("extraVideoUrl").map((v) => url(String(v).trim())).filter(Boolean).slice(0, MAX_DANCE_VIDEOS - 1);
+  if (links.some((l) => !videoEmbed(l))) done(back, "Een van de links herkennen we niet. Gebruik links van YouTube of Vimeo.", true);
+  await query("update settings set dance_extra_video_urls = $1::jsonb where id = true", [JSON.stringify(links)]);
+  done(back, "Video's opgeslagen.");
 }
 
 /** Name, price and contents of a dance package card; the rest of the package stays as it is. */

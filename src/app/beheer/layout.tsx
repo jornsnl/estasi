@@ -58,6 +58,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
         { href: "/beheer/bruidsparen/openingsdans", label: "Openingsdans" },
         { href: "/beheer/bruidsparen/aanraders", label: "Aanraders", group: true, strong: true },
         { href: "/beheer/instellingen", label: "Instellingen", section: "Systeem" },
+        { href: "/beheer/rondleiding", label: "Rondleiding" },
         { href: "/beheer/bruidsparen/standaardlijsten", label: "Standaardlijsten" },
         { href: "/beheer/mailgeschiedenis", label: "Mailgeschiedenis" },
         { href: "/beheer/logboek", label: "Logboek" },

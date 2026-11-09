@@ -3,6 +3,7 @@ import { Notice } from "@/components/Notice";
 import { markFavoritesSeen } from "@/app/actions/ws-suppliers";
 import { markNoticesSeen } from "@/app/actions/ws-styling";
 import { SubmitButton } from "@/components/SubmitButton";
+import { groupByWeddingYear } from "@/lib/ws/by-year";
 import { listCouples } from "@/lib/ws/couples";
 import { query } from "@/lib/ws/db";
 import { countdownLabel, coupleName, formatDate, formatDateTime } from "@/lib/ws/format";
@@ -80,37 +81,46 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
         </section>
       )}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[760px] text-sm">
-          <thead className="table-head">
-            <tr><th className="px-4 py-2.5">Bruidspaar</th><th className="px-4 py-2.5">Trouwdatum</th><th className="px-4 py-2.5">Pakket</th><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5">Open</th><th className="px-4 py-2.5">Laatst actief</th></tr>
-          </thead>
-          <tbody>
-            {couples.map((c) => (
-              <tr key={c.id} className="border-t border-line hover:bg-cream/50">
-                <td className="px-4 py-3">
-                  <Link href={`/k/${c.id}`} className="font-medium hover:text-bordeaux">{coupleName(c)}</Link>
-                  {c.location && <p className="text-xs text-muted">{c.location}</p>}
-                </td>
-                <td className="px-4 py-3">
-                  {formatDate(c.wedding_date)}
-                  {c.wedding_date && countdownLabel(c.wedding_date) && <p className="text-xs text-muted">over {countdownLabel(c.wedding_date)}</p>}
-                </td>
-                <td className="px-4 py-3">{c.package_name ?? "–"}</td>
-                <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${c.status === "active" ? "bg-success-soft text-success" : "bg-cream text-gold-ink"}`}>{STATUS[c.status]}</span>
-                </td>
-                <td className="px-4 py-3 text-xs">
-                  {c.open_questions > 0 && <span className="mr-2 rounded-full bg-bordeaux-soft px-2 py-0.5 text-bordeaux">{c.open_questions} vraag{c.open_questions === 1 ? "" : "en"}</span>}
-                  {c.open_sabine_tasks > 0 && <span className="text-muted">{c.open_sabine_tasks} taken</span>}
-                </td>
-                <td className="px-4 py-3 text-muted">{c.last_activity ? formatDateTime(c.last_activity) : "–"}</td>
-              </tr>
-            ))}
-            {couples.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-muted">Nog geen bruidsparen. Begin met &quot;Nieuw bruidspaar&quot;.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      {/* Feedback: grouped per wedding year (2026, 2027, 2028...), with the number of couples per year. */}
+      {couples.length === 0 && <p className="card px-4 py-10 text-center text-sm text-muted">Nog geen bruidsparen. Begin met &quot;Nieuw bruidspaar&quot;.</p>}
+      {groupByWeddingYear(couples).map((group) => (
+        <section key={group.year} aria-labelledby={`jaar-${group.year}`} className="space-y-2">
+          <h2 id={`jaar-${group.year}`} className="flex items-baseline gap-3 font-serif text-2xl">
+            {group.year}
+            <span className="font-sans text-sm text-muted">{group.rows.length === 1 ? "1 bruidspaar" : `${group.rows.length} bruidsparen`}</span>
+          </h2>
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead className="table-head">
+                <tr><th className="px-4 py-2.5">Bruidspaar</th><th className="px-4 py-2.5">Trouwdatum</th><th className="px-4 py-2.5">Pakket</th><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5">Open</th><th className="px-4 py-2.5">Laatst actief</th></tr>
+              </thead>
+              <tbody>
+                {group.rows.map((c) => (
+                  <tr key={c.id} className="border-t border-line hover:bg-cream/50">
+                    <td className="px-4 py-3">
+                      <Link href={`/k/${c.id}`} className="font-medium hover:text-bordeaux">{coupleName(c)}</Link>
+                      {c.location && <p className="text-xs text-muted">{c.location}</p>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {formatDate(c.wedding_date)}
+                      {c.wedding_date && countdownLabel(c.wedding_date) && <p className="text-xs text-muted">over {countdownLabel(c.wedding_date)}</p>}
+                    </td>
+                    <td className="px-4 py-3">{c.package_name ?? "–"}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${c.status === "active" ? "bg-success-soft text-success" : "bg-cream text-gold-ink"}`}>{STATUS[c.status]}</span>
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      {c.open_questions > 0 && <span className="mr-2 rounded-full bg-bordeaux-soft px-2 py-0.5 text-bordeaux">{c.open_questions} vraag{c.open_questions === 1 ? "" : "en"}</span>}
+                      {c.open_sabine_tasks > 0 && <span className="text-muted">{c.open_sabine_tasks} taken</span>}
+                    </td>
+                    <td className="px-4 py-3 text-muted">{c.last_activity ? formatDateTime(c.last_activity) : "–"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
       <Link href={showArchived ? "/beheer/bruidsparen" : "/beheer/bruidsparen?archief=1"} className="text-sm text-muted hover:text-bordeaux">
         {showArchived ? "Gearchiveerde bruidsparen verbergen" : "Ook gearchiveerde bruidsparen tonen"}
       </Link>

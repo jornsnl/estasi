@@ -71,6 +71,13 @@ export interface Settings {
   /** The tour video on the couple's start page (feedback 11): a link, or an upload. */
   tour_video_url: string;
   tour_video_file_id: string | null;
+  /** The welcome block on the start page and the tour pop-up, set by Sabine (Systeem > Rondleiding). */
+  tour_welcome_title: string;
+  tour_welcome_text: string;
+  tour_popup_title: string;
+  tour_popup_text: string;
+  /** Videos two and three on the opening dance information page (links). */
+  dance_extra_video_urls: string[];
 }
 
 export interface Task {

@@ -10,7 +10,20 @@ export const TOUR_TEXT = "Welkom in Your Wedding Space! In deze video laat ik ju
  * The video does not start by itself and is removed when the pop-up closes
  * (cross, Escape or a click outside), so it never keeps playing.
  */
-export function TourButton({ fileId, url, className = "btn-primary" }: { fileId: string | null; url: string; className?: string }) {
+export function TourButton({
+  fileId,
+  url,
+  className = "btn-primary",
+  title = "De rondleiding",
+  text = TOUR_TEXT,
+}: {
+  fileId: string | null;
+  url: string;
+  className?: string;
+  /** Title and text of the pop-up, set by Sabine (Systeem > Rondleiding). */
+  title?: string;
+  text?: string;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
   const show = () => {
@@ -40,8 +53,8 @@ export function TourButton({ fileId, url, className = "btn-primary" }: { fileId:
         <div className="p-4 sm:p-6">
           <div className="mb-3 flex items-start justify-between gap-4">
             <div>
-              <h2 id="rondleiding-titel" className="text-xl">De rondleiding</h2>
-              <p className="mt-1 text-sm text-muted">{TOUR_TEXT}</p>
+              <h2 id="rondleiding-titel" className="text-xl">{title}</h2>
+              {text && <p className="mt-1 text-sm whitespace-pre-line text-muted">{text}</p>}
             </div>
             <button type="button" onClick={close} aria-label="Sluiten" title="Sluiten" className="-mt-1 -mr-1 rounded-full px-2.5 py-1 text-2xl leading-none text-muted hover:bg-cream hover:text-ink">
               ×

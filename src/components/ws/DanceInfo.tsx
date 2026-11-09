@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requestDance } from "@/app/actions/ws-dance";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
+import { VideoEmbed } from "@/components/VideoEmbed";
 import { hasSettingVideo, SettingVideo } from "@/components/ws/SettingVideo";
 import { one, query } from "@/lib/ws/db";
 import { formatDate, formatMoney } from "@/lib/ws/format";
@@ -48,9 +49,16 @@ export async function DanceInfo({
       </header>
       <Notice searchParams={searchParams} />
 
-      {hasSettingVideo(settings.dance_video_file_id, settings.dance_video_url) && (
-        <section aria-label="Video van een openingsdans" className="max-w-3xl">
-          <SettingVideo fileId={settings.dance_video_file_id} url={settings.dance_video_url} title="Video van een openingsdans" />
+      {(hasSettingVideo(settings.dance_video_file_id, settings.dance_video_url) || (settings.dance_extra_video_urls ?? []).length > 0) && (
+        <section aria-label="Video's van een openingsdans" className="max-w-3xl space-y-4">
+          {hasSettingVideo(settings.dance_video_file_id, settings.dance_video_url) && (
+            <SettingVideo fileId={settings.dance_video_file_id} url={settings.dance_video_url} title="Video van een openingsdans" />
+          )}
+          {(settings.dance_extra_video_urls ?? []).length > 0 && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {settings.dance_extra_video_urls.map((link, i) => <VideoEmbed key={link} url={link} title={`Video ${i + 2} van een openingsdans`} />)}
+            </div>
+          )}
         </section>
       )}
 

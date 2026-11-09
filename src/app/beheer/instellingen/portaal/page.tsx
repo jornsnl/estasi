@@ -1,7 +1,6 @@
 import { archiveCategory, saveCategory, saveSettings } from "@/app/actions/ws-admin";
 import { uploadContactPhoto } from "@/app/actions/ws-fase2";
-import { saveTourVideo } from "@/app/actions/ws-tour";
-import { VideoSettingForm } from "@/components/ws/VideoSettingForm";
+import Link from "next/link";
 import { FileUpload } from "@/components/ws/FileUpload";
 import { directUploads } from "@/lib/ws/files";
 import { aiConfigured } from "@/lib/ws/ai";
@@ -41,20 +40,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </p>
       )}
 
-      <section id="rondleiding" className="scroll-mt-6 space-y-2">
-        <h2 className="text-xl">Rondleidingsvideo</h2>
-        <p className="text-sm text-muted">
-          Op de startpagina van elk bruidspaar staat de knop &quot;Bekijk de rondleiding&quot; met deze video, en bij het eerste bezoek een welkomstblok. Dezelfde video voor alle bruidsparen. Zonder video staat er geen knop.
-        </p>
-        <VideoSettingForm
-          action={saveTourVideo}
-          fileId={s.tour_video_file_id}
-          url={s.tour_video_url}
-          title="Rondleiding door Your Wedding Space"
-          emptyText="Nog geen rondleidingsvideo ingesteld."
-          fieldId="tourVideoUrl"
-        />
-      </section>
+      <p id="rondleiding" className="rounded-xl border border-line bg-white p-4 text-sm text-muted">
+        De rondleidingsvideo, het welkomstblok en de pop-up stel je in bij{" "}
+        <Link href="/beheer/rondleiding" className="text-bordeaux underline">Systeem, Rondleiding</Link>.
+      </p>
 
       <form action={uploadContactPhoto} className="card flex flex-wrap items-center gap-4 p-6">
         {s.contact_photo_file_id ? (

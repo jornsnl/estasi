@@ -1,4 +1,5 @@
 import { saveDance } from "@/app/actions/ws-dance";
+import { MAX_DANCE_VIDEOS } from "@/lib/ws/dance";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { VideoEmbed } from "@/components/VideoEmbed";
@@ -148,8 +149,8 @@ async function DanceWishes({
         {hidden("3")}
         <h2 className="text-xl">3. Inspiratie en praktisch</h2>
         <div>
-          <p className="label">Video&apos;s die jullie mooi vinden</p>
-          <RepeatRows addLabel="Video toevoegen" initial={w.videos.map((v) => ({ videoUrl: v.url, videoNote: v.note }))} fields={[{ name: "videoUrl", label: "Link naar de video" }, { name: "videoNote", label: "Wat vinden jullie er mooi aan?" }]} />
+          <p className="label">Video&apos;s die jullie mooi vinden (maximaal {MAX_DANCE_VIDEOS})</p>
+          <RepeatRows max={MAX_DANCE_VIDEOS} addLabel="Video toevoegen" initial={w.videos.map((v) => ({ videoUrl: v.url, videoNote: v.note }))} fields={[{ name: "videoUrl", label: "Link naar de video" }, { name: "videoNote", label: "Wat vinden jullie er mooi aan?" }]} />
         </div>
         <div><label className="label" htmlFor="clothing">Kleding (bijvoorbeeld lange jurk, hakken)</label><AutoTextarea id="clothing" name="clothing" defaultValue={w.clothing} className="input" /></div>
         <SubmitButton className="btn-primary" pendingText="Opslaan…">Opslaan</SubmitButton>
@@ -162,8 +163,8 @@ async function DanceWishes({
             {hidden("4")}
             <div><label className="label" htmlFor="notes">Opbouw van de dans, oefentips</label><AutoTextarea id="notes" name="notes" defaultValue={w.sabine_notes} className="input min-h-32" /></div>
             <div>
-              <p className="label">Oefenvideo&apos;s</p>
-              <RepeatRows addLabel="Oefenvideo toevoegen" initial={w.sabine_videos.map((v) => ({ videoUrl: v.url, videoNote: v.note }))} fields={[{ name: "videoUrl", label: "Link naar de video" }, { name: "videoNote", label: "Toelichting" }]} />
+              <p className="label">Oefenvideo&apos;s (maximaal {MAX_DANCE_VIDEOS})</p>
+              <RepeatRows max={MAX_DANCE_VIDEOS} addLabel="Oefenvideo toevoegen" initial={w.sabine_videos.map((v) => ({ videoUrl: v.url, videoNote: v.note }))} fields={[{ name: "videoUrl", label: "Link naar de video" }, { name: "videoNote", label: "Toelichting" }]} />
             </div>
             <SubmitButton className="btn-primary" pendingText="Opslaan…">Opslaan</SubmitButton>
           </form>

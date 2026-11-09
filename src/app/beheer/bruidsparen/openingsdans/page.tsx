@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { markDanceRequest, saveDanceOffer, saveDanceVideo } from "@/app/actions/ws-dance";
+import { markDanceRequest, saveDanceExtraVideos, saveDanceOffer, saveDanceVideo } from "@/app/actions/ws-dance";
+import { MAX_DANCE_VIDEOS } from "@/lib/ws/dance";
 import { archivePackage } from "@/app/actions/ws-admin";
 import { deletePackage, moveDancePackage } from "@/app/actions/ws-packages";
 import { Notice } from "@/components/Notice";
@@ -87,6 +88,21 @@ export default async function DanceAdmin({ searchParams }: { searchParams: Promi
           title="Video van een openingsdans"
           emptyText="Nog geen video. Zonder video staat er op de informatiepagina geen videoblok."
         />
+        {/* Feedback: up to three videos on the page; these are the second and the third. */}
+        <form action={saveDanceExtraVideos} className="card space-y-3 p-5">
+          <p className="label">Extra video&apos;s (maximaal {MAX_DANCE_VIDEOS - 1}, dus {MAX_DANCE_VIDEOS} in totaal)</p>
+          {Array.from({ length: MAX_DANCE_VIDEOS - 1 }, (_, i) => (
+            <input
+              key={i}
+              name="extraVideoUrl"
+              defaultValue={settings.dance_extra_video_urls?.[i] ?? ""}
+              placeholder="https://www.youtube.com/watch?v=…"
+              aria-label={`Video ${i + 2} (YouTube- of Vimeo-link)`}
+              className="input"
+            />
+          ))}
+          <SubmitButton className="btn-secondary" pendingText="Opslaan…">Extra video&apos;s opslaan</SubmitButton>
+        </form>
       </section>
 
       <section id="pakketten" className="scroll-mt-6 space-y-2">

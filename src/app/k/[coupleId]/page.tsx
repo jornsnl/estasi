@@ -80,17 +80,17 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
 
       {tour && (
         <div className="flex justify-end">
-          <TourButton fileId={settings.tour_video_file_id} url={settings.tour_video_url} />
+          <TourButton fileId={settings.tour_video_file_id} url={settings.tour_video_url} title={settings.tour_popup_title} text={settings.tour_popup_text} />
         </div>
       )}
 
       {/* The first visit: a welcome block with the same button, until the couple closes it. */}
       {tour && !tourDismissed && (
         <section aria-labelledby="welkom-titel" className="relative rounded-2xl border border-gold/50 bg-white p-5 pr-12 shadow-sm sm:p-6 sm:pr-14">
-          <h2 id="welkom-titel" className="text-2xl">Welkom in Your Wedding Space!</h2>
-          <p className="mt-1 max-w-2xl text-[15px] text-muted">In de rondleiding laat Sabine jullie zien hoe alles werkt. Fijn om even te bekijken voordat jullie beginnen.</p>
+          <h2 id="welkom-titel" className="text-2xl">{settings.tour_welcome_title || "Welkom in Your Wedding Space!"}</h2>
+          {settings.tour_welcome_text && <p className="mt-1 max-w-2xl text-[15px] whitespace-pre-line text-muted">{settings.tour_welcome_text}</p>}
           <div className="mt-4">
-            <TourButton fileId={settings.tour_video_file_id} url={settings.tour_video_url} className="btn-gold" />
+            <TourButton fileId={settings.tour_video_file_id} url={settings.tour_video_url} className="btn-gold" title={settings.tour_popup_title} text={settings.tour_popup_text} />
           </div>
           {isAdmin ? (
             <p className="mt-3 text-xs text-muted">Het bruidspaar ziet dit welkomstblok tot ze het zelf wegklikken.</p>
