@@ -3,7 +3,7 @@ import { NavLinks, type NavItem } from "./NavLinks";
 import { MobileMenu } from "./MobileMenu";
 import { logout } from "@/app/actions/auth";
 
-/** Fixed left menu on desktop, collapsible menu on mobile. */
+/** Fixed left menu on desktop, collapsible menu on mobile. Both scroll on their own when the menu is taller than the screen. */
 export function AppShell({
   items,
   userName,
@@ -18,7 +18,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const sidebar = (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-full flex-col">
       <div className="px-6 pt-7 pb-8">
         <Logo />
       </div>
@@ -26,7 +26,7 @@ export function AppShell({
         <NavLinks items={items} />
       </nav>
       {footer && <div className="px-6 pb-4">{footer}</div>}
-      <div className="border-t border-line px-6 py-4">
+      <div className="border-t border-line px-6 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <p className="truncate text-sm font-medium text-ink">{userName}</p>
         <p className="text-xs text-muted">{subtitle}</p>
         <form action={logout} className="mt-2">
@@ -40,7 +40,7 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-cream/40">
-      <aside className="no-print fixed inset-y-0 left-0 hidden w-64 border-r border-line bg-white lg:block">{sidebar}</aside>
+      <aside className="no-print fixed inset-y-0 left-0 hidden w-64 overflow-y-auto overscroll-contain border-r border-line bg-white lg:block">{sidebar}</aside>
       <div className="no-print"><MobileMenu>{sidebar}</MobileMenu></div>
       <main className="lg:pl-64 print:pl-0">
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 lg:py-12">{children}</div>
