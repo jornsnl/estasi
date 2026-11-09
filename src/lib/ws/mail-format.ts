@@ -6,19 +6,119 @@
 export interface Mail {
   to: string | string[];
   subject: string;
-  /** Plain text; a simple HTML version is made from it. */
+  /** Plain text; the branded HTML version is made from it. */
   text: string;
   replyTo?: string;
+  /** Which part of Estasi the mail comes from: the name in the header and footer. */
+  brand?: MailBrand;
 }
+
+export type MailBrand = "academy" | "wedding-space" | "estasi";
+
+const BRAND_NAMES: Record<MailBrand, string> = {
+  academy: "Wedding Plan Academy",
+  "wedding-space": "Your Wedding Space",
+  estasi: "Estasi Weddings",
+};
+
+/** The colours of the brand (globals.css), written out because mail clients know no CSS variables. */
+const C = {
+  page: "#f5f0e8",
+  card: "#ffffff",
+  line: "#e6dfd0",
+  bordeaux: "#6b1e2e",
+  gold: "#a89650",
+  goldLight: "#e8d9a8",
+  goldInk: "#6e6131",
+  ink: "#2c2c2c",
+  muted: "#6f6a60",
+};
+
+const SERIF = "'Playfair Display','Cormorant Garamond',Georgia,'Times New Roman',serif";
+const SANS = "Inter,'Helvetica Neue',Helvetica,Arial,sans-serif";
 
 const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-export function toHtml(text: string): string {
-  const body = escape(text)
+const URL_RE = /(https?:\/\/[^\s<]+)/g;
+const linkify = (s: string) => s.replace(URL_RE, `<a href="$1" style="color:${C.bordeaux};text-decoration:underline;word-break:break-all">$1</a>`);
+
+/** A link alone on its line becomes a button, with the address small underneath for clients that block buttons. */
+function button(url: string): string {
+  return (
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 8px"><tr>` +
+    `<td bgcolor="${C.bordeaux}" style="border-radius:6px;background:${C.bordeaux}">` +
+    `<a href="${url}" target="_blank" style="display:inline-block;padding:13px 26px;font-family:${SANS};font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px">Openen</a>` +
+    `</td></tr></table>` +
+    `<p style="margin:0 0 18px;font-size:12px;line-height:1.5;color:${C.muted};word-break:break-all">Werkt de knop niet? Kopieer deze link:<br><a href="${url}" style="color:${C.muted}">${url}</a></p>`
+  );
+}
+
+function paragraph(block: string): string {
+  const lines = block.split("\n");
+  const out: string[] = [];
+  let text: string[] = [];
+  const flush = () => {
+    if (text.length) out.push(`<p style="margin:0 0 18px">${text.map(linkify).join("<br>")}</p>`);
+    text = [];
+  };
+  for (const line of lines) {
+    const t = line.trim();
+    if (/^https?:\/\/\S+$/.test(t)) {
+      flush();
+      out.push(button(t));
+    } else text.push(line);
+  }
+  flush();
+  return out.join("");
+}
+
+/**
+ * The one design every mail goes out in: cream page, white card with the
+ * Estasi monogram, bordeaux and gold. Tables and inline styles only, so it
+ * holds in Outlook and Gmail; no images, so nothing is blocked.
+ */
+export function toHtml(text: string, brand: MailBrand = "estasi", subject = ""): string {
+  const name = BRAND_NAMES[brand];
+  const body = escape(text.trim())
     .split(/\n{2,}/)
-    .map((p) => `<p style="margin:0 0 14px">${p.replace(/\n/g, "<br>").replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#6B1E2E">$1</a>')}</p>`)
+    .map(paragraph)
     .join("");
-  return `<div style="font-family:Inter,Arial,sans-serif;font-size:15px;line-height:1.6;color:#2C2C2C;max-width:560px">${body}<p style="margin:24px 0 0;color:#8A8578;font-size:13px">Your Wedding Space · Estasi Weddings</p></div>`;
+  const preheader = escape((text.trim().split("\n").find((l) => l.trim() && !/^https?:\/\//.test(l.trim())) ?? "").slice(0, 140));
+  return `<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>${escape(subject || name)}</title>
+<style>@media (max-width:480px){.card{padding:28px 22px 14px!important}}</style>
+</head>
+<body style="margin:0;padding:0;background:${C.page};-webkit-text-size-adjust:100%">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:${C.page}">${preheader}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${C.page}" style="background:${C.page}">
+<tr><td align="center" style="padding:32px 12px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:580px">
+<tr><td align="center" style="padding:0 0 22px">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+<td width="44" height="44" align="center" valign="middle" bgcolor="${C.bordeaux}" style="width:44px;height:44px;border-radius:10px;background:${C.bordeaux};border:1px solid ${C.gold};font-family:${SERIF};font-size:26px;line-height:44px;font-weight:600;color:${C.goldLight}">E</td>
+</tr></table>
+<div style="margin:12px 0 0;font-family:${SERIF};font-size:20px;letter-spacing:0.5px;color:${C.bordeaux}">Estasi Weddings</div>
+<div style="margin:4px 0 0;font-family:${SANS};font-size:11px;font-weight:600;letter-spacing:2.4px;text-transform:uppercase;color:${C.goldInk}">${name}</div>
+</td></tr>
+<tr><td class="card" bgcolor="${C.card}" style="background:${C.card};border:1px solid ${C.line};border-top:3px solid ${C.bordeaux};border-radius:10px;padding:36px 36px 22px;font-family:${SANS};font-size:15px;line-height:1.65;color:${C.ink}">
+${body}
+</td></tr>
+<tr><td align="center" style="padding:22px 12px 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${C.muted}">
+<div style="width:40px;height:1px;background:${C.gold};margin:0 auto 14px;font-size:0;line-height:0">&nbsp;</div>
+${name} · Estasi Weddings<br>
+<a href="https://estasiweddings.nl" style="color:${C.goldInk};text-decoration:none">estasiweddings.nl</a>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
 }
 
 /** Unique, trimmed addresses; empty ones dropped. */
@@ -32,7 +132,7 @@ export function resendPayload(mail: Mail, from: string) {
     to: recipients(mail.to).slice(0, 50),
     subject: mail.subject,
     text: mail.text,
-    html: toHtml(mail.text),
+    html: toHtml(mail.text, mail.brand, mail.subject),
     ...(mail.replyTo ? { reply_to: mail.replyTo } : {}),
   };
 }
@@ -55,9 +155,16 @@ export const MAIL_KINDS = {
   privebericht: "Academy privébericht",
   toegang: "Academy toegang loopt af",
   academy_feedback: "Academy feedback",
+  test: "Testmail",
   overig: "Overig",
 } as const;
 export type MailKind = keyof typeof MAIL_KINDS;
+
+const ACADEMY_KINDS = new Set<string>(["community", "privebericht", "toegang", "academy_feedback"]);
+
+/** The brand of a mail follows from its kind: Academy, Wedding Space, or plain Estasi for the rest. */
+export const brandFor = (kind: string | undefined): MailBrand =>
+  !kind || kind === "overig" || kind === "test" ? "estasi" : ACADEMY_KINDS.has(kind) ? "academy" : "wedding-space";
 
 export const mailKindLabel = (kind: string) => MAIL_KINDS[kind as MailKind] ?? kind;
 

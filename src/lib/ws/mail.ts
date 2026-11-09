@@ -1,7 +1,7 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
 import { isUuid, one, query, wsConfigured } from "./db";
-import { mailError, recipients, resendPayload, toHtml, type Mail, type MailLogInfo } from "./mail-format";
+import { brandFor, mailError, recipients, resendPayload, toHtml, type Mail, type MailLogInfo } from "./mail-format";
 
 export type { Mail, MailLogInfo };
 
@@ -95,7 +95,7 @@ async function deliver(mail: Mail, to: string[]): Promise<Outcome> {
   }
   try {
     if (transport === "resend") await viaResend({ ...mail, to });
-    else await smtp()!.sendMail({ from: from(), to, replyTo: mail.replyTo, subject: mail.subject, text: mail.text, html: toHtml(mail.text) });
+    else await smtp()!.sendMail({ from: from(), to, replyTo: mail.replyTo, subject: mail.subject, text: mail.text, html: toHtml(mail.text, mail.brand, mail.subject) });
     return { ok: true };
   } catch (err) {
     // "fetch failed" alone says little: the cause names the network problem (DNS, timeout, refused).
@@ -114,7 +114,7 @@ async function deliver(mail: Mail, to: string[]): Promise<Outcome> {
 export async function sendMail(mail: Mail & { log?: MailLogInfo }): Promise<boolean> {
   const to = recipients(mail.to);
   if (to.length === 0) return false;
-  const outcome = await deliver(mail, to);
+  const outcome = await deliver({ ...mail, brand: mail.brand ?? brandFor(mail.log?.kind) }, to);
   await logMail(mail, to, outcome);
   return outcome.ok;
 }
@@ -153,8 +153,8 @@ async function logMail(mail: Mail & { log?: MailLogInfo }, to: string[], outcome
 /** Sends a failed mail from the history once more (Sabine only; the caller checks). */
 export async function resendLogged(id: string): Promise<Outcome> {
   const row = isUuid(id)
-    ? await one<{ to_email: string; subject: string; body: string; reply_to: string; retryable: boolean; status: string }>(
-        "select to_email, subject, body, reply_to, retryable, status from mail_log where id = $1",
+    ? await one<{ to_email: string; subject: string; body: string; reply_to: string; retryable: boolean; status: string; kind: string }>(
+        "select to_email, subject, body, reply_to, retryable, status, kind from mail_log where id = $1",
         [id],
       )
     : null;
@@ -162,7 +162,7 @@ export async function resendLogged(id: string): Promise<Outcome> {
   if (row.status === "sent") return { ok: false, error: "Deze mail is al verstuurd." };
   if (!row.retryable || !row.body) return { ok: false, error: "Deze mail bevat een inloglink en kan niet opnieuw worden verstuurd. Maak een nieuwe link bij Gegevens & delen." };
   const to = recipients(row.to_email.split(","));
-  const outcome = await deliver({ to, subject: row.subject, text: row.body, replyTo: row.reply_to || undefined }, to);
+  const outcome = await deliver({ to, subject: row.subject, text: row.body, replyTo: row.reply_to || undefined, brand: brandFor(row.kind) }, to);
   await query(
     `update mail_log set status = $2, error = $3, transport = $4, attempts = attempts + 1, updated_at = now() where id = $1`,
     [id, outcome.ok ? "sent" : "failed", outcome.ok ? "" : outcome.error, mailTransport()],

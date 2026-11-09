@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { saveSettings } from "@/app/actions/content";
+import { sendTestMail } from "@/app/actions/mail-test";
 import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -7,6 +8,7 @@ import { getStore } from "@/lib/data";
 import { supabaseEnabled } from "@/lib/supabase/config";
 import { LIMITS } from "@/lib/domain/input";
 import { authClient } from "@/lib/supabase/server";
+import { mailFrom, mailTransport } from "@/lib/ws/mail";
 
 export const metadata = { title: "Instellingen" };
 
@@ -17,6 +19,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     const { data } = await (await authClient()).auth.mfa.listFactors();
     mfaLinked = Boolean(data?.totp.some((f) => f.status === "verified"));
   }
+  const transport = mailTransport();
   return (
     <div className="max-w-2xl">
       <p className="eyebrow">Beheer</p>
@@ -85,6 +88,34 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
         <SubmitButton pendingText="Opslaan…">Instellingen opslaan</SubmitButton>
       </form>
+
+      <section id="testmail" className="card mt-10 space-y-4 p-6">
+        <h2 className="text-2xl">E-mail</h2>
+        <p className="text-sm text-muted">
+          {transport === "resend"
+            ? "Mails gaan via Resend."
+            : transport === "smtp"
+              ? "Mails gaan via SMTP."
+              : "Er staat geen RESEND_API_KEY ingesteld: mails komen alleen in de serverlog."}{" "}
+          Afzender: <span className="text-ink">{mailFrom()}</span>
+        </p>
+        <form action={sendTestMail} className="space-y-4">
+          <div>
+            <label htmlFor="testmailTo" className="label">Testmail sturen naar</label>
+            <input id="testmailTo" name="to" type="email" required autoComplete="email" maxLength={254} className="input" placeholder="naam@voorbeeld.nl" />
+          </div>
+          <div>
+            <label htmlFor="testmailBrand" className="label">Kop van de mail</label>
+            <select id="testmailBrand" name="brand" defaultValue="estasi" className="input">
+              <option value="estasi">Estasi Weddings</option>
+              <option value="academy">Wedding Plan Academy</option>
+              <option value="wedding-space">Your Wedding Space</option>
+            </select>
+            <p className="hint">Alle mails gebruiken hetzelfde ontwerp; alleen de naam onder het logo verschilt. De testmail komt ook in de mailgeschiedenis.</p>
+          </div>
+          <SubmitButton pendingText="Versturen…">Testmail versturen</SubmitButton>
+        </form>
+      </section>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { guestMailText, mailClosing, mailError, mailKindLabel, recipients, resendPayload, toHtml } from "@/lib/ws/mail-format";
+import { brandFor, guestMailText, mailClosing, mailError, mailKindLabel, recipients, resendPayload, toHtml } from "@/lib/ws/mail-format";
 
 describe("mail aan gasten", () => {
   const settings = { contact_name: "Sabine Tillema", business_name: "Estasi Weddings", contact_phone: "0637153899", contact_email: "sabine@estasiweddings.nl" };
@@ -46,5 +46,28 @@ describe("e-mail via Resend", () => {
     expect(p).not.toHaveProperty("reply_to");
     expect(toHtml("<b>")).toContain("&lt;b&gt;");
     expect(recipients("")).toEqual([]);
+  });
+});
+
+describe("huisstijl van de mails", () => {
+  it("turns a link alone on a line into a button and keeps inline links as links", () => {
+    const html = toHtml("Hoi,\n\nLog in:\nhttps://x.nl/k?a=1&b=2\n\nOf lees https://x.nl/info verder.");
+    expect(html).toContain(">Openen</a>");
+    expect(html).toContain('href="https://x.nl/k?a=1&amp;b=2"');
+    expect(html).toContain('<a href="https://x.nl/info"');
+    expect(html.match(/>Openen<\/a>/g)).toHaveLength(1);
+  });
+  it("names the brand under the monogram and in the footer", () => {
+    expect(toHtml("x", "academy")).toContain("Wedding Plan Academy");
+    expect(toHtml("x", "wedding-space")).toContain("Your Wedding Space");
+    expect(toHtml("x")).toContain("estasiweddings.nl");
+    expect(toHtml("Eerste regel\nmeer", "estasi", "Onderwerp")).toContain("<title>Onderwerp</title>");
+  });
+  it("picks the brand from the kind of mail", () => {
+    expect(brandFor("community")).toBe("academy");
+    expect(brandFor("toegang")).toBe("academy");
+    expect(brandFor("rsvp_bevestiging")).toBe("wedding-space");
+    expect(brandFor("test")).toBe("estasi");
+    expect(brandFor(undefined)).toBe("estasi");
   });
 });
