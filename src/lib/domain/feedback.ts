@@ -9,9 +9,16 @@ export const FEEDBACK_STATUSES: FeedbackStatus[] = ["nieuw", "in_behandeling", "
 
 export const FEEDBACK_STATUS_LABELS: Record<FeedbackStatus, string> = {
   nieuw: "Nieuw",
-  in_behandeling: "In behandeling",
-  afgerond: "Afgerond",
+  in_behandeling: "Bezig met nakijken",
+  afgerond: "Klaar",
 };
+
+/**
+ * On Sabine's Taken page (feedback): a request stays until it is "Klaar" and
+ * feedback has actually been sent. "Klaar" without sent feedback stays, so
+ * nothing is forgotten.
+ */
+export const stillOnTaskPage = (r: { feedbackStatus: FeedbackStatus; lastSentAt: string | null }) => !(r.feedbackStatus === "afgerond" && r.lastSentAt);
 
 export const ASSESSMENT_LABELS: Record<Assessment, string> = {
   voldoende: "Voldoende",

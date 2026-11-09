@@ -4,7 +4,7 @@ import { requireCouple, requireCoupleAdmin, type CoupleContext } from "@/lib/ws/
 import { logActivity } from "@/lib/ws/couples";
 import { isUuid, one, query } from "@/lib/ws/db";
 import { moveRow } from "@/lib/ws/order";
-import { indexForTime } from "@/lib/ws/pure";
+import { indexForTime, timeKey } from "@/lib/ws/pure";
 import { done, str } from "@/lib/ws/redirect";
 import { PALETTE, peopleFor, rowsFor, type Person, type RunsheetRow } from "@/lib/ws/runsheet";
 
@@ -80,16 +80,25 @@ export async function saveRow(coupleId: string, tabId: string, rowId: string | n
   }
 
   if (!isUuid(rowId)) return { ok: false, error: "Regel niet gevonden." };
-  const row = await one<{ by_admin: boolean; at_time: string; what: string; source: string | null }>(
-    "select by_admin, at_time, what, source from runsheet_rows where id = $1 and tab_id = $2",
+  const row = await one<{ by_admin: boolean; at_time: string; what: string; source: string | null; source_id: string | null }>(
+    "select by_admin, at_time, what, source, source_id from runsheet_rows where id = $1 and tab_id = $2",
     [rowId, tab.id],
   );
   if (!row) return { ok: false, error: "Regel niet gevonden." };
   if (row.by_admin && !ctx.isAdmin) return { ok: false, error: "Deze regel is van Sabine; die kunnen jullie bekijken maar niet wijzigen." };
-  // A row from Eten en allergieën or Leveranciers: time and text change there, the rest here.
+  // A row from Eten en allergieën or Leveranciers: the name comes from there. The time can be changed
+  // here too (feedback); it is written back to its source, so the meal moment or the supplier shows the
+  // same time and the next sync keeps it. One time for one fact, never two that disagree.
   if (row.source) {
-    values.at_time = row.at_time;
     values.what = row.what;
+    if (values.at_time !== row.at_time) {
+      if (timeKey(values.at_time) === Number.MAX_SAFE_INTEGER) {
+        return { ok: false, error: "Vul een tijd in zoals 18:30. Een tijd weghalen doe je bij de bron (Eten of Leveranciers)." };
+      }
+      const written = await writeTimeToSource(ctx.couple.id, row.source, row.source_id, values.at_time);
+      if (!written) values.at_time = row.at_time;
+      else if (!ctx.isAdmin) await logActivity(ctx.couple.id, ctx.account.id, `Tijd aangepast in het draaiboek: ${row.what} om ${values.at_time}`);
+    }
   }
   await query(
     `update runsheet_rows set at_time = $2, what = $3, info = $4, location = $5, rain_location = $6, people = $7, who = $8 where id = $1`,
@@ -100,6 +109,20 @@ export async function saveRow(coupleId: string, tabId: string, rowId: string | n
     await moveRow("runsheet_rows", rowId, tab.id, indexForTime(rows, rowId, values.at_time));
   }
   return state(ctx, tab.id);
+}
+
+/** The time of a meal moment or of a supplier's arrival or departure, changed from the run sheet. */
+async function writeTimeToSource(coupleId: string, source: string, sourceId: string | null, time: string): Promise<boolean> {
+  if (!isUuid(sourceId)) return false;
+  const sql =
+    source === "meal"
+      ? "update meal_moments set at_time = $3 where id = $1 and couple_id = $2 returning id"
+      : source === "supplier_from"
+        ? "update couple_suppliers set present_from = $3 where id = $1 and couple_id = $2 returning id"
+        : source === "supplier_until"
+          ? "update couple_suppliers set present_until = $3 where id = $1 and couple_id = $2 returning id"
+          : null;
+  return sql ? Boolean(await one(sql, [sourceId, coupleId, time])) : false;
 }
 
 export async function deleteRow(coupleId: string, tabId: string, rowId: string): Promise<Result> {

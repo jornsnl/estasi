@@ -236,8 +236,8 @@ function Row(props: {
     );
   };
   const text = (field: Field, label: string) =>
-    source && (field === "at_time" || field === "what") ? (
-      // Time and name come from the source; the row only shows them.
+    source && field === "what" ? (
+      // The name comes from the source; the time can be typed here and is written back to the source.
       <p className="min-h-9 flex-1 rounded-lg bg-gold-soft/40 px-2 py-1.5 text-sm" title={`Pas dit aan ${SOURCE_LABEL[source].replace(/^uit /, "bij ")}`}>
         {draft[field] || "–"}
         {field === "what" && <span className="ml-1.5 inline-block text-[11px] text-gold-ink">{SOURCE_LABEL[source]}</span>}
