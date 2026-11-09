@@ -1,9 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { addCoupleCategory } from "@/app/actions/ws-suppliers";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { SupplierTable } from "@/components/ws/SupplierTable";
+import { RecommendationBar, SupplierTable } from "@/components/ws/SupplierTable";
 import { requirePlanning } from "@/lib/ws/access";
 import { suppliersFor, visibleRecommendationCounts } from "@/lib/ws/suppliers";
 
@@ -26,15 +25,13 @@ export default async function SuppliersPage({
       <header>
         <p className="eyebrow">Onderdeel</p>
         <h1 className="mt-1 text-3xl">Jullie leveranciers</h1>
-        <p className="mt-1 text-sm text-muted">
-          Vul per categorie in wie het wordt; alles wordt meteen opgeslagen. Twijfel je nog? Kijk bij{" "}
-          <Link href={`/k/${couple.id}/leveranciers/aanraders`} className="text-bordeaux underline">de aanraders van Estasi</Link>.
-        </p>
+        <p className="mt-1 text-sm text-muted">Vul per categorie in wie het wordt; alles wordt meteen opgeslagen.</p>
       </header>
+      {/* Feedback: the bordeaux bar right under the title, above the first category (Locatie), instead of under one category. */}
+      {Object.values(recommendations).some((n) => n > 0) && <RecommendationBar href={`/k/${couple.id}/leveranciers/aanraders`} />}
       <Notice searchParams={searchParams} />
       <SupplierTable
         coupleId={couple.id}
-        recommendations={recommendations}
         rows={rows.map((r) => ({
           id: r.id,
           category_id: r.category_id,

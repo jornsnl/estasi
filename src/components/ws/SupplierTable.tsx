@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { addSupplierRow, deleteCoupleCategory, deleteSupplierRow, saveSupplierField, type SupplierField } from "@/app/actions/ws-suppliers";
 import { AutoTextarea } from "@/components/ws/AutoTextarea";
 import { SupplierQuickNav } from "@/components/ws/SupplierQuickNav";
-import { categoryFilled, showRecommendationBar, type SupplierRowLike } from "@/lib/ws/recommendations";
+import { categoryFilled, type SupplierRowLike } from "@/lib/ws/recommendations";
 
 type Status = "tbd" | "favorite" | "talking" | "booked" | "not_needed";
 
@@ -47,12 +47,9 @@ const TONE: Record<Status, string> = {
 export function SupplierTable({
   coupleId,
   rows,
-  recommendations,
 }: {
   coupleId: string;
   rows: SupplierRowData[];
-  /** Visible recommendations per category id. */
-  recommendations: Record<string, number>;
 }) {
   // What the rows hold now (status and name change while typing), for the dots and the bar.
   const [live, setLive] = useState<Record<string, SupplierRowLike>>(() =>
@@ -78,9 +75,6 @@ export function SupplierTable({
             {cat.rows.map((row, n) => (
               <Row key={row.id} coupleId={coupleId} row={row} first={n === 0} report={report} />
             ))}
-            {showRecommendationBar(current(cat), recommendations[cat.id] ?? 0) && (
-              <RecommendationBar href={`/k/${coupleId}/leveranciers/aanraders?categorie=${cat.id}`} />
-            )}
             <div className="flex flex-wrap gap-3 px-1 pt-1 text-xs">
               <form action={addSupplierRow}>
                 <input type="hidden" name="coupleId" value={coupleId} />

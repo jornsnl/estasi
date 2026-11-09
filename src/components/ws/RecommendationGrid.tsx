@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toggleFavorite } from "@/app/actions/ws-suppliers";
 import { instagramHref, instagramLabel, professionAndRegion, telHref, websiteHref } from "@/lib/ws/recommendations";
 
@@ -58,6 +58,9 @@ interface Detail {
 
 export function RecommendationGrid({ coupleId, items, favorites }: { coupleId: string; items: RecommendationCard[]; favorites: string[] }) {
   const [fav, setFav] = useState(() => new Set(favorites));
+  // Keep the hearts in step with the server when the page is refreshed or another category opens.
+  const favoritesKey = favorites.join(",");
+  useEffect(() => setFav(new Set(favoritesKey ? favoritesKey.split(",") : [])), [favoritesKey]);
   const [open, setOpen] = useState<RecommendationCard | null>(null);
   const [message, setMessage] = useState("");
   const [pending, start] = useTransition();
@@ -70,6 +73,13 @@ export function RecommendationGrid({ coupleId, items, favorites }: { coupleId: s
   };
   const toggle = (id: string) =>
     start(async () => {
+      // Shown at once; the answer of the server decides (and keeps it ticked on).
+      setFav((current) => {
+        const next = new Set(current);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
       const result = await toggleFavorite(coupleId, id);
       setFav((current) => {
         const next = new Set(current);
@@ -101,7 +111,7 @@ export function RecommendationGrid({ coupleId, items, favorites }: { coupleId: s
     <>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {items.map((item) => (
-          <li key={item.id}>
+          <li key={item.id} className="relative">
             <button
               type="button"
               onClick={() => show(item)}
@@ -113,14 +123,23 @@ export function RecommendationGrid({ coupleId, items, favorites }: { coupleId: s
                   // eslint-disable-next-line @next/next/no-img-element -- photo behind a login check
                   <img src={item.photo} alt="" className="absolute inset-0 h-full w-full object-cover transition group-hover:scale-[1.02]" />
                 )}
-                {fav.has(item.id) && (
-                  <span className="absolute top-2 right-2 rounded-full bg-white/95 p-1 text-bordeaux" title="Jullie favoriet"><Heart filled /></span>
-                )}
               </span>
               <span className="block p-3">
                 <span className="block font-serif text-base leading-tight font-semibold">{item.name}</span>
                 {item.profession && <span className="mt-0.5 block text-xs text-muted">{item.profession}</span>}
               </span>
+            </button>
+            {/* Feedback: a heart on the photo adds the supplier as favourite at once; the button in the pop-up stays. */}
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => toggle(item.id)}
+              aria-pressed={fav.has(item.id)}
+              aria-label={fav.has(item.id) ? `${item.name} niet meer als favoriet` : `${item.name} als favoriet toevoegen`}
+              title={fav.has(item.id) ? "Jullie favoriet" : "Als favoriet toevoegen"}
+              className={`absolute top-2 right-2 rounded-full p-1.5 shadow-sm transition ${fav.has(item.id) ? "bg-white text-bordeaux" : "bg-white/85 text-bordeaux/70 hover:bg-white hover:text-bordeaux"}`}
+            >
+              <Heart filled={fav.has(item.id)} />
             </button>
           </li>
         ))}

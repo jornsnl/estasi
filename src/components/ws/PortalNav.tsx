@@ -45,6 +45,22 @@ export function PortalNav({ items }: { items: Item[] }) {
   const path = usePathname();
   const scroller = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ left: false, right: false });
+  // Phone: a dropdown instead of the sideways scrolling bar (feedback).
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => setMenuOpen(false), [path]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [menuOpen]);
 
   const home = items.find((i) => i.icon === "home");
   const rest = items.filter((i) => i.icon !== "home");
@@ -149,7 +165,39 @@ export function PortalNav({ items }: { items: Item[] }) {
           </Link>
         </div>
       )}
-      <div className="relative min-w-0 flex-1">
+      <div ref={menuRef} className="relative min-w-0 flex-1 md:hidden">
+        <button
+          type="button"
+          aria-expanded={menuOpen}
+          aria-controls="portaal-menu"
+          onClick={() => setMenuOpen((o) => !o)}
+          className="flex w-full items-center justify-between gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium shadow-sm"
+        >
+          <span className="truncate">{rest.find((i) => isActive(i, path))?.label ?? "Menu"}</span>
+          <svg aria-hidden="true" viewBox="0 0 20 20" className={`h-4 w-4 shrink-0 text-bordeaux transition-transform ${menuOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 7.5 10 12.5 15 7.5" />
+          </svg>
+        </button>
+        {menuOpen && (
+          <ul id="portaal-menu" className="absolute inset-x-0 top-full z-30 mt-1 max-h-[70vh] overflow-y-auto rounded-2xl border border-line bg-white p-1.5 shadow-lg">
+            {rest.map((item) => {
+              const active = isActive(item, path);
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    className={`block rounded-xl px-3.5 py-2.5 text-[15px] ${active ? "bg-bordeaux text-white" : "text-ink hover:bg-cream"}`}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+      <div className="relative hidden min-w-0 flex-1 md:block">
         <div ref={scroller} onKeyDown={onKeyDown} onFocus={onFocus} className="ws-nav-scroll flex items-center gap-1 overflow-x-auto px-0.5 py-0.5 overscroll-x-contain">
           {rest.map((item) => {
             const active = isActive(item, path);

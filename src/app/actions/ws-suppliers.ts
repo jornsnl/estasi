@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth/session";
 import { requireCouple, type CoupleContext } from "@/lib/ws/access";
 import { logActivity } from "@/lib/ws/couples";
@@ -205,6 +206,7 @@ export async function toggleFavorite(coupleId: string, recommendationId: string)
       );
     }
     await note(ctx, `${rec.name} niet meer als favoriet`);
+    revalidatePath(`/k/${ctx.couple.id}/leveranciers`, "layout");
     return { favorite: false };
   }
 
@@ -235,6 +237,8 @@ export async function toggleFavorite(coupleId: string, recommendationId: string)
     await logActivity(ctx.couple.id, ctx.account.id, `${rec.name} gekozen als favoriet`);
     await recordFavorite(ctx.couple, rec.id);
   }
+  // The table under Jullie leveranciers and the hearts show the new state on the next visit too.
+  revalidatePath(`/k/${ctx.couple.id}/leveranciers`, "layout");
   return { favorite: true };
 }
 
