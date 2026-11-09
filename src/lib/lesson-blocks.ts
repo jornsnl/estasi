@@ -2,6 +2,7 @@ import "server-only";
 import type { Block, BlockType, FileRef } from "@/lib/data";
 import { cleanAssignment } from "@/lib/domain/assignment";
 import { newId } from "@/lib/util/id";
+import { isHeadingStyle } from "@/lib/domain/blocks";
 import { sanitizeLessonHtml } from "@/lib/domain/html";
 import { LIMITS, normaliseUrl } from "@/lib/domain/input";
 import { storeImageUpload, storeUpload, UploadError } from "@/lib/uploads";
@@ -37,6 +38,16 @@ async function upload(input: BlockInput, run: () => Promise<FileRef | null>): Pr
 }
 
 const READERS: { [T in BlockType]: Reader<T> } = {
+  heading: (b, { f }) => {
+    const style = f("style", 20);
+    return { ...b, style: isHeadingStyle(style) ? style : b.style, text: f("text", LIMITS.caption) };
+  },
+  goals: (b, { f }) => ({
+    ...b,
+    title: f("title", 120) || "Leerdoelen",
+    // One goal per line; empty lines dropped.
+    items: f("items", 4000).split("\n").map((l) => l.replace(/^[\s•*-]+/, "").trim()).filter(Boolean).slice(0, 20).map((l) => l.slice(0, 300)),
+  }),
   video: (b, { f }) => ({ ...b, url: normaliseUrl(f("url", LIMITS.url)), caption: f("caption", LIMITS.caption) }),
   text: (b, { has, raw }) => {
     // The editor's hidden field only exists once the editor has loaded: without it, nothing changes.

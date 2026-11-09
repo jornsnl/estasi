@@ -142,9 +142,12 @@ export function NavLinks({ items }: { items: NavItem[] }) {
             ))}
           </ul>
         );
+        // Feedback: one thin line, only under the first links (Taken, Agenda); the groups below follow without lines.
+        const divider = index === 1 ? <hr className="mx-3 mb-3 border-line" /> : null;
         if (!g.section) {
           return (
-            <div key={`plain-${index}`} className={g.spaced ? "mt-5" : ""}>
+            <div key={`plain-${index}`} className={g.spaced ? "mt-3" : ""}>
+              {divider}
               {list()}
             </div>
           );
@@ -152,21 +155,23 @@ export function NavLinks({ items }: { items: NavItem[] }) {
         const isOpen = open.has(g.section);
         const id = `menu-groep-${index}`;
         return (
-          <div key={g.section} className={g.spaced ? "mt-4" : ""}>
+          <div key={g.section} className={g.spaced ? (index === 1 ? "mt-3" : "mt-1") : ""}>
+            {divider}
+            {/* The same type as the plain links (Taken, Agenda), with a chevron so it shows that it folds open. */}
             <button
               type="button"
               aria-expanded={isOpen}
               aria-controls={id}
               onClick={() => toggle(g.section!)}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[11px] font-semibold tracking-[0.14em] text-gold-ink uppercase hover:bg-cream"
+              className="flex w-full items-center gap-2 rounded-md border-l-2 border-transparent px-3 py-2 text-left text-[15px] font-semibold text-ink hover:bg-cream"
             >
-              <svg viewBox="0 0 12 12" aria-hidden className={`h-3 w-3 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`}>
-                <path d="M4 2.5 7.5 6 4 9.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
               <span className="flex-1">{g.section}</span>
               {(g.badge || (!isOpen && g.inside)) ? <Count n={g.badge || g.inside} label="open" /> : null}
+              <svg viewBox="0 0 12 12" aria-hidden className={`h-3.5 w-3.5 shrink-0 text-muted transition-transform ${isOpen ? "rotate-180" : ""}`}>
+                <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
-            <div className={isOpen ? "mt-1" : ""}>{list(id, !isOpen)}</div>
+            <div className={isOpen ? "mt-1 mb-2 pl-3" : ""}>{list(id, !isOpen)}</div>
           </div>
         );
       })}

@@ -89,6 +89,10 @@ const assignmentSummary = (a: AssignmentBlock) => ({
 
 const blockSummary = (b: Block) => {
   switch (b.type) {
+    case "heading":
+      return { id: b.id, type: b.type, style: b.style, text: b.text };
+    case "goals":
+      return { id: b.id, type: b.type, title: b.title, items: b.items };
     case "video":
       return { id: b.id, type: b.type, url: b.url, caption: b.caption };
     case "text":

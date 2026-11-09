@@ -88,6 +88,26 @@ export interface TextBlock extends BlockBase {
   html?: string;
 }
 
+/**
+ * A line of text in one of the fixed lesson styles (feedback Academy: lessons
+ * built from blocks): Hoofdtitel (black), Subtitel (bordeaux), Bijschrift
+ * (black, small) and Opdrachttitel (black).
+ */
+export type HeadingStyle = "title" | "subtitle" | "caption" | "assignment";
+
+export interface HeadingBlock extends BlockBase {
+  type: "heading";
+  style: HeadingStyle;
+  text: string;
+}
+
+/** Leerdoelen: a green block with a short list of what the student learns in the lesson. */
+export interface GoalsBlock extends BlockBase {
+  type: "goals";
+  title: string;
+  items: string[];
+}
+
 /** A picture on its own, uploaded through FileStorage (course material). */
 export interface ImageBlock extends BlockBase {
   type: "image";
@@ -312,7 +332,7 @@ export interface ModuleUnlock {
   unlockedAt: string;
 }
 
-export type Block = VideoBlock | TextBlock | ImageBlock | DownloadBlock | AssignmentBlock;
+export type Block = HeadingBlock | GoalsBlock | VideoBlock | TextBlock | ImageBlock | DownloadBlock | AssignmentBlock;
 
 export type BlockType = Block["type"];
 

@@ -4,7 +4,9 @@ import type { Block, BlockType } from "@/lib/data";
 import { LIMITS } from "@/lib/domain/input";
 import { ACCEPT_ATTR, IMAGE_ACCEPT_ATTR } from "@/lib/uploads";
 import { formatBytes } from "@/lib/util/format";
+import { HEADING_STYLES } from "@/lib/domain/blocks";
 import { AssignmentEditor, type AssignmentChoice } from "./AssignmentEditor";
+import { HeadingContent } from "./HeadingContent";
 import { RichTextEditor } from "./RichTextEditor";
 
 /**
@@ -31,6 +33,35 @@ export interface BlockEditorContext {
 type Editors = { [T in BlockType]: (props: BlockEditorProps<Extract<Block, { type: T }>>) => React.ReactNode };
 
 const EDITORS: Editors = {
+  heading: ({ block, n, id }) => (
+    <div className="grid gap-3 sm:grid-cols-[1fr_14rem]">
+      <div>
+        <label className="label" htmlFor={id("text")}>Tekst</label>
+        <input id={id("text")} name={n("text")} defaultValue={block.text} maxLength={LIMITS.caption} className="input" />
+      </div>
+      <div>
+        <label className="label" htmlFor={id("style")}>Stijl</label>
+        <select id={id("style")} name={n("style")} defaultValue={block.style} className="input">
+          {HEADING_STYLES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+      </div>
+      <div className="sm:col-span-2 rounded-lg border border-line bg-white px-4 py-3">
+        <HeadingContent block={block.text ? block : { ...block, text: "Voorbeeld van deze stijl" }} />
+      </div>
+    </div>
+  ),
+  goals: ({ block, n, id }) => (
+    <>
+      <div>
+        <label className="label" htmlFor={id("title")}>Titel van het blok</label>
+        <input id={id("title")} name={n("title")} defaultValue={block.title} maxLength={120} className="input" />
+      </div>
+      <div>
+        <label className="label" htmlFor={id("items")}>Leerdoelen (één per regel)</label>
+        <textarea id={id("items")} name={n("items")} defaultValue={block.items.join("\n")} rows={4} className="input" placeholder={"Je weet hoe je een draaiboek opbouwt\nJe kunt een budget verdelen"} />
+      </div>
+    </>
+  ),
   video: ({ block, n, id }) => (
     <>
       <div>
@@ -55,7 +86,7 @@ const EDITORS: Editors = {
           <Markdown>{block.markdown}</Markdown>
         </RichTextEditor>
       )}
-      <p className="hint">Koppen, vet, cursief, lijsten, links, tabellen en afbeeldingen via de knoppen. Enter begint een nieuwe alinea.</p>
+      <p className="hint">Koppen, vet, cursief, onderstrepen, lijsten, links, tabellen en afbeeldingen via de knoppen. Enter begint een nieuwe alinea.</p>
     </>
   ),
   image: ({ block, n, id }) => (

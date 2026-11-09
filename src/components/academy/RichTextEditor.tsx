@@ -45,7 +45,7 @@ export function RichTextEditor({
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit.configure({ heading: { levels: [2, 3, 4] }, link: false, code: false, codeBlock: false, underline: false }),
+      StarterKit.configure({ heading: { levels: [2, 3, 4] }, link: false, code: false, codeBlock: false }),
       Link.configure({ openOnClick: false, autolink: true, protocols: ["mailto", "tel"], HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" } }),
       Image.configure({ inline: false, allowBase64: false }),
       Table.configure({ resizable: false }),
@@ -131,6 +131,7 @@ function Toolbar({ editor, onImage, uploading }: { editor: Editor; onImage: () =
       h3: e.isActive("heading", { level: 3 }),
       bold: e.isActive("bold"),
       italic: e.isActive("italic"),
+      underline: e.isActive("underline"),
       bullet: e.isActive("bulletList"),
       ordered: e.isActive("orderedList"),
       link: e.isActive("link"),
@@ -163,6 +164,7 @@ function Toolbar({ editor, onImage, uploading }: { editor: Editor; onImage: () =
     { label: "Tussenkop", title: "Tussenkop", active: state.h3, onClick: () => chain().toggleHeading({ level: 3 }).run() },
     { label: "B", title: "Vet (Ctrl+B)", active: state.bold, onClick: () => chain().toggleBold().run(), className: "font-bold" },
     { label: "I", title: "Cursief (Ctrl+I)", active: state.italic, onClick: () => chain().toggleItalic().run(), className: "italic" },
+    { label: "U", title: "Onderstrepen (Ctrl+U)", active: state.underline, onClick: () => chain().toggleUnderline().run(), className: "underline" },
     { label: "• Opsomming", title: "Opsomming", active: state.bullet, onClick: () => chain().toggleBulletList().run() },
     { label: "1. Nummering", title: "Genummerde lijst", active: state.ordered, onClick: () => chain().toggleOrderedList().run() },
     { label: "Link", title: "Link", active: state.link, onClick: setLink },

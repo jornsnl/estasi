@@ -1,4 +1,4 @@
-import type { Block, BlockType } from "@/lib/data/types";
+import type { Block, BlockType, HeadingStyle } from "@/lib/data/types";
 import { newAssignment } from "./assignment";
 
 /**
@@ -8,6 +8,8 @@ import { newAssignment } from "./assignment";
  * TypeScript points out what is missing).
  */
 export const BLOCK_LABELS: Record<BlockType, string> = {
+  heading: "Titel",
+  goals: "Leerdoelen",
   video: "Lesvideo",
   text: "Tekst",
   image: "Afbeelding",
@@ -17,14 +19,31 @@ export const BLOCK_LABELS: Record<BlockType, string> = {
 
 /** The "Blok toevoegen" buttons: intent add:<type>[:<variant>]. */
 export const ADD_BLOCK_OPTIONS: { intent: string; label: string }[] = [
-  { intent: "add:text", label: "Tekst" },
+  { intent: "add:heading:title", label: "Hoofdtitel" },
+  { intent: "add:heading:subtitle", label: "Subtitel" },
+  { intent: "add:heading:caption", label: "Bijschrift" },
+  { intent: "add:goals", label: "Leerdoelen" },
+  { intent: "add:heading:assignment", label: "Opdrachttitel" },
+  { intent: "add:text", label: "Tekstvak" },
   { intent: "add:video", label: "Video" },
   { intent: "add:image", label: "Afbeelding" },
   { intent: "add:download", label: "Download / link" },
   { intent: "add:assignment", label: "Opdracht" },
 ];
 
+/** The styles of a title block, in the order of the editor. */
+export const HEADING_STYLES: { value: HeadingStyle; label: string }[] = [
+  { value: "title", label: "Hoofdtitel (zwart)" },
+  { value: "subtitle", label: "Subtitel (bordeaux)" },
+  { value: "caption", label: "Bijschrift (zwart)" },
+  { value: "assignment", label: "Opdrachttitel (zwart)" },
+];
+
+export const isHeadingStyle = (value: string): value is HeadingStyle => HEADING_STYLES.some((s) => s.value === value);
+
 const NEW_BLOCK: { [T in BlockType]: (id: string, variant: string) => Extract<Block, { type: T }> } = {
+  heading: (id, variant) => ({ id, type: "heading", style: isHeadingStyle(variant) ? variant : "title", text: "" }),
+  goals: (id) => ({ id, type: "goals", title: "Leerdoelen", items: [] }),
   video: (id) => ({ id, type: "video", url: "", caption: "" }),
   text: (id) => ({ id, type: "text", markdown: "", html: "" }),
   image: (id) => ({ id, type: "image", file: null, alt: "", caption: "" }),
@@ -34,8 +53,7 @@ const NEW_BLOCK: { [T in BlockType]: (id: string, variant: string) => Extract<Bl
 };
 
 /** Blocks that only show content (everything else is an assignment). */
-export const isContentBlock = (block: Block) =>
-  block.type === "video" || block.type === "text" || block.type === "image" || block.type === "download";
+export const isContentBlock = (block: Block) => block.type !== "assignment";
 
 export const isBlockType = (value: string): value is BlockType => Object.hasOwn(NEW_BLOCK, value);
 

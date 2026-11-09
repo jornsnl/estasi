@@ -3,6 +3,7 @@ import { VideoEmbed } from "@/components/VideoEmbed";
 import type { Block } from "@/lib/data";
 import { sanitizeLessonHtml } from "@/lib/domain/html";
 import { formatBytes } from "@/lib/util/format";
+import { HeadingContent } from "./HeadingContent";
 
 /** Lesson text from the editor. Cleaned again here: stored HTML is never trusted blindly. */
 export function LessonHtml({ html }: { html: string }) {
@@ -21,6 +22,20 @@ export function TextContent({ block }: { block: Extract<Block, { type: "text" }>
  */
 export function ContentBlock({ block }: { block: Block }) {
   switch (block.type) {
+    case "heading":
+      return <HeadingContent block={block} />;
+    case "goals":
+      if (block.items.length === 0) return null;
+      return (
+        <section className="rounded-xl border border-success/30 bg-success-soft p-5">
+          <h3 className="font-serif text-lg font-semibold text-success">{block.title || "Leerdoelen"}</h3>
+          <ul className="mt-2 space-y-1.5 text-[15px] text-ink">
+            {block.items.map((item, i) => (
+              <li key={i} className="flex gap-2"><span className="text-success" aria-hidden>✓</span><span>{item}</span></li>
+            ))}
+          </ul>
+        </section>
+      );
     case "video":
       return (
         <figure>
