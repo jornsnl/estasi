@@ -28,7 +28,7 @@ export default async function PracticalCertificatePage() {
         </p>
       )}
       <Certificate kind="praktijk" name={user.name} date={enrollment.practicalCertificateReleasedAt} code={enrollment.practicalCertificateCode} />
-      <p className="no-print mt-4 text-sm text-muted">Tip: kies bij het printen voor &quot;Opslaan als pdf&quot; en liggende oriëntatie.</p>
+      <p className="no-print mt-4 text-sm text-muted">Kies in het printvenster bij de printer voor &quot;Opslaan als pdf&quot;. Het certificaat staat al liggend op één A4.</p>
     </div>
   );
 }

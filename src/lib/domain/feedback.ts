@@ -147,9 +147,12 @@ export function practicalCertificateReadiness(enrollment: Pick<Enrollment, "pack
   return { ready: missing.length === 0, missing };
 }
 
-/** Certificate numbers: WPA-2026-1A2B3C (online) and WPP-2026-1A2B3C (practical). */
+/**
+ * Certificate numbers: FWA-2026-1A2B3C (online) and FWP-2026-1A2B3C (practical),
+ * after the Future Weddings Academy. Numbers given out before (WPA, WPP) stay as they are.
+ */
 export const certificateCode = (kind: "online" | "praktijk", year: number, random: string) =>
-  `${kind === "online" ? "WPA" : "WPP"}-${year}-${random.toUpperCase()}`;
+  `${kind === "online" ? "FWA" : "FWP"}-${year}-${random.toUpperCase()}`;
 
 // Overview -------------------------------------------------------------------------
 

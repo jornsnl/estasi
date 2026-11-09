@@ -30,7 +30,7 @@ export default async function CertificatePage() {
         </p>
       )}
       <Certificate name={user.name} date={enrollment.certificateReleasedAt} code={enrollment.certificateCode} />
-      <p className="no-print mt-4 text-sm text-muted">Tip: kies bij het printen voor &quot;Opslaan als pdf&quot; en liggende oriëntatie.</p>
+      <p className="no-print mt-4 text-sm text-muted">Kies in het printvenster bij de printer voor &quot;Opslaan als pdf&quot;. Het certificaat staat al liggend op één A4.</p>
     </div>
   );
 }

@@ -34,6 +34,7 @@ export default async function OwnerHome({ searchParams }: { searchParams: Promis
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/beheer/feedback" className="btn-secondary">Feedback</Link>
+          <Link href="/beheer/certificaat" className="btn-secondary">Voorbeeldcertificaat</Link>
           <Link href="/beheer/cursisten/nieuw" className="btn-primary">Cursist toevoegen</Link>
         </div>
       </header>

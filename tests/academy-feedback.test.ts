@@ -90,8 +90,8 @@ describe("certificaten", () => {
     expect(practicalCertificateReadiness({ package: "B", practicalStatus: "completed" })).toEqual({ ready: true, missing: [] });
     expect(practicalCertificateReadiness({ package: "B", practicalStatus: "planned" }).missing[0]).toMatch(/meeloopbruiloft/);
     expect(practicalCertificateReadiness({ package: "A", practicalStatus: "completed" }).missing[0]).toMatch(/pakket B/);
-    expect(certificateCode("praktijk", 2026, "a1b2c3")).toBe("WPP-2026-A1B2C3");
-    expect(certificateCode("online", 2026, "a1b2c3")).toBe("WPA-2026-A1B2C3");
+    expect(certificateCode("praktijk", 2026, "a1b2c3")).toBe("FWP-2026-A1B2C3");
+    expect(certificateCode("online", 2026, "a1b2c3")).toBe("FWA-2026-A1B2C3");
   });
 });
 

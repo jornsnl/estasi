@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { changeCompletion } from "@/app/actions/admin";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { Enrollment } from "@/lib/data/types";
@@ -16,7 +17,10 @@ export function CertificateControls({ userId, enrollment, onlineMissing }: { use
     <>
       <div className="border-b border-line pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="font-medium">Online certificaat</span>
+          <span className="font-medium">
+            Online certificaat{" "}
+            <Link href={`/beheer/certificaat?cursist=${userId}`} className="ml-1 text-sm font-normal text-bordeaux hover:underline">bekijken / pdf</Link>
+          </span>
           <span className="flex flex-wrap items-center gap-2">
             {enrollment.certificateReleasedAt ? (
               <>
@@ -33,7 +37,10 @@ export function CertificateControls({ userId, enrollment, onlineMissing }: { use
       {enrollment.package === "B" && (
         <div className="border-b border-line pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-medium">Praktijkcertificaat</span>
+            <span className="font-medium">
+              Praktijkcertificaat{" "}
+              <Link href={`/beheer/certificaat?soort=praktijk&cursist=${userId}`} className="ml-1 text-sm font-normal text-bordeaux hover:underline">bekijken / pdf</Link>
+            </span>
             <span className="flex flex-wrap items-center gap-2">
               {enrollment.practicalCertificateReleasedAt ? (
                 <>
