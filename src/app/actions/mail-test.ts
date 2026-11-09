@@ -9,7 +9,7 @@ import type { MailBrand } from "@/lib/ws/mail-format";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function done(message: string, isError = false): never {
-  redirect(`/beheer/instellingen?${isError ? "fout" : "melding"}=${encodeURIComponent(message)}#testmail`);
+  redirect(`/beheer/instellingen?${isError ? "fout" : "melding"}=${encodeURIComponent(message)}`);
 }
 
 /** Sends a test mail in the house style to an address of choice, so the Resend setup can be checked from the admin. */
@@ -39,7 +39,7 @@ export async function sendTestMail(formData: FormData) {
   done(
     mailTransport() === "log"
       ? "Niet verstuurd: er staat geen RESEND_API_KEY (of SMTP) ingesteld. De mail staat in de serverlog."
-      : "Versturen mislukt. De reden van Resend staat in de mailgeschiedenis bij Bruidsparen, Mailgeschiedenis.",
+      : "Versturen mislukt. De reden van Resend staat in de Maillog (tab hierboven).",
     true,
   );
 }

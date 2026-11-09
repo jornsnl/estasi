@@ -3,6 +3,7 @@ import { saveSettings } from "@/app/actions/content";
 import { sendTestMail } from "@/app/actions/mail-test";
 import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { Notice } from "@/components/Notice";
+import { SettingsTabs } from "@/components/SettingsTabs";
 import { SubmitButton } from "@/components/SubmitButton";
 import { getStore } from "@/lib/data";
 import { supabaseEnabled } from "@/lib/supabase/config";
@@ -23,7 +24,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   return (
     <div className="max-w-2xl">
       <p className="eyebrow">Beheer</p>
-      <h1 className="mt-1 mb-8 text-4xl">Instellingen</h1>
+      <h1 className="mt-1 mb-6 text-4xl">Instellingen</h1>
+      <SettingsTabs active="algemeen" />
       <Notice searchParams={searchParams} />
       {mfaLinked !== null && (
         <section className="card mb-6 p-6">
@@ -111,7 +113,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <option value="academy">Wedding Plan Academy</option>
               <option value="wedding-space">Your Wedding Space</option>
             </select>
-            <p className="hint">Alle mails gebruiken hetzelfde ontwerp; alleen de naam onder het logo verschilt. De testmail komt ook in de mailgeschiedenis.</p>
+            <p className="hint">Alle mails gebruiken hetzelfde ontwerp; alleen de naam onder het logo verschilt. De testmail komt ook in de maillog.</p>
           </div>
           <SubmitButton pendingText="Versturen…">Testmail versturen</SubmitButton>
         </form>
