@@ -3,7 +3,7 @@
 import { requireOwner } from "@/lib/auth/session";
 import { requireCoupleAdmin } from "@/lib/ws/access";
 import { isUuid, query } from "@/lib/ws/db";
-import { MAIL_PAUSE_MS, guestMailText, mailClosing } from "@/lib/ws/mail-format";
+import { MAIL_MAX_CHARS, MAIL_MAX_WORDS, MAIL_PAUSE_MS, countWords, guestMailText, mailClosing } from "@/lib/ws/mail-format";
 import { mailTransport, resendLogged, sendMail, sleep } from "@/lib/ws/mail";
 import { done, str } from "@/lib/ws/redirect";
 import { getSettings } from "@/lib/ws/settings";
@@ -20,9 +20,10 @@ export async function sendGuestMail(formData: FormData) {
   const ids = [...new Set(formData.getAll("guestId").map(String).filter(isUuid))].slice(0, MAX_GUESTS);
   const back = `/k/${ctx.couple.id}/gasten/mail?${ids.map((id) => `gast=${id}`).join("&")}`;
   const subject = str(formData, "subject", 300);
-  const message = str(formData, "message", 20_000);
+  const message = str(formData, "message", MAIL_MAX_CHARS);
   if (ids.length === 0) done(`/k/${ctx.couple.id}/gasten`, "Kies eerst een of meer gasten.", true);
   if (!subject || !message) done(back, "Vul een onderwerp en een bericht in.", true);
+  if (countWords(message) > MAIL_MAX_WORDS) done(back, `Het bericht is te lang: maximaal ${MAIL_MAX_WORDS} woorden.`, true);
 
   const guests = await query<{ id: string; first_name: string; last_name: string; email: string }>(
     "select id, first_name, last_name, email from guests where couple_id = $1 and id = any($2::uuid[]) order by last_name, first_name",

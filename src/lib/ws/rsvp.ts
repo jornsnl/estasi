@@ -91,13 +91,13 @@ export function defaultTexts(settings: Pick<Settings, "contact_name" | "contact_
       "Lieve [voornaam],\n\nWat fijn dat je erbij bent! Je aanmelding voor de bruiloft van [namen] op [datum] is goed ontvangen.\n\n" +
       "Hieronder zie je een overzicht van wat je hebt ingevuld:\n\n[antwoorden]\n\n[dresscode]" +
       `Klopt er iets niet, heb je een vraag of wil je een verrassing voorbereiden? Neem dan contact op met ceremoniemeester ${contact}.\n\n` +
-      `Tot op de bruiloft!\n\nHartelijke groet,\n${settings.contact_name}, Estasi Weddings`,
+      `Tot op de bruiloft!\n\nHartelijke groet,\n\n${settings.contact_name}, Estasi Weddings`,
     declineSubject: "Bedankt voor je reactie op de uitnodiging van [namen]",
     decline:
       "Lieve [voornaam],\n\nBedankt dat je hebt laten weten dat je er helaas niet bij kunt zijn op de bruiloft van [namen] op [datum]. Jammer, maar fijn dat we het weten.\n\n" +
       "Hieronder zie je wat je hebt ingevuld:\n\n[antwoorden]\n\n" +
       `Verandert er toch iets in je planning? Neem dan contact op met ceremoniemeester ${contact}.\n\n` +
-      `Hartelijke groet,\n${settings.contact_name}, Estasi Weddings`,
+      `Hartelijke groet,\n\n${settings.contact_name}, Estasi Weddings`,
   };
 }
 

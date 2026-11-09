@@ -6,7 +6,7 @@ import { logActivity } from "@/lib/ws/couples";
 import { isUuid, one, query } from "@/lib/ws/db";
 import { deleteFiles, storeUpload, UploadError } from "@/lib/ws/files";
 import { coupleName, formatDate, formatMoney, parseMoney } from "@/lib/ws/format";
-import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
+import { sabineAddress, appUrl, sendMail } from "@/lib/ws/mail";
 import { danceName } from "@/lib/ws/package-order";
 import { done, str } from "@/lib/ws/redirect";
 import { getSettings } from "@/lib/ws/settings";
@@ -92,12 +92,18 @@ export async function requestDance(formData: FormData) {
     "insert into dance_requests (couple_id, package_id, package_name, message, requested_by_name) values ($1, $2, $3, $4, $5)",
     [ctx.couple.id, pkg?.id ?? null, packageName, message, ctx.account.name],
   );
+  // Feedback: the request also lands on Sabine's board (Taken), so it is never only in a mailbox.
+  await query(
+    `insert into tasks (couple_id, lane, title, position, created_by)
+     values ($1, 'sabine', $2, coalesce((select max(position) + 1 from tasks where couple_id = $1 and lane = 'sabine'), 1), $3)`,
+    [ctx.couple.id, `Openingsdans-aanvraag opvolgen: ${packageName}`.slice(0, 200), ctx.account.id],
+  );
   if (!ctx.isAdmin) await logActivity(ctx.couple.id, ctx.account.id, `Interesse in een openingsdans (${packageName})`);
   const settings = await getSettings();
   const names = [ctx.couple.partner1_first, ctx.couple.partner2_first].filter((n) => n.trim()).join(" en ") || coupleName(ctx.couple);
   const replyTo = [ctx.couple.partner1_email, ctx.couple.partner2_email, ctx.account.email].find((e) => e && e.includes("@"));
   await sendMail({
-    to: adminNotifyEmail() || settings.contact_email,
+    to: await sabineAddress(),
     replyTo,
     subject: `Interesse in een openingsdans: ${names}`,
     text: [

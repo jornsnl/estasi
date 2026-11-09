@@ -135,6 +135,16 @@ describe("kinderen worden gasten", () => {
     expect(plan.upserts[0]).toMatchObject({ childId: "c1", guestId: null, responseId: "r1", groupId: "day", firstName: "Tim", lastName: "de Vries", attendance: "yes" });
   });
 
+  it("zet kinderen in de groep van wie ze aanmeldde, ook als Sabine die heeft verplaatst", () => {
+    const plan = planChildSync({
+      invitations: [invitation],
+      children: [{ id: "c1", invitation_id: "i1", name: "Tim de Vries", linked_guest_id: null, position: 1 }],
+      responses: [response],
+      guests: [{ ...rsvp("g1", "Jan", "de Vries"), group_id: "family" }],
+    });
+    expect(plan.upserts[0]).toMatchObject({ childId: "c1", groupId: "family" });
+  });
+
   it("koppelt een kind dat al via de RSVP is aangemeld, zodat niemand dubbel telt", () => {
     const plan = planChildSync({
       invitations: [invitation],

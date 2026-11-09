@@ -205,7 +205,7 @@ export default async function RsvpForms({
           <p className="eyebrow">Onderdeel</p>
           <h1 className="mt-1 text-3xl">Gastenlijst & RSVP</h1>
         </div>
-        <GuestTabs coupleId={couple.id} current="formulieren" />
+        <GuestTabs coupleId={couple.id} current="formulieren" isAdmin={isAdmin} />
         <p className="text-sm text-muted">Per gastengroep een of meer formulieren, elk met een eigen link en QR-code voor op de trouwkaart.</p>
       </header>
       <Notice searchParams={searchParams} />

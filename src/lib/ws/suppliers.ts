@@ -1,6 +1,6 @@
 import "server-only";
 import { one, query } from "@/lib/ws/db";
-import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
+import { sabineAddress, appUrl, sendMail } from "@/lib/ws/mail";
 import { coupleName } from "@/lib/ws/format";
 import type { Couple, CoupleSupplier, SupplierStatus } from "@/lib/ws/types";
 
@@ -97,7 +97,7 @@ export async function flushFavoriteMails(olderThanMinutes: number) {
     if (!couple || events.length === 0) continue;
     const list = events.map((e) => `• ${e.rec ?? "(verwijderde aanrader)"}${e.category ? ` (${e.category})` : ""}`).join("\n");
     await sendMail({
-      to: adminNotifyEmail(),
+      to: await sabineAddress(),
       log: { kind: "favorieten", coupleId: couple.id },
       subject: `${coupleName(couple)}: ${events.length === 1 ? "nieuwe favoriet" : `${events.length} nieuwe favorieten`}`,
       text: `${coupleName(couple)} ${events.length === 1 ? "heeft een nieuwe favoriet" : "hebben nieuwe favorieten"} gekozen bij de aanraders:\n\n${list}\n\nBekijken: ${appUrl()}/k/${couple.id}/leveranciers`,

@@ -18,7 +18,7 @@ export default async function InvitationsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { coupleId } = await params;
-  const { couple } = await requirePlanning(coupleId);
+  const { couple, isAdmin } = await requirePlanning(coupleId);
   await syncInvitationChildren(couple.id);
   const [rows, groups] = await Promise.all([invitationsFor(couple.id), groupsOf(couple.id)]);
   const totals = invitationTotals(rows.map((r) => ({ party_size: r.party_size, kids: r.children.length, group_id: r.group_id })), groups);
@@ -33,7 +33,7 @@ export default async function InvitationsPage({
             Wie krijgt een kaart? Eén regel per huishouden. &quot;Gereageerd&quot; gaat vanzelf op ja zodra iemand uit het huishouden het RSVP-formulier invult. Adressen en e-mailadressen zien alleen jullie en Sabine.
           </p>
         </div>
-        <GuestTabs coupleId={couple.id} current="uitnodigingen" />
+        <GuestTabs coupleId={couple.id} current="uitnodigingen" isAdmin={isAdmin} />
       </header>
       <Notice searchParams={searchParams} />
 

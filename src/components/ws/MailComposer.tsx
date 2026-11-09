@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { sendGuestMail } from "@/app/actions/ws-mail";
 import { SubmitButton } from "@/components/SubmitButton";
-import { guestMailText } from "@/lib/ws/mail-format";
+import { MAIL_MAX_CHARS, MAIL_MAX_WORDS, countWords, guestMailText } from "@/lib/ws/mail-format";
 
 interface Recipient {
   id: string;
@@ -19,11 +19,17 @@ export function MailComposer({ coupleId, recipients, closing, from, replyTo }: {
   const [message, setMessage] = useState("");
   const withEmail = list.filter((r) => r.email);
   const sample = withEmail[0] ?? list[0];
+  const words = countWords(message);
+  const tooLong = words > MAIL_MAX_WORDS;
 
   return (
     <form
       action={sendGuestMail}
       onSubmit={(e) => {
+        if (tooLong) {
+          e.preventDefault();
+          return;
+        }
         if (withEmail.length > 1 && !confirm(`${withEmail.length} losse mails versturen?`)) e.preventDefault();
       }}
       className="grid gap-6 lg:grid-cols-2"
@@ -51,8 +57,11 @@ export function MailComposer({ coupleId, recipients, closing, from, replyTo }: {
         </div>
         <div>
           <label className="label" htmlFor="message">Bericht</label>
-          <textarea id="message" name="message" required rows={10} value={message} onChange={(e) => setMessage(e.target.value)} className="input" placeholder={"Lieve [voornaam],\n\n…"} />
-          <p className="mt-1 text-xs text-muted">[voornaam] wordt per gast ingevuld. De afsluiting hieronder komt er altijd onder.</p>
+          <textarea id="message" name="message" required rows={10} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={MAIL_MAX_CHARS} className="input" placeholder={"Lieve [voornaam],\n\n…"} />
+          <p className="mt-1 flex flex-wrap justify-between gap-2 text-xs text-muted">
+            <span>[voornaam] wordt per gast ingevuld. De afsluiting hieronder komt er altijd onder.</span>
+            <span className={tooLong ? "font-medium text-bordeaux" : ""} aria-live="polite">{words} / {MAIL_MAX_WORDS} woorden</span>
+          </p>
         </div>
         <div>
           <p className="label">Vaste afsluiting</p>

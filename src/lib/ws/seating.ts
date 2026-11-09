@@ -55,7 +55,12 @@ export async function seatingState(coupleId: string, layoutId: string): Promise<
               case when g.attendance = 'partial' then coalesce(nullif(g.partial_note, ''), 'Deel van de dag') else '' end as partial,
               coalesce(gg.name, '') as "group"
          from guests g left join guest_groups gg on gg.id = g.group_id
-        where g.couple_id = $1 and g.attendance <> 'no' and g.group_id = any($2::uuid[])
+        where g.couple_id = $1 and g.attendance <> 'no'
+          -- Everyone of one sign-up (Jan + 4 children) counts, also the ones without a group of their own:
+          -- they go with the group of whoever signed them up.
+          and (g.group_id = any($2::uuid[])
+               or (g.group_id is null and g.response_id is not null and exists (
+                     select 1 from guests o where o.couple_id = g.couple_id and o.response_id = g.response_id and o.group_id = any($2::uuid[]))))
           and not ($3 and exists (
                 select 1 from guest_meal_exclusions e join meal_moments m on m.id = e.moment_id
                  where e.guest_id = g.id and m.name ilike 'diner%'))

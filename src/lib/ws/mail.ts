@@ -1,7 +1,7 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
 import { isUuid, one, query, wsConfigured } from "./db";
-import { brandFor, mailError, recipients, resendPayload, toHtml, type Mail, type MailLogInfo } from "./mail-format";
+import { brandFor, mailError, recipients, resendPayload, senderAddress, toHtml, type Mail, type MailLogInfo } from "./mail-format";
 
 export type { Mail, MailLogInfo };
 
@@ -38,7 +38,7 @@ export const mailTransport = (): "resend" | "smtp" | "log" => (resendKey() ? "re
 
 export const mailConfigured = () => mailTransport() !== "log";
 
-const from = () => process.env.MAIL_FROM ?? "Estasi Weddings <sabine@estasiweddings.nl>";
+const from = () => senderAddress(process.env.MAIL_FROM, process.env.MAIL_FROM_NAME || undefined);
 
 /** The sender every mail goes out with. */
 export const mailFrom = from;
@@ -60,7 +60,21 @@ export function appUrl(): string {
   }
 }
 
-export const adminNotifyEmail = () => process.env.ADMIN_NOTIFY_EMAIL ?? "";
+export const adminNotifyEmail = () => (process.env.ADMIN_NOTIFY_EMAIL ?? "").trim();
+
+/**
+ * Where notices for Sabine go (new question, assignment sent in, dance
+ * request...): ADMIN_NOTIFY_EMAIL, else the contact address of the portal
+ * settings. Without the fallback an unset ADMIN_NOTIFY_EMAIL meant those mails
+ * silently went nowhere (feedback: a dance request never arrived).
+ */
+export async function sabineAddress(): Promise<string> {
+  const fromEnv = adminNotifyEmail();
+  if (fromEnv) return fromEnv;
+  if (!wsConfigured()) return "";
+  const row = await one<{ contact_email: string }>("select contact_email from settings where id = true").catch(() => null);
+  return (row?.contact_email ?? "").trim();
+}
 
 async function viaResend(mail: Mail): Promise<void> {
   for (let attempt = 0; ; attempt++) {
@@ -113,7 +127,12 @@ async function deliver(mail: Mail, to: string[]): Promise<Outcome> {
  */
 export async function sendMail(mail: Mail & { log?: MailLogInfo }): Promise<boolean> {
   const to = recipients(mail.to);
-  if (to.length === 0) return false;
+  if (to.length === 0) {
+    // Keep it in the history as failed, so a missing address is seen instead of a mail that silently never left.
+    console.error(`[mail] geen ontvanger voor "${mail.subject}"`);
+    await logMail(mail, [], { ok: false, error: "Geen ontvanger: stel ADMIN_NOTIFY_EMAIL of het contactadres bij de portaalinstellingen in." });
+    return false;
+  }
   const outcome = await deliver({ ...mail, brand: mail.brand ?? brandFor(mail.log?.kind) }, to);
   await logMail(mail, to, outcome);
   return outcome.ok;

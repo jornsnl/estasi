@@ -1,24 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { brandFor, guestMailText, mailClosing, mailError, mailKindLabel, recipients, resendPayload, toHtml } from "@/lib/ws/mail-format";
+import { brandFor, countWords, guestMailText, mailClosing, mailError, mailKindLabel, recipients, resendPayload, senderAddress, toHtml } from "@/lib/ws/mail-format";
 
 describe("mail aan gasten", () => {
   const settings = { contact_name: "Sabine Tillema", business_name: "Estasi Weddings", contact_phone: "0637153899", contact_email: "sabine@estasiweddings.nl" };
   const couple = { partner1_first: "Anna", partner2_first: "Bram" };
   it("signs as ceremoniemeester only with a cm package", () => {
     expect(mailClosing(settings, couple, ["cm", "od"])).toBe(
-      "Met vriendelijke groet,\nSabine Tillema\nCeremoniemeester van Anna en Bram\nEstasi Weddings\n0637153899\nsabine@estasiweddings.nl",
+      "Met vriendelijke groet,\n\nSabine Tillema\nCeremoniemeester van Anna en Bram\nEstasi Weddings\n0637153899\nsabine@estasiweddings.nl",
     );
     expect(mailClosing(settings, couple, ["wp"])).toContain("Weddingplanner van Anna en Bram");
     expect(mailClosing(settings, couple, [])).toContain("Weddingplanner van Anna en Bram");
   });
   it("leaves out empty settings and a missing partner", () => {
     expect(mailClosing({ ...settings, contact_phone: "" }, { partner1_first: "Anna", partner2_first: "" }, ["cm"])).toBe(
-      "Met vriendelijke groet,\nSabine Tillema\nCeremoniemeester van Anna\nEstasi Weddings\nsabine@estasiweddings.nl",
+      "Met vriendelijke groet,\n\nSabine Tillema\nCeremoniemeester van Anna\nEstasi Weddings\nsabine@estasiweddings.nl",
     );
   });
   it("fills in the first name and always ends with the closing", () => {
     expect(guestMailText("Lieve [voornaam],\n\nTot snel!  ", "Groet", "Cor")).toBe("Lieve Cor,\n\nTot snel!\n\nGroet");
     expect(guestMailText("Hoi [Voornaam]", "Groet", "")).toBe("Hoi gast\n\nGroet");
+  });
+  it("always sends as Estasi Weddings, whatever name MAIL_FROM carries", () => {
+    expect(senderAddress("Portal <portal@estasiweddings.nl>")).toBe("Estasi Weddings <portal@estasiweddings.nl>");
+    expect(senderAddress("sabine@estasiweddings.nl")).toBe("Estasi Weddings <sabine@estasiweddings.nl>");
+    expect(senderAddress(' "Portal <noreply@estasiweddings.nl>" ')).toBe("Estasi Weddings <noreply@estasiweddings.nl>");
+    expect(senderAddress(undefined)).toBe("Estasi Weddings <sabine@estasiweddings.nl>");
+    expect(senderAddress("x@estasiweddings.nl", "Sabine van Estasi")).toBe("Sabine van Estasi <x@estasiweddings.nl>");
+  });
+  it("counts words for the 4000 word limit", () => {
+    expect(countWords("")).toBe(0);
+    expect(countWords("  Lieve Cor,\n\nTot snel! ")).toBe(4);
   });
   it("labels kinds and keeps errors short", () => {
     expect(mailKindLabel("rsvp_bevestiging")).toBe("RSVP-bevestiging");

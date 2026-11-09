@@ -93,12 +93,14 @@ export default async function GuestList({
           [couple.id],
         )
       : [],
-    // Feedback 5.5: per sign-up, whether the confirmation mail went out (the latest attempt).
-    query<{ response_id: string; status: "sent" | "failed"; at: Date }>(
-      `select distinct on (response_id) response_id, status, updated_at as at from mail_log
-        where couple_id = $1 and kind = 'rsvp_bevestiging' and response_id is not null order by response_id, created_at desc`,
-      [couple.id],
-    ),
+    // Feedback 5.5: per sign-up, whether the confirmation mail went out (the latest attempt). Mail history is Sabine's only.
+    isAdmin
+      ? query<{ response_id: string; status: "sent" | "failed"; at: Date }>(
+          `select distinct on (response_id) response_id, status, updated_at as at from mail_log
+            where couple_id = $1 and kind = 'rsvp_bevestiging' and response_id is not null order by response_id, created_at desc`,
+          [couple.id],
+        )
+      : [],
   ]);
   const confirmation = new Map(confirmations.map((c) => [c.response_id, c]));
   const mailForm = `/k/${couple.id}/gasten/mail`;
@@ -173,7 +175,7 @@ export default async function GuestList({
           <h1 className="mt-1 text-3xl">Gastenlijst & RSVP</h1>
           <p className="mt-1 text-sm text-muted">Iedereen die zich via een RSVP-formulier aanmeldt, komt hier vanzelf in; ook wie iemand meeneemt krijgt een eigen regel.</p>
         </div>
-        <GuestTabs coupleId={couple.id} current="gasten" />
+        <GuestTabs coupleId={couple.id} current="gasten" isAdmin={isAdmin} />
       </header>
       <Notice searchParams={searchParams} />
 

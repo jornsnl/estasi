@@ -30,7 +30,7 @@ export async function sendTestMail(formData: FormData) {
       "Dit is een testmail vanuit het beheer. Komt deze mail goed aan, dan staat het versturen van e-mail goed ingesteld en zien alle mails er zo uit.",
       `Verstuurd op ${now} via ${mailTransport() === "resend" ? "Resend" : mailTransport() === "smtp" ? "SMTP" : "de serverlog"}, afzender ${mailFrom()}.`,
       `Zo ziet een knop naar een pagina eruit:\n${appUrl()}/beheer`,
-      `Met vriendelijke groet,\n${owner.name || "Estasi Weddings"}`,
+      `Met vriendelijke groet,\n\n${owner.name || "Estasi Weddings"}`,
     ].join("\n\n"),
     log: { kind: "test", sentBy: owner.name },
   });

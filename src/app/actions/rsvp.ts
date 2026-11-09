@@ -7,7 +7,7 @@ import { coupleMembers } from "@/lib/ws/couples";
 import { one, query, tx } from "@/lib/ws/db";
 import { coupleName, formatDate } from "@/lib/ws/format";
 import { syncInvitationChildren } from "@/lib/ws/invitations";
-import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
+import { sabineAddress, appUrl, sendMail } from "@/lib/ws/mail";
 import { fillTemplate, isQuestionVisible, MAX_RELATIONS, publicForm, relationOptions, splitName } from "@/lib/ws/rsvp";
 import { str } from "@/lib/ws/redirect";
 
@@ -152,7 +152,7 @@ export async function submitRsvp(formData: FormData) {
 
   const members = (await coupleMembers(couple.id)).map((m) => m.email);
   await sendMail({
-    to: [adminNotifyEmail(), ...members].filter(Boolean),
+    to: [await sabineAddress(), ...members].filter(Boolean),
     subject: `Nieuwe RSVP (${form.name}) voor ${names}`,
     text: `${summary}\n\nGastenlijst: ${appUrl()}/k/${couple.id}/gasten`,
     log: { kind: "rsvp_melding", coupleId: couple.id, guestId: ids.guestId, responseId: ids.responseId, guestName: `${firstName} ${lastName}` },

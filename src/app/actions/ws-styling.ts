@@ -8,7 +8,7 @@ import { logActivity } from "@/lib/ws/couples";
 import { isUuid, one, query } from "@/lib/ws/db";
 import { deleteFiles, storeUpload, storeUploads, UploadError } from "@/lib/ws/files";
 import { coupleName } from "@/lib/ws/format";
-import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
+import { sabineAddress, appUrl, sendMail } from "@/lib/ws/mail";
 import { moveRow } from "@/lib/ws/order";
 import { claudeSummaryHint, saveStylingProposal, stylingPlaces, stylingSources } from "@/lib/ws/summaries";
 import { done, str } from "@/lib/ws/redirect";
@@ -187,7 +187,7 @@ export async function setSectionDone(coupleId: string, sectionId: string, isDone
       ]);
       await logActivity(ctx.couple.id, ctx.account.id, `Alle onderdelen van ${first.title} afgerond`);
       await sendMail({
-        to: adminNotifyEmail(),
+        to: await sabineAddress(),
         subject: `${coupleName(ctx.couple)} hebben "${first.title}" afgerond`,
         log: { kind: "opdracht", coupleId: ctx.couple.id, sentBy: ctx.account.name },
         text: [

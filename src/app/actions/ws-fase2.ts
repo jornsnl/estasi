@@ -10,7 +10,7 @@ import { copyAssignmentTemplate, logActivity } from "@/lib/ws/couples";
 import { isUuid, one, query, tx } from "@/lib/ws/db";
 import { deleteFiles, storeUpload, storeUploads, UploadError } from "@/lib/ws/files";
 import { coupleName } from "@/lib/ws/format";
-import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
+import { sabineAddress, appUrl, sendMail } from "@/lib/ws/mail";
 import { claudeSummaryHint } from "@/lib/ws/summaries";
 import { dateField, done, str } from "@/lib/ws/redirect";
 
@@ -105,7 +105,7 @@ export async function saveAnswers(formData: FormData) {
     if (!ctx.isAdmin) {
       await logActivity(ctx.couple.id, ctx.account.id, `Opdracht ingestuurd: ${assignment.title}`);
       await sendMail({
-        to: adminNotifyEmail(),
+        to: await sabineAddress(),
         replyTo: ctx.account.email,
         subject: `${coupleName(ctx.couple)} heeft "${assignment.title}" ingevuld`,
         log: { kind: "opdracht", coupleId: ctx.couple.id, sentBy: ctx.account.name },

@@ -196,17 +196,31 @@ export function mailClosing(
 ): string {
   const names = [couple.partner1_first, couple.partner2_first].map((n) => n.trim()).filter(Boolean).join(" en ");
   const role = kinds.includes("cm") ? "Ceremoniemeester" : "Weddingplanner";
-  return [
-    "Met vriendelijke groet,",
-    settings.contact_name,
-    names ? `${role} van ${names}` : role,
-    settings.business_name,
-    settings.contact_phone,
-    settings.contact_email,
-  ]
+  const signature = [settings.contact_name, names ? `${role} van ${names}` : role, settings.business_name, settings.contact_phone, settings.contact_email]
     .map((l) => l.trim())
     .filter(Boolean)
     .join("\n");
+  // A blank line between the greeting and the name, as Sabine signs her own mails.
+  return `Met vriendelijke groet,\n\n${signature}`;
+}
+
+/** The longest mail Sabine can send (feedback: mails of up to 4000 words). */
+export const MAIL_MAX_WORDS = 4000;
+/** Characters allowed alongside the word limit: 4000 long Dutch words with spaces fit easily. */
+export const MAIL_MAX_CHARS = 60_000;
+
+export const countWords = (text: string) => (text.trim() ? text.trim().split(/\s+/).length : 0);
+
+/**
+ * The sender as guests see it. MAIL_FROM may be a bare address or carry a
+ * technical name ("Portal"); guests must always see "Estasi Weddings", or the
+ * mail looks like spam (feedback). MAIL_FROM_NAME overrides the name.
+ */
+export function senderAddress(raw: string | undefined, name = "Estasi Weddings"): string {
+  const value = (raw ?? "").trim().replace(/^["']|["']$/g, "").trim();
+  const address = value.match(/<\s*([^<>\s]+@[^<>\s]+)\s*>/)?.[1] ?? (/^[^\s<>]+@[^\s<>]+$/.test(value) ? value : "sabine@estasiweddings.nl");
+  const display = name.trim().replace(/["<>]/g, "") || "Estasi Weddings";
+  return `${display} <${address}>`;
 }
 
 /** A message to one guest: [voornaam] filled in, the closing always at the bottom. */

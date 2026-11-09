@@ -7,6 +7,7 @@ import { isUuid, one, query } from "@/lib/ws/db";
 import { deleteFiles, storeUpload, UploadError } from "@/lib/ws/files";
 import { moveRow } from "@/lib/ws/order";
 import { done, str } from "@/lib/ws/redirect";
+import { MAIL_MAX_CHARS } from "@/lib/ws/mail-format";
 import { defaultTexts, type QuestionKind } from "@/lib/ws/rsvp";
 import { getSettings } from "@/lib/ws/settings";
 
@@ -108,8 +109,8 @@ export async function saveForm(formData: FormData) {
     [
       formId, ctx.couple.id, name, groupId, str(formData, "intro", 5000), formData.get("askPartOfDay") === "on", formData.get("askDiet") === "on",
       formData.get("askDresscode") === "on", str(formData, "dresscode", 300), str(formData, "dresscodeNote", 2000),
-      str(formData, "confirmationSubject", 300), str(formData, "confirmationText", 10_000), str(formData, "declineSubject", 300),
-      str(formData, "declineText", 10_000), HEX.test(str(formData, "qrColor", 7)) ? str(formData, "qrColor", 7) : "#2c2c2c",
+      str(formData, "confirmationSubject", 300), str(formData, "confirmationText", MAIL_MAX_CHARS), str(formData, "declineSubject", 300),
+      str(formData, "declineText", MAIL_MAX_CHARS), HEX.test(str(formData, "qrColor", 7)) ? str(formData, "qrColor", 7) : "#2c2c2c",
       HEX.test(str(formData, "qrBackground", 7)) ? str(formData, "qrBackground", 7) : "#ffffff", formData.get("open") === "on",
     ],
   );
@@ -221,11 +222,20 @@ export async function saveGuest(formData: FormData) {
     str(formData, "notes", 1000), groupId,
   ];
   if (guestId) {
+    const before = await one<{ group_id: string | null; response_id: string | null }>("select group_id, response_id from guests where id = $1 and couple_id = $2", [guestId, ctx.couple.id]);
     await query(
       `update guests set first_name = $3, last_name = $4, relation = $5, email = $6, phone = $7, diet = $8, attendance = $9,
               partial_note = $10, is_kid = $11, notes = $12, group_id = $13 where id = $1 and couple_id = $2`,
       [guestId, ctx.couple.id, ...fields],
     );
+    // Feedback: someone who signed up with others (Jan + 4 children) moves to another group together with them,
+    // or only Jan shows up under "Te plaatsen" in a seating layout of that group.
+    if (before?.response_id && before.group_id !== groupId) {
+      await query(
+        `update guests set group_id = $4 where couple_id = $1 and response_id = $2 and id <> $3 and group_id is not distinct from $5`,
+        [ctx.couple.id, before.response_id, guestId, groupId, before.group_id],
+      );
+    }
     done(back, "Gast opgeslagen.");
   }
   await query(

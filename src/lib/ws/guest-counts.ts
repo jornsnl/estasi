@@ -134,6 +134,8 @@ export interface SyncGuest {
   last_name: string;
   is_kid: boolean;
   invitation_child_id: string | null;
+  /** The group the guest is in now; children follow whoever signed them up. Optional for older callers. */
+  group_id?: string | null;
 }
 export interface SyncInvitation {
   id: string;
@@ -220,7 +222,9 @@ export function planChildSync(input: {
         guestId: made?.id ?? null,
         responseId: coming.id,
         formId: coming.form_id,
-        groupId: inv.group_id ?? coming.group_id,
+        // The group of whoever signed the household up, as Sabine may have moved them since:
+        // otherwise the children end up in another group and not under "Te plaatsen" with their parent.
+        groupId: rsvpGuests.find((g) => g.group_id)?.group_id ?? inv.group_id ?? coming.group_id,
         firstName,
         lastName,
         attendance: coming.attending,

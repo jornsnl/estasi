@@ -5,7 +5,7 @@ import { requireCouple, requireCoupleAdmin, type CoupleContext } from "@/lib/ws/
 import { coupleMembers, logActivity } from "@/lib/ws/couples";
 import { deleteFiles, storeUpload, UploadError } from "@/lib/ws/files";
 import { coupleName, formatDate, LANES } from "@/lib/ws/format";
-import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
+import { sabineAddress, appUrl, sendMail } from "@/lib/ws/mail";
 import { dateField, done, str } from "@/lib/ws/redirect";
 import type { Lane } from "@/lib/ws/types";
 
@@ -73,7 +73,7 @@ export async function askQuestion(formData: FormData) {
   await note(ctx, "Nieuwe vraag gesteld");
   if (!ctx.isAdmin) {
     await sendMail({
-      to: adminNotifyEmail(),
+      to: await sabineAddress(),
       replyTo: ctx.account.email,
       subject: `Nieuwe vraag van ${coupleName(ctx.couple)}`,
       log: { kind: "vraag", coupleId: ctx.couple.id, sentBy: ctx.account.name },

@@ -1,13 +1,14 @@
 import Link from "next/link";
 
 /** The tabs of "Gastenlijst & RSVP". */
-export function GuestTabs({ coupleId, current }: { coupleId: string; current: "gasten" | "uitnodigingen" | "formulieren" | "mails" }) {
+export function GuestTabs({ coupleId, current, isAdmin = false }: { coupleId: string; current: "gasten" | "uitnodigingen" | "formulieren" | "mails"; isAdmin?: boolean }) {
   const base = `/k/${coupleId}/gasten`;
   const tabs = [
     { key: "gasten", href: base, label: "Gastenlijst" },
     { key: "uitnodigingen", href: `${base}/uitnodigingen`, label: "Uitnodigingslijst" },
     { key: "formulieren", href: `${base}/formulieren`, label: "Formulieren & QR-codes" },
-    { key: "mails", href: `${base}/mails`, label: "Mailgeschiedenis" },
+    // The mail history is for Sabine only (feedback).
+    ...(isAdmin ? [{ key: "mails", href: `${base}/mails`, label: "Mailgeschiedenis" }] : []),
   ];
   return (
     <nav aria-label="Gastenlijst & RSVP" className="flex flex-wrap gap-2 text-sm">

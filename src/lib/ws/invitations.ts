@@ -60,7 +60,7 @@ export async function syncInvitationChildren(coupleId: string): Promise<void> {
          from rsvp_responses r left join rsvp_forms f on f.id = r.form_id where r.couple_id = $1`,
       [coupleId],
     ),
-    query<SyncGuest>("select id, response_id, first_name, last_name, is_kid, invitation_child_id from guests where couple_id = $1", [coupleId]),
+    query<SyncGuest>("select id, response_id, first_name, last_name, is_kid, invitation_child_id, group_id from guests where couple_id = $1 order by created_at", [coupleId]),
   ]);
   const plan = planChildSync({
     invitations: rows.map((r) => ({ id: r.id, names: r.names, group_id: r.group_id, response_id: r.responded === "yes" ? r.match_id : null })),
