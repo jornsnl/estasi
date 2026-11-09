@@ -13,7 +13,7 @@ import { aiConfigured } from "@/lib/ws/ai";
 import { readPalette } from "@/lib/ws/color";
 import { one, query } from "@/lib/ws/db";
 import { directUploads } from "@/lib/ws/files";
-import { formatDateTime } from "@/lib/ws/format";
+import { coupleName, formatDateTime } from "@/lib/ws/format";
 import { peopleFor } from "@/lib/ws/runsheet";
 import { stylingPlaces } from "@/lib/ws/styling";
 
@@ -153,7 +153,7 @@ export default async function Styling({
         <section id="uitwerken" className="card scroll-mt-6 space-y-4 p-6">
           <h2 className="text-xl">Stylingplan uitwerken</h2>
           <div className="rounded-xl bg-cream p-4 text-sm">
-            <p className="font-medium">Samenvatting maken met AI</p>
+            <p className="font-medium">Samenvatting maken met {aiConfigured() ? "AI" : "Claude"}</p>
             <p className="mt-1 text-muted">
               Maakt van de antwoorden uit {source ? `"${source.title}"` : "de opdracht"} een overzicht van stijl, sfeer, kleuren en materialen, plus per plek een voorstel voor stylingitems. Alles komt als concept hierin; het bruidspaar ziet het pas na &quot;Vrijgeven&quot;.
               {source?.kind === "sections" && source.done < source.total ? ` Let op: nog ${source.total - source.done} van de ${source.total} opdrachten open.` : ""}
@@ -161,7 +161,9 @@ export default async function Styling({
             {aiConfigured() ? (
               <StylingSummaryButton coupleId={couple.id} hasSummary={Boolean(plan?.ai_draft)} lastError={plan?.ai_error || undefined} />
             ) : (
-              <p className="mt-2 text-xs text-bordeaux">Staat uit: zet ANTHROPIC_API_KEY in de hosting om dit te gebruiken. Het bruidspaar ziet intussen &quot;De samenvatting is binnenkort beschikbaar.&quot;</p>
+              <p className="mt-2 text-xs text-muted">
+                Maak de samenvatting met Claude via de koppeling (MCP): vraag bijvoorbeeld &quot;Maak de samenvatting van {source?.title ?? "Thema & Styling"} voor {coupleName(couple)}&quot;. Claude zet het concept hier neer. Het bruidspaar ziet intussen &quot;De samenvatting is binnenkort beschikbaar.&quot;
+              </p>
             )}
           </div>
           {plan?.ai_draft && (

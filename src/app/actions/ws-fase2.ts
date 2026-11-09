@@ -11,6 +11,7 @@ import { isUuid, one, query, tx } from "@/lib/ws/db";
 import { deleteFiles, storeUpload, storeUploads, UploadError } from "@/lib/ws/files";
 import { coupleName } from "@/lib/ws/format";
 import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
+import { claudeSummaryHint } from "@/lib/ws/summaries";
 import { dateField, done, str } from "@/lib/ws/redirect";
 
 const portal = (coupleId: string, sub = "") => `/k/${coupleId}${sub}`;
@@ -72,8 +73,8 @@ export async function saveAnswers(formData: FormData) {
   const assignmentId = id(formData, "assignmentId");
   const back = portal(ctx.couple.id, `/opdrachten/${assignmentId}`);
   const assignment = assignmentId
-    ? await one<{ id: string; title: string; submitted_at: Date | null; visible_from: string | null; budget: boolean }>(
-        "select id, title, submitted_at, visible_from, budget from assignments where id = $1 and couple_id = $2",
+    ? await one<{ id: string; title: string; submitted_at: Date | null; visible_from: string | null; budget: boolean; styling_source: boolean }>(
+        "select id, title, submitted_at, visible_from, budget, styling_source from assignments where id = $1 and couple_id = $2",
         [assignmentId, ctx.couple.id],
       )
     : null;
@@ -108,10 +109,14 @@ export async function saveAnswers(formData: FormData) {
         replyTo: ctx.account.email,
         subject: `${coupleName(ctx.couple)} heeft "${assignment.title}" ingevuld`,
         log: { kind: "opdracht", coupleId: ctx.couple.id, sentBy: ctx.account.name },
-        text: `${ctx.account.name} heeft de opdracht "${assignment.title}" ingestuurd.\n\nBekijken: ${appUrl()}${back}`,
+        text: [
+          `${ctx.account.name} heeft de opdracht "${assignment.title}" ingestuurd.`,
+          `Bekijken:\n${appUrl()}${back}`,
+          aiConfigured() ? "" : claudeSummaryHint(coupleName(ctx.couple), assignment.title, assignment.styling_source),
+        ].filter(Boolean).join("\n\n"),
       });
     }
-    const sent = aiConfigured() ? "De samenvatting staat hier over een minuutje." : "Sabine krijgt er een melding van.";
+    const sent = aiConfigured() ? "De samenvatting staat hier over een minuutje." : "Sabine krijgt er een melding van en maakt de samenvatting.";
     done(back, budgetSaved ? `Opgeslagen en bijgewerkt in Kosten, en ingestuurd. ${sent}` : `Ingestuurd. ${sent}`);
   }
   await note(ctx, `Opdracht bijgewerkt: ${assignment.title}`);

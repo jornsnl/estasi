@@ -202,6 +202,14 @@ Tools (de lijst met uitleg staat ook op het profiel):
 * **Academy, wijzigen**: feedback geven, interne notities, toegang (verlengen, einddatum, pauzeren, hervatten, intrekken, herstellen), afronding bevestigen, certificaat vrijgeven en praktijkstatus
 * **Your Wedding Space, lezen** (als `DATABASE_URL` is ingesteld): bruidsparen, één bruidspaar, takenbord (ook Sabine's eigen bord), vragen, agenda (afspraken, deadlines, meetings en bruiloften), meetings, leveranciers, kosten en budget, RSVP, draaiboek, activiteit, pakketten
 * **Your Wedding Space, wijzigen**: taak toevoegen, taak afvinken, vraag beantwoorden (met e-mail aan het bruidspaar), afspraak of deadline toevoegen, meeting bijwerken
+* **Samenvattingen van opdrachten**: opdrachten om samen te vatten, één opdracht met antwoorden, de antwoorden voor de stylingsamenvatting (lezen); samenvatting van een opdracht opslaan en stylingsamenvatting opslaan als concept (wijzigen)
+
+**Samenvattingen met Claude via MCP.** Zonder `ANTHROPIC_API_KEY` maakt Sabine de samenvattingen met haar eigen Claude, dus zonder API-kosten voor de app. Stuurt een bruidspaar een opdracht in (Versturen) of rondt het alle onderdelen van Thema & Styling af, dan krijgt Sabine een mail met de zin die ze aan Claude kan vragen, bijvoorbeeld *"Maak de samenvatting van Thema & Styling voor Anna en Bram."* Claude zoekt de opdracht op (`ws_list_assignments_to_summarise`), leest de antwoorden (`ws_get_styling_input` of `ws_get_assignment`), schrijft de samenvatting volgens de uitleg in die tools en zet hem in het portaal:
+* Stylingopdrachten (Thema & Styling, Thema & Moodboard): met `ws_save_styling_summary` als concept op de pagina Styling, met kleurenpalet en per plek voorgestelde items. Alleen Sabine ziet het tot zij het vrijgeeft
+* Andere opdrachten: met `ws_save_assignment_summary` bij de opdracht; het bruidspaar ziet hem daar ook
+* Elke opgeslagen samenvatting komt in de activiteit van het bruidspaar ("Samenvatting ... gemaakt met Claude"). Schrijven moet aan staan voor de verbinding
+
+Met `ANTHROPIC_API_KEY` werkt het zoals eerst: de app maakt de samenvatting zelf via de API en de mail zegt dat hij klaarstaat. Gedeelde code: `src/lib/ws/summaries.ts`, tools in `src/lib/mcp/tools/summaries.ts`, getest in `tests/ws-summaries-db.test.ts` (met `TEST_DATABASE_URL`).
 
 Code: `src/lib/oauth/` (autorisatieserver), `src/lib/mcp/` (protocol en tools), `src/app/api/mcp/route.ts`, tabellen `mcp_settings`, `oauth_clients`, `oauth_codes` en `oauth_grants` (migratie `0016`).
 

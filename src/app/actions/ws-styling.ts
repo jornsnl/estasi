@@ -3,14 +3,14 @@
 import { requireOwner } from "@/lib/auth/session";
 import { requireCouple, requireCoupleAdmin, type CoupleContext } from "@/lib/ws/access";
 import { after } from "next/server";
-import { aiConfigured, aiErrorMessage, stylingSummary, type QA } from "@/lib/ws/ai";
-import { sectionQA, sectionsFor } from "@/lib/ws/assignments";
+import { aiConfigured, aiErrorMessage, stylingSummary } from "@/lib/ws/ai";
 import { logActivity } from "@/lib/ws/couples";
-import { isUuid, one, query, tx } from "@/lib/ws/db";
+import { isUuid, one, query } from "@/lib/ws/db";
 import { deleteFiles, storeUpload, storeUploads, UploadError } from "@/lib/ws/files";
 import { coupleName } from "@/lib/ws/format";
 import { adminNotifyEmail, appUrl, sendMail } from "@/lib/ws/mail";
 import { moveRow } from "@/lib/ws/order";
+import { claudeSummaryHint, saveStylingProposal, stylingPlaces, stylingSources } from "@/lib/ws/summaries";
 import { done, str } from "@/lib/ws/redirect";
 
 /**
@@ -180,6 +180,7 @@ export async function setSectionDone(coupleId: string, sectionId: string, isDone
       [section.assignment_id],
     );
     if (first && !ctx.isAdmin) {
+      const isStyling = Boolean(await one("select 1 from assignments where id = $1 and styling_source", [section.assignment_id]));
       const link = `/k/${ctx.couple.id}/opdrachten/${section.assignment_id}`;
       await query("insert into admin_notices (couple_id, text, link) values ($1, $2, $3)", [
         ctx.couple.id, `${coupleName(ctx.couple)} hebben alle onderdelen van "${first.title}" afgerond`, link,
@@ -189,20 +190,22 @@ export async function setSectionDone(coupleId: string, sectionId: string, isDone
         to: adminNotifyEmail(),
         subject: `${coupleName(ctx.couple)} hebben "${first.title}" afgerond`,
         log: { kind: "opdracht", coupleId: ctx.couple.id, sentBy: ctx.account.name },
-        text: `${coupleName(ctx.couple)} hebben alle opdrachten van "${first.title}" afgerond.\n\nBekijken: ${appUrl()}${link}\n\n${
-          aiConfigured()
-            ? "Op de pagina Styling staat zo een eerste samenvatting als concept klaar; alleen jij ziet die tot je hem vrijgeeft."
-            : 'Op de pagina Styling kun je met "Samenvatting vernieuwen" een eerste opzet laten maken.'
-        }`,
+        text: [
+          `${coupleName(ctx.couple)} hebben alle opdrachten van "${first.title}" afgerond.`,
+          `Bekijken:\n${appUrl()}${link}`,
+          !isStyling
+            ? ""
+            : aiConfigured()
+              ? "Op de pagina Styling staat zo een eerste samenvatting als concept klaar; alleen jij ziet die tot je hem vrijgeeft."
+              : claudeSummaryHint(coupleName(ctx.couple), first.title, true),
+        ].filter(Boolean).join("\n\n"),
       });
       // A first draft right away, after the response, when there is none yet and this was the styling assignment.
       const coupleId = ctx.couple.id;
-      const assignmentId = section.assignment_id;
-      if (aiConfigured()) {
+      if (aiConfigured() && isStyling) {
         after(async () => {
-          const source = await one<{ id: string }>("select id from assignments where id = $1 and styling_source", [assignmentId]);
           const plan = await one<{ ai_draft: string }>("select ai_draft from styling_plans where couple_id = $1", [coupleId]);
-          if (source && !plan?.ai_draft) await runStylingSummary(coupleId);
+          if (!plan?.ai_draft) await runStylingSummary(coupleId);
         });
       }
     }
@@ -221,19 +224,9 @@ type SummaryResult = { ok: true; count: number } | { ok: false; error: string; e
  * the reason is kept (ai_error) for Sabine; the couple never sees it.
  */
 async function runStylingSummary(coupleId: string): Promise<SummaryResult> {
-  const sources = await query<{ id: string; title: string; kind: string }>(
-    "select id, title, kind from assignments where couple_id = $1 and styling_source order by position",
-    [coupleId],
-  );
-  const filled: { title: string; items: QA[] }[] = [];
-  for (const s of sources) {
-    const items = s.kind === "sections"
-      ? sectionQA(await sectionsFor(s.id))
-      : await query<QA>("select prompt, answer from assignment_questions where assignment_id = $1 order by position", [s.id]);
-    if (items.some((i) => i.answer.trim())) filled.push({ title: s.title, items });
-  }
+  const filled = await stylingSources(coupleId);
   if (filled.length === 0) return { ok: false, empty: true, error: "Er zijn nog geen antwoorden op de opdracht Thema & Styling om samen te vatten." };
-  const places = await query<{ id: string; name: string }>("select id, name from styling_places where couple_id = $1 order by position", [coupleId]);
+  const places = await stylingPlaces(coupleId);
   let proposal;
   try {
     if (!aiConfigured()) throw new Error("not configured");
@@ -249,28 +242,8 @@ async function runStylingSummary(coupleId: string): Promise<SummaryResult> {
     );
     return { ok: false, error };
   }
-  await tx(async (db) => {
-    await query(
-      `insert into styling_plans (couple_id, ai_draft, ai_draft_at, colors, ai_error) values ($1, $2, now(), $3::jsonb, '')
-       on conflict (couple_id) do update set ai_draft = excluded.ai_draft, ai_draft_at = now(), ai_error = '',
-         colors = case when jsonb_array_length(styling_plans.colors) = 0 then excluded.colors else styling_plans.colors end`,
-      [coupleId, proposal.summary, JSON.stringify(proposal.colors)],
-      db,
-    );
-    // A new summary replaces the previous proposals that were never released.
-    await query("delete from styling_items where couple_id = $1 and draft", [coupleId], db);
-    for (const item of proposal.items) {
-      const place = places.find((p) => p.name === item.place);
-      if (!place) continue;
-      await query(
-        `insert into styling_items (couple_id, place_id, what, draft, position)
-         values ($1, $2, $3, true, (select coalesce(max(position), 0) + 1 from styling_items where place_id = $2))`,
-        [coupleId, place.id, item.what],
-        db,
-      );
-    }
-  });
-  return { ok: true, count: proposal.items.length };
+  const { count } = await saveStylingProposal(coupleId, proposal);
+  return { ok: true, count };
 }
 
 /** "Samenvatting vernieuwen" (Sabine): returns a message for the button instead of a redirect. */

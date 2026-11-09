@@ -12,7 +12,7 @@ import { BudgetPlanner } from "@/components/ws/BudgetPlanner";
 import { costLines } from "@/lib/ws/costs";
 import { query } from "@/lib/ws/db";
 import { directUploads } from "@/lib/ws/files";
-import { formatDateTime } from "@/lib/ws/format";
+import { coupleName, formatDateTime } from "@/lib/ws/format";
 
 export const metadata = { title: "Opdracht" };
 
@@ -52,12 +52,18 @@ export default async function AssignmentPage({
           {assignment.ai_summary ? (
             <>
               <p className="mt-2 text-sm whitespace-pre-line">{assignment.ai_summary}</p>
-              <p className="mt-2 text-xs text-muted">Automatisch samengevat{assignment.ai_summary_at ? ` op ${formatDateTime(assignment.ai_summary_at)}` : ""}{isAdmin ? "; je kunt hem hieronder aanpassen." : "."}</p>
+              <p className="mt-2 text-xs text-muted">Samengevat{assignment.ai_summary_at ? ` op ${formatDateTime(assignment.ai_summary_at)}` : ""}{isAdmin ? "; je kunt hem hieronder aanpassen." : "."}</p>
             </>
           ) : assignment.ai_error && isAdmin ? (
             <p className="mt-2 text-sm text-bordeaux">Samenvatten is niet gelukt: {assignment.ai_error}</p>
           ) : (
-            <p className="mt-2 text-sm text-muted">{aiConfigured() ? "De samenvatting wordt gemaakt. Ververs de pagina over een minuutje." : "Sabine leest jullie antwoorden en neemt ze mee in jullie volgende gesprek."}</p>
+            <p className="mt-2 text-sm text-muted">
+              {aiConfigured()
+                ? "De samenvatting wordt gemaakt. Ververs de pagina over een minuutje."
+                : isAdmin
+                  ? `Nog geen samenvatting. Vraag Claude via de koppeling (MCP): "Maak de samenvatting van ${assignment.title} voor ${coupleName(couple)}." Claude zet hem hier neer.`
+                  : "Sabine leest jullie antwoorden en neemt ze mee in jullie volgende gesprek."}
+            </p>
           )}
           {isAdmin && (
             <details className="mt-3">
