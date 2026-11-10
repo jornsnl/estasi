@@ -5,7 +5,7 @@ import type { MessageView } from "@/lib/community/server";
 import { formatDateTime } from "@/lib/util/format";
 import { AttachmentPicker } from "./AttachmentPicker";
 import { AutoRefresh } from "./AutoRefresh";
-import { Attachments, PlainText, VideoLink } from "./Content";
+import { Attachments, Avatar, PlainText, VideoLink } from "./Content";
 
 /** One private conversation between Sabine and a student, as either of them sees it. */
 export function Conversation({
@@ -33,8 +33,10 @@ export function Conversation({
         {messages.map((message) => {
           const mine = message.author.id === viewerId;
           return (
-            <li key={message.id} id={`pb-${message.id}`} className={`flex scroll-mt-20 ${mine ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[88%] rounded-2xl px-4 py-3 sm:max-w-[75%] ${mine ? "bg-bordeaux-soft" : "border border-line bg-cream"}`}>
+            <li key={message.id} id={`pb-${message.id}`} className={`flex scroll-mt-20 items-end gap-2 ${mine ? "flex-row-reverse" : ""}`}>
+              {/* Feedback Sabine: the profile photo of the writer next to every message. */}
+              <Avatar name={message.author.name} owner={message.author.role === "owner"} userId={message.author.id} photoFileId={message.author.photoFileId} />
+              <div className={`max-w-[80%] rounded-2xl px-4 py-3 sm:max-w-[72%] ${mine ? "bg-bordeaux-soft" : "border border-line bg-cream"}`}>
                 <p className="text-xs text-muted">
                   <span className="font-medium text-ink">{mine ? "Jij" : message.author.name}</span> · {formatDateTime(message.createdAt)}
                   {mine && message.readAt && " · gelezen"}

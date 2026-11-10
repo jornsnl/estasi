@@ -15,10 +15,10 @@ import {
 import { Badge } from "@/components/Badge";
 import { MoveButtons } from "@/components/MoveButtons";
 import { Notice } from "@/components/Notice";
+import { PhotoInput } from "@/components/PhotoInput";
 import { SubmitButton } from "@/components/SubmitButton";
 import { getStore, type ModulePackages } from "@/lib/data";
 import { isContentBlock } from "@/lib/domain/blocks";
-import { IMAGE_ACCEPT_ATTR } from "@/lib/uploads";
 import { LIMITS } from "@/lib/domain/input";
 import { editableContent, hasPendingChanges } from "@/lib/domain/publishing";
 import { isPublished, MODULE_PACKAGE_LABELS, MODULE_PACKAGE_OPTIONS } from "@/lib/domain/visibility";
@@ -85,8 +85,8 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
                           <img src={`/api/bestanden/${module.imageFileId}`} alt="" className="h-20 w-20 rounded-2xl border border-line object-cover" />
                         )}
                         <div className="space-y-1">
-                          <label className="label" htmlFor={`image-${module.id}`}>{module.imageFileId ? "Andere foto kiezen" : "Foto voor de moduletegel"} (jpg, png, webp)</label>
-                          <input id={`image-${module.id}`} type="file" name="image" accept={IMAGE_ACCEPT_ATTR} className="text-sm" />
+                          <p className="label">{module.imageFileId ? "Andere foto kiezen" : "Foto voor de moduletegel"} (jpg, png, webp)</p>
+                          <PhotoInput name="image" label={`Foto voor ${module.title} kiezen`} />
                           {module.imageFileId && (
                             <label className="flex items-center gap-2 text-xs text-muted"><input type="checkbox" name="removeImage" /> Foto weghalen</label>
                           )}

@@ -1,10 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireStudent } from "@/lib/auth/session";
+import { requireOwner, requireStudent } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
 import { LIMITS, normaliseUrl } from "@/lib/domain/input";
-import { storeUpload, UploadError } from "@/lib/uploads";
+import { storeImageUpload, UploadError } from "@/lib/uploads";
 
 const field = (formData: FormData, name: string, max = 500) => String(formData.get(name) ?? "").trim().slice(0, max);
 
@@ -17,11 +17,9 @@ export async function saveProfile(formData: FormData) {
   let photoFileId = current?.photoFileId ?? null;
   let photoError: string | null = null;
   try {
-    const photo = await storeUpload(formData.get("photo"), { belongsTo: user.id, uploadedBy: user.id });
-    if (photo) {
-      if (!photo.mime.startsWith("image/")) throw new UploadError("Kies een afbeelding als profielfoto.");
-      photoFileId = photo.id;
-    }
+    // Only pictures every browser shows (a HEIC from an iPhone is turned into a JPG in the browser first).
+    const photo = await storeImageUpload(formData.get("photo"), user.id, user.id);
+    if (photo) photoFileId = photo.id;
   } catch (err) {
     if (!(err instanceof UploadError)) throw err;
     photoError = err.message;
@@ -47,4 +45,34 @@ export async function saveProfile(formData: FormData) {
     redirect(`/profiel?fout=${encodeURIComponent(`Je gegevens zijn opgeslagen, maar de foto niet: ${photoError}`)}`);
   }
   redirect(`/profiel?melding=${encodeURIComponent("Je profiel is opgeslagen.")}`);
+}
+
+/** Sabine's own profile photo (Beheer, Profiel): shown with her messages in the community and the private chat. */
+export async function saveOwnerPhoto(formData: FormData) {
+  const owner = await requireOwner();
+  const store = getStore();
+  const current = await store.getProfile(owner.id);
+  let photoFileId = current?.photoFileId ?? null;
+  const back = (key: "melding" | "fout", text: string): never => redirect(`/beheer/profiel?${key}=${encodeURIComponent(text)}#profielfoto`);
+  try {
+    const photo = await storeImageUpload(formData.get("photo"), owner.id, owner.id);
+    if (photo) photoFileId = photo.id;
+  } catch (err) {
+    if (!(err instanceof UploadError)) throw err;
+    back("fout", err.message);
+  }
+  if (formData.get("removePhoto") === "on") photoFileId = null;
+  await store.saveProfile({
+    userId: owner.id,
+    phone: current?.phone ?? "",
+    city: current?.city ?? "",
+    companyName: current?.companyName ?? "",
+    photoFileId,
+    instagram: current?.instagram ?? "",
+    website: current?.website ?? "",
+    intro: current?.intro ?? "",
+    goals: current?.goals ?? "",
+    updatedAt: new Date().toISOString(),
+  });
+  back("melding", "Profielfoto opgeslagen.");
 }

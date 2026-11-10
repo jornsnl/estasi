@@ -18,6 +18,7 @@ export function LeadFields({ lead, compact = false }: { lead?: Lead; compact?: b
       {field("partnerName", "Partner", <input id="partnerName" name="partnerName" defaultValue={lead?.partner_name ?? ""} className="input" />)}
       {field("email", "E-mail", <input id="email" name="email" type="email" defaultValue={lead?.email ?? ""} className="input" />)}
       {field("phone", "Telefoon", <input id="phone" name="phone" type="tel" defaultValue={lead?.phone ?? ""} className="input" />)}
+      {field("instagram", "Instagram", <input id="instagram" name="instagram" defaultValue={lead?.instagram ?? ""} placeholder="@naam" className="input" />)}
       {field(
         "interest",
         "Interesse",
@@ -31,6 +32,12 @@ export function LeadFields({ lead, compact = false }: { lead?: Lead; compact?: b
         <select id="source" name="source" defaultValue={lead?.source ?? "handmatig"} className="input">
           {SOURCES.map((s) => <option key={s} value={s}>{SOURCE_LABELS[s]}</option>)}
         </select>,
+      )}
+      {field(
+        "sourceNote",
+        "Waar komt het contact vandaan?",
+        <input id="sourceNote" name="sourceNote" defaultValue={lead?.source_note ?? ""} maxLength={300} placeholder="Bijv. Bruidsbeurs oktober 2026 of Bericht via Instagram" className="input" />,
+        true,
       )}
       {field("weddingDate", "Trouwdatum", <input id="weddingDate" name="weddingDate" type="date" defaultValue={lead?.wedding_date ?? ""} className="input" />)}
       {field("location", "Trouwlocatie", <input id="location" name="location" defaultValue={lead?.location ?? ""} className="input" />)}

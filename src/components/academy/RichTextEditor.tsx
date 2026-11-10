@@ -11,6 +11,7 @@ import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/r
 import StarterKit from "@tiptap/starter-kit";
 import { useEffect, useRef, useState } from "react";
 import { uploadLessonImage } from "@/app/actions/content";
+import { shrinkPhoto } from "@/lib/shrink-photo";
 
 /**
  * Text editor for lesson text (TipTap). Writes HTML into a hidden form field
@@ -81,8 +82,15 @@ export function RichTextEditor({
     setError("");
     setUploading(true);
     const data = new FormData();
-    data.set("file", file);
-    const result = await uploadLessonImage(data);
+    try {
+      // Large photos first made smaller, so they always fit through the upload.
+      data.set("file", await shrinkPhoto(file));
+    } catch (err) {
+      setUploading(false);
+      setError((err as Error).message);
+      return;
+    }
+    const result = await uploadLessonImage(data).catch(() => ({ ok: false as const, error: "Het uploaden is niet gelukt. Probeer het nog een keer." }));
     setUploading(false);
     if (!result.ok) {
       setError(result.error);
@@ -106,7 +114,7 @@ export function RichTextEditor({
       <input
         ref={fileInput}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/heic,.heic"
         className="hidden"
         aria-hidden="true"
         tabIndex={-1}

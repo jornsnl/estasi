@@ -1,5 +1,6 @@
 import { saveBrandLogosAction } from "@/app/actions/content";
 import { Notice } from "@/components/Notice";
+import { PhotoInput } from "@/components/PhotoInput";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireOwner } from "@/lib/auth/session";
@@ -37,7 +38,7 @@ export default async function LogoSettings({ searchParams }: { searchParams: Pro
               <div className="space-y-2">
                 <h2 className="text-2xl">{LOGO_LABELS[kind]}</h2>
                 <p className="text-sm text-muted">{WHERE[kind]}</p>
-                <input type="file" name={kind} accept={BRAND_LOGO_ACCEPT_ATTR} aria-label={`${LOGO_LABELS[kind]} kiezen`} className="block text-sm" />
+                <PhotoInput name={kind} label={`${LOGO_LABELS[kind]} kiezen`} accept={BRAND_LOGO_ACCEPT_ATTR} shrink={false} maxBytes={5 * 1024 * 1024} saveLabel="Logo opslaan" />
                 {fileId && (
                   <label className="flex items-center gap-2 text-xs text-muted">
                     <input type="checkbox" name={`remove-${kind}`} /> Weghalen

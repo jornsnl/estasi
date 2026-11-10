@@ -55,6 +55,9 @@ Overige commando's: `npm test` (regels voor toegang, voortgang en feedback; met 
 * Lesinhoud: modules en lessen toevoegen, bewerken, verwijderen en herschikken; per les blokken toevoegen, bewerken, verplicht/optioneel en "feedbackopdracht" markeren en herschikken. Geen Word of pdf nodig voor vragen
 * Instellingen: welkomstvideo en tekst, contactadres, praktijkplekken open/dicht, privacyuitleg boven de opdrachten
 * Instellingen, Logo's: logo Future Weddings Academy (mails en app-icoon voor cursisten), logo Estasi Weddings (mails en app-icoon voor bruidsparen) en het logo van de beheer-app. SVG, png of jpg; voor mails en iconen maakt de app er zelf een png van (`sharp`, `src/lib/brand-logos.ts`), geserveerd op `/api/logo/[academy|estasi|app]/[variant]`. Zonder logo blijven de oude iconen staan en tonen de mails alleen de naam
+* Foto's uploaden: elk fotoveld van de Academy (`src/components/PhotoInput.tsx`) verkleint een foto eerst in de browser (maximaal 2400 px, JPG, `src/lib/shrink-photo.ts`), toont een voorbeeld en zet er een opslaanknop naast; Your Wedding Space (`FileUpload`) toont die knop ook zodra een bestand klaar is. Lukt opslaan in de opslag niet, dan krijgt de gebruiker een melding in plaats van een foutpagina. De headerfoto van het dashboard en de foto's van modules zijn ook voor cursisten te zien
+* Agenda: bovenaan een maandkalender; datums met een afspraak met Sabine of een bruiloft hebben een bordeaux kader, een deadline is een stip
+* Pipeline: per lead ook Instagram en in eigen woorden waar het contact vandaan komt (migratie `0037`)
 * Bekijk als cursist (`/beheer/voorbeeld`): dashboard, Mijn opleiding en lessen zoals een nieuwe cursist van pakket A of B ze ziet, of als een bestaande cursist met de eigen voortgang en antwoorden. Alleen lezen: er wordt niets opgeslagen, ingediend of als gelezen gemarkeerd
 * Logboek van alle beheeracties
 
@@ -63,6 +66,7 @@ Overige commando's: `npm test` (regels voor toegang, voortgang en feedback; met 
 Eén gezamenlijke community voor alle cursisten met actieve toegang en Sabine, plus een privégesprek tussen Sabine en elke cursist afzonderlijk. Cursist: **Community** (`/community`) en **Privéchat** (`/prive-chat`). Beheer: **Community** (`/beheer/community`) en **Privéberichten** (`/beheer/berichten`). Het menu toont het aantal ongelezen berichten (bij Sabine telt de community ook open meldingen mee).
 
 **Wat kan er**
+* Bij elk bericht en elke reactie staat de profielfoto van de schrijver (cursist: Mijn profiel; Sabine: Beheer, Profiel), via `/api/community/profielfoto/[userId]`. Foto's staan als foto in het bericht en openen groot op de pagina
 * Berichten met tekst, foto's, korte eigen video's, bestanden en een video van YouTube of Vimeo (ingesloten speler). Reacties op berichten, ook met bijlage
 * De schrijver kan het eigen bericht of de eigen reactie bewerken en verwijderen; een cursist kan een bericht of reactie van een ander **melden** bij Sabine (met reden). Sabine krijgt een melding meteen per mail (en push)
 * Sabine kan berichten vastpinnen (bovenaan), berichten en reacties verbergen (alleen zij en de schrijver zien ze dan nog, met een label) of verwijderen. Verbergen handelt de melding ook af. Verwijderen en verbergen van andermans berichten komt in het logboek

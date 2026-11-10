@@ -42,6 +42,8 @@ export interface Author {
   id: string;
   name: string;
   role: "student" | "owner" | "couple";
+  /** The profile photo, shown next to each message (feedback Sabine); served by /api/community/profielfoto. */
+  photoFileId: string | null;
 }
 
 export interface AttachmentView {
@@ -97,6 +99,7 @@ const authorOf = (row: Row): Author => ({
   id: String(row.author_id),
   name: String(row.author_name ?? ""),
   role: row.author_role as Author["role"],
+  photoFileId: row.author_photo ? String(row.author_photo) : null,
 });
 
 const attachmentOf = (row: Row): AttachmentView => ({
@@ -134,8 +137,8 @@ export async function listPosts(viewer: Viewer, page = 1): Promise<{ posts: Post
   if (!canUseCommunity(viewer)) return { posts: [], hasMore: false };
   const offset = (Math.max(1, page) - 1) * PAGE_SIZE;
   const rows = await query<Row>(
-    `select p.*, u.name as author_name, u.role::text as author_role
-       from public.community_posts p join public.users u on u.id = p.author_id
+    `select p.*, u.name as author_name, u.role::text as author_role, pr.photo_file_id as author_photo
+       from public.community_posts p join public.users u on u.id = p.author_id left join public.profiles pr on pr.user_id = u.id
       where ${VISIBLE("p")}
       order by p.pinned_at desc nulls last, p.created_at desc
       limit $3 offset $4`,
@@ -149,8 +152,8 @@ export async function listPosts(viewer: Viewer, page = 1): Promise<{ posts: Post
 export async function getPost(viewer: Viewer, postId: string): Promise<PostView | null> {
   if (!isUuid(postId) || !canUseCommunity(viewer)) return null;
   const rows = await query<Row>(
-    `select p.*, u.name as author_name, u.role::text as author_role
-       from public.community_posts p join public.users u on u.id = p.author_id
+    `select p.*, u.name as author_name, u.role::text as author_role, pr.photo_file_id as author_photo
+       from public.community_posts p join public.users u on u.id = p.author_id left join public.profiles pr on pr.user_id = u.id
       where p.id = $3 and ${VISIBLE("p")}`,
     [isOwner(viewer), viewer.id, postId],
   );
@@ -162,8 +165,8 @@ async function withDetails(viewer: Viewer, rows: Row[]): Promise<PostView[]> {
   const ids = rows.map((r) => String(r.id));
   if (ids.length === 0) return [];
   const commentRows = await query<Row>(
-    `select c.*, u.name as author_name, u.role::text as author_role
-       from public.community_comments c join public.users u on u.id = c.author_id
+    `select c.*, u.name as author_name, u.role::text as author_role, pr.photo_file_id as author_photo
+       from public.community_comments c join public.users u on u.id = c.author_id left join public.profiles pr on pr.user_id = u.id
       where c.post_id = any($3::uuid[]) and ${VISIBLE("c")}
       order by c.created_at, c.id`,
     [isOwner(viewer), viewer.id, ids],
@@ -342,8 +345,8 @@ export async function menuCounts(viewer: Viewer): Promise<{ community: number; p
 export async function listMessages(viewer: Viewer, studentId: string): Promise<MessageView[]> {
   if (!isUuid(studentId) || !canReadConversation(viewer, studentId)) return [];
   const rows = await query<Row>(
-    `select m.*, u.name as author_name, u.role::text as author_role
-       from public.private_messages m join public.users u on u.id = m.author_id
+    `select m.*, u.name as author_name, u.role::text as author_role, pr.photo_file_id as author_photo
+       from public.private_messages m join public.users u on u.id = m.author_id left join public.profiles pr on pr.user_id = u.id
       where m.student_id = $1 order by m.created_at, m.id`,
     [studentId],
   );

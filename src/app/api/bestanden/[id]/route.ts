@@ -20,15 +20,22 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const decision = fileAccess(user, meta.belongsTo);
   let allowed = decision === "allow";
   if (decision === "course") {
-    // Course material: only for students whose access is active, and only when a lesson they
-    // can see uses it. A file in a concept, a hidden module or a module of the other package
-    // stays closed, also through a direct link.
     const store = getStore();
-    const enrollment = await store.getEnrollmentForUser(user.id);
-    if (hasLessonAccess(enrollment)) {
+    const id = meta.id.toLowerCase();
+    const [enrollment, settings] = await Promise.all([store.getEnrollmentForUser(user.id), store.getSettings()]);
+    // The header photo of the dashboard: every student sees the dashboard (feedback Sabine: it
+    // was uploaded but stayed invisible for students).
+    if (settings.headerImageFileId?.toLowerCase() === id) allowed = true;
+    // The photo of a module the student sees on the dashboard (also with access ended, the tiles
+    // stay). Files in lessons: only with active access and only when a lesson they can see uses
+    // it. A file in a concept, a hidden module or a module of the other package stays closed,
+    // also through a direct link.
+    else if (enrollment) {
       const [modules, lessons] = await Promise.all([store.listModules(), store.listLessons()]);
-      const id = meta.id.toLowerCase();
-      allowed = visibleCourse(modules, lessons, enrollment).lessons.some((l) => lessonFileIds(l).has(id));
+      const course = visibleCourse(modules, lessons, enrollment);
+      allowed =
+        course.modules.some((m) => m.imageFileId?.toLowerCase() === id) ||
+        (hasLessonAccess(enrollment) && course.lessons.some((l) => lessonFileIds(l).has(id)));
     }
   }
   if (!allowed) return new Response("Geen toegang", { status: 403 });

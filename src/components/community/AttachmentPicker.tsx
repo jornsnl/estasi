@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { uploadCommunityFile } from "@/app/actions/community";
 import { ACCEPT_ATTACHMENTS, classifyAttachment, MAX_ATTACHMENTS } from "@/lib/community/rules";
+import { shrinkPhoto } from "@/lib/shrink-photo";
 import { formatBytes } from "@/lib/ws/upload-rules";
 
 /**
@@ -12,10 +13,7 @@ import { formatBytes } from "@/lib/ws/upload-rules";
  * the ids as hidden fields named "attachments".
  */
 
-const MAX_SIDE = 2400;
-const KEEP_BELOW = 2 * 1024 * 1024;
-
-type Item = { key: string; name: string; size: number; state: "working" | "done" | "error"; id?: string; error?: string };
+type Item = { key: string; name: string; size: number; state: "working" | "done" | "error"; id?: string; error?: string; preview?: string };
 
 export function AttachmentPicker({ conversation = "", compact = false }: { conversation?: string; compact?: boolean }) {
   const inputId = `bijlage-${useId()}`;
@@ -49,10 +47,14 @@ export function AttachmentPicker({ conversation = "", compact = false }: { conve
 
   async function handle(file: File, key: string) {
     try {
-      const { blob, fileName } = await shrink(file);
+      // Photos at most 2400 px, JPG (src/lib/shrink-photo.ts), as in Your Wedding Space.
+      const ready = named(await shrinkPhoto(file));
+      const blob: Blob = ready;
+      const fileName = ready.name;
       const check = classifyAttachment(fileName, blob.size);
       if (!check.ok) throw new Error(check.error);
-      update(key, { name: fileName, size: blob.size });
+      // Feedback Sabine: a photo shows as a photo, already before it is posted.
+      update(key, { name: fileName, size: blob.size, preview: check.kind === "image" ? URL.createObjectURL(blob) : undefined });
       const body = new FormData();
       body.append("file", new File([blob], fileName, { type: check.mime }));
       body.append("conversation", conversation);
@@ -92,6 +94,10 @@ export function AttachmentPicker({ conversation = "", compact = false }: { conve
         <ul className="space-y-1 text-sm" aria-live="polite">
           {items.map((item) => (
             <li key={item.key} className="flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-1.5">
+              {item.preview && (
+                // eslint-disable-next-line @next/next/no-img-element -- local preview of the chosen photo
+                <img src={item.preview} alt="" className="h-12 w-12 shrink-0 rounded-md object-cover" />
+              )}
               <span className="min-w-0 flex-1">
                 <span className="block truncate">{item.name}</span>
                 {item.state === "error" && <span className="block text-xs text-bordeaux">{item.error}</span>}
@@ -121,32 +127,9 @@ export function AttachmentPicker({ conversation = "", compact = false }: { conve
   );
 }
 
-/** As in Your Wedding Space (src/components/ws/FileUpload.tsx): photos at most 2400 px, JPG. */
-async function shrink(file: File): Promise<{ blob: Blob; fileName: string }> {
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-  if (!["jpg", "jpeg", "png", "webp", "heic"].includes(ext)) return { blob: file, fileName: file.name };
-  let bitmap: ImageBitmap;
-  try {
-    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  } catch {
-    if (ext === "heic") throw new Error("Deze foto (HEIC) kan deze browser niet openen. Kies een JPG of PNG.");
-    return { blob: file, fileName: file.name };
-  }
-  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-  if (scale === 1 && file.size <= KEEP_BELOW && ext !== "heic") {
-    bitmap.close();
-    return { blob: file, fileName: file.name };
-  }
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  const context = canvas.getContext("2d");
-  if (!context) return { blob: file, fileName: file.name };
-  context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
-  if (!blob) return { blob: file, fileName: file.name };
-  return { blob, fileName: `${file.name.replace(/\.[^.]+$/, "") || "foto"}.jpg` };
+/** A photo straight from a phone sometimes has no extension; name it after its type, so it is recognised as a photo. */
+const EXT_FOR: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
+function named(file: File): File {
+  if (/\.[a-z0-9]{2,5}$/i.test(file.name) || !EXT_FOR[file.type]) return file;
+  return new File([file], `${file.name || "foto"}.${EXT_FOR[file.type]}`, { type: file.type });
 }

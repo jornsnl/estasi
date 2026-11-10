@@ -45,3 +45,15 @@ describe("Academy inschrijving naar lead", () => {
     expect(signupToLead({ ...base, consent: false }, "2026-11-10").ok).toBe(false);
   });
 });
+
+import { instagramUrl } from "@/lib/pipeline/rules";
+
+describe("instagram link of a lead", () => {
+  it("turns a handle or a link into a link, and leaves other text alone", () => {
+    expect(instagramUrl("@lisa.tom")).toBe("https://www.instagram.com/lisa.tom/");
+    expect(instagramUrl("instagram.com/lisa_tom/")).toBe("https://www.instagram.com/lisa_tom/");
+    expect(instagramUrl("https://instagram.com/x")).toBe("https://instagram.com/x");
+    expect(instagramUrl("")).toBeNull();
+    expect(instagramUrl("geen idee")).toBeNull();
+  });
+});

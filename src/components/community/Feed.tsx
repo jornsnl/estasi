@@ -161,7 +161,7 @@ function Post({ viewer, post, seenBefore }: { viewer: Viewer; post: PostView; se
       className={`card scroll-mt-20 p-5 ${post.hiddenAt ? "border-dashed opacity-80" : ""} ${post.pinnedAt ? "border-gold" : ""}`}
     >
       <header className="flex items-start gap-3">
-        <Avatar name={post.author.name} owner={post.author.role === "owner"} />
+        <Avatar name={post.author.name} owner={post.author.role === "owner"} userId={post.author.id} photoFileId={post.author.photoFileId} />
         <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-2">
           <Byline name={post.author.name} owner={post.author.role === "owner"} at={post.createdAt} edited={post.editedAt} />
           <div className="flex flex-wrap gap-1.5">
@@ -286,7 +286,7 @@ function Comment({ viewer, comment, seenBefore }: { viewer: Viewer; comment: Com
   const report = canReport(viewer, comment);
   return (
     <div id={`reactie-${comment.id}`} className={`flex scroll-mt-20 gap-3 ${comment.hiddenAt ? "opacity-70" : ""}`}>
-      <Avatar name={comment.author.name} owner={comment.author.role === "owner"} />
+      <Avatar name={comment.author.name} owner={comment.author.role === "owner"} userId={comment.author.id} photoFileId={comment.author.photoFileId} />
       <div className="min-w-0 flex-1">
         <div className={`rounded-lg px-3 py-2 ${comment.hiddenAt ? "border border-dashed border-line" : "bg-cream"}`}>
           <div className="flex flex-wrap items-start justify-between gap-2">

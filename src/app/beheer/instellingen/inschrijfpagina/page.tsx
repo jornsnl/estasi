@@ -1,5 +1,6 @@
 import { saveSignupPageAction } from "@/app/actions/content";
 import { Notice } from "@/components/Notice";
+import { PhotoInput } from "@/components/PhotoInput";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireOwner } from "@/lib/auth/session";
@@ -71,7 +72,8 @@ function ImageField(props: { name: string; label: string; fileId: string | null;
           className={`border border-line bg-white ${props.round ? "h-28 w-28 rounded-full object-cover" : props.contain ? "h-28 w-28 rounded-xl object-contain p-2" : "h-40 w-full max-w-xs rounded-xl object-cover"}`}
         />
       )}
-      <input type="file" name={props.name} accept={props.accept ?? IMAGE_ACCEPT_ATTR} aria-label={`${props.label} kiezen`} className="block text-sm" />
+      {/* The logo (SVG or png with transparency) goes as it is; photos are made smaller first. */}
+      <PhotoInput name={props.name} label={`${props.label} kiezen`} accept={props.accept ?? IMAGE_ACCEPT_ATTR} shrink={!props.contain} saveLabel="Opslaan" />
       {props.fileId && (
         <label className="flex items-center gap-2 text-xs text-muted">
           <input type="checkbox" name={`remove-${props.name}`} /> Weghalen

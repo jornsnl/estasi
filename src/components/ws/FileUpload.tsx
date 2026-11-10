@@ -38,6 +38,7 @@ export function FileUpload({
   required = false,
   label = "Bestand uploaden",
   autoSubmit = false,
+  saveLabel = "Opslaan",
   id,
 }: {
   name: string;
@@ -49,6 +50,8 @@ export function FileUpload({
   label?: string;
   /** Submit the form as soon as every chosen file has arrived. */
   autoSubmit?: boolean;
+  /** The save button that shows next to the field once a file is ready (feedback Sabine). */
+  saveLabel?: string;
   id?: string;
 }) {
   const generated = useId();
@@ -170,6 +173,12 @@ export function FileUpload({
           className="sr-only"
         />
         {items.length === 0 && <span className="text-xs text-muted">Nog geen bestand gekozen</span>}
+        {/* Feedback Sabine: a save button right next to every upload, once something is chosen. */}
+        {!autoSubmit && items.some((i) => i.state === "done") && (
+          <button type="button" disabled={busy} onClick={() => input.current?.form?.requestSubmit()} className="btn-primary py-1.5">
+            {busy ? "Even wachten…" : saveLabel}
+          </button>
+        )}
       </div>
 
       {items.length > 0 && (

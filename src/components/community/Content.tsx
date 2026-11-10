@@ -1,6 +1,7 @@
 import { linkify, videoEmbed } from "@/lib/community/rules";
 import type { AttachmentView } from "@/lib/community/server";
 import { formatBytes } from "@/lib/ws/upload-rules";
+import { PhotoLightbox } from "./PhotoLightbox";
 
 /**
  * How text, video links and attachments of the community and the private
@@ -47,15 +48,22 @@ export const attachmentUrl = (id: string) => `/api/community/bestanden/${id}`;
 
 export function Attachments({ items }: { items: AttachmentView[] }) {
   if (items.length === 0) return null;
-  const images = items.filter((a) => a.kind === "image");
+  // A picture is always shown as a picture, also when it was stored as a file (feedback Sabine).
+  const isImage = (a: AttachmentView) => a.kind === "image" || /^image\/(jpeg|png|webp|gif)$/.test(a.mime);
+  const images = items.filter(isImage);
   const videos = items.filter((a) => a.kind === "video");
-  const files = items.filter((a) => a.kind === "file");
+  const files = items.filter((a) => a.kind === "file" && !isImage(a));
   return (
     <div className="space-y-2">
       {images.length > 0 && (
         <div className={`grid gap-2 ${images.length === 1 ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3"}`}>
           {images.map((image) => (
-            <a key={image.id} href={attachmentUrl(image.id)} target="_blank" rel="noopener" className={`overflow-hidden rounded-lg border border-line bg-cream ${images.length === 1 ? "inline-block max-w-full" : "block"}`}>
+            <PhotoLightbox
+              key={image.id}
+              src={attachmentUrl(image.id)}
+              alt={image.name}
+              className={`overflow-hidden rounded-lg border border-line bg-cream ${images.length === 1 ? "inline-block max-w-full" : "block"}`}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={attachmentUrl(image.id)}
@@ -63,7 +71,7 @@ export function Attachments({ items }: { items: AttachmentView[] }) {
                 loading="lazy"
                 className={images.length === 1 ? "max-h-[28rem] max-w-full object-contain" : "aspect-square w-full object-cover"}
               />
-            </a>
+            </PhotoLightbox>
           ))}
         </div>
       )}
@@ -90,7 +98,19 @@ export function Attachments({ items }: { items: AttachmentView[] }) {
   );
 }
 
-export function Avatar({ name, owner }: { name: string; owner?: boolean }) {
+/** The profile photo of the writer (feedback Sabine), or the initials when there is none. */
+export function Avatar({ name, owner, userId, photoFileId }: { name: string; owner?: boolean; userId?: string; photoFileId?: string | null }) {
+  if (userId && photoFileId) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- photo behind a login check
+      <img
+        src={`/api/community/profielfoto/${userId}?v=${photoFileId.slice(0, 8)}`}
+        alt=""
+        loading="lazy"
+        className={`h-9 w-9 shrink-0 rounded-full border object-cover ${owner ? "border-bordeaux/40" : "border-line"}`}
+      />
+    );
+  }
   const initials = name
     .split(/\s+/)
     .filter(Boolean)
