@@ -82,3 +82,22 @@ describe("huisstijl van de mails", () => {
     expect(brandFor(undefined)).toBe("estasi");
   });
 });
+
+describe("mail header logo (feedback Sabine)", () => {
+  it("has no bordeaux E any more", () => {
+    expect(toHtml("x", "academy")).not.toMatch(/>E<\/td>/);
+  });
+  it("shows the uploaded logo with its size, and the name in text below", () => {
+    const html = toHtml("x", "academy", "", { url: "https://academy.estasiweddings.nl/api/logo/academy/mail.png?v=1", width: 120, height: 60 });
+    expect(html).toContain('<img src="https://academy.estasiweddings.nl/api/logo/academy/mail.png?v=1" width="120" height="60" alt="Future Weddings Academy"');
+    expect(html).toContain("Future Weddings Academy");
+    expect(toHtml("x", "wedding-space", "", { url: "https://x.nl/l.png", width: 10, height: 10 })).toContain('alt="Estasi Weddings"');
+  });
+  it("ignores a logo address that is not http(s)", () => {
+    expect(toHtml("x", "estasi", "", { url: "javascript:alert(1)", width: 1, height: 1 })).not.toContain("<img");
+  });
+  it("passes the logo on to Resend", () => {
+    const p = resendPayload({ to: "a@x.nl", subject: "x", text: "y", logo: { url: "https://x.nl/l.png", width: 10, height: 5 } }, "f@x.nl");
+    expect(p.html).toContain('src="https://x.nl/l.png"');
+  });
+});

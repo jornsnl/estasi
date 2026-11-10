@@ -298,7 +298,7 @@ export async function saveCategory(formData: FormData) {
   await requireOwner();
   const id = str(formData, "categoryId", 40);
   const name = str(formData, "name", 80);
-  const back = "/beheer/instellingen/portaal#categorieen";
+  const back = "/beheer/bruidsparen/standaardlijsten#categorieen";
   if (!name) done(back, "Geef de categorie een naam.", true);
   if (isUuid(id)) await query("update supplier_categories set name = $2 where id = $1", [id, name]);
   else await query("insert into supplier_categories (name, position) values ($1, (select coalesce(max(position), 0) + 1 from supplier_categories))", [name]);
@@ -310,7 +310,7 @@ export async function archiveCategory(formData: FormData) {
   const id = str(formData, "categoryId", 40);
   const archived = formData.get("archived") === "1";
   if (isUuid(id)) await query("update supplier_categories set archived = $2 where id = $1", [id, archived]);
-  done("/beheer/instellingen/portaal#categorieen", archived ? "Categorie verborgen. Ingevulde gegevens blijven bewaard." : "Categorie weer zichtbaar.");
+  done("/beheer/bruidsparen/standaardlijsten#categorieen", archived ? "Categorie verborgen. Ingevulde gegevens blijven bewaard." : "Categorie weer zichtbaar.");
 }
 
 // Sabine's own agenda entry, straight from the central agenda -------------------------------------

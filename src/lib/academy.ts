@@ -60,7 +60,11 @@ export interface StudentOverview {
 
 /** Everything the dashboards need about one student's progress. */
 export async function studentOverview(user: User): Promise<StudentOverview> {
-  const enrollment = await getStore().getEnrollmentForUser(user.id);
+  return overviewFor(user, await getStore().getEnrollmentForUser(user.id));
+}
+
+/** The overview for a given enrollment; also used for a made up student in Sabine's preview. */
+export async function overviewFor(user: User, enrollment: Enrollment | null): Promise<StudentOverview> {
   const [course, versions] = await Promise.all([courseProgress(user.id, enrollment), listVersions({ userId: user.id })]);
   const { progress, submissions } = course;
   const percent = overallPercent(progress);

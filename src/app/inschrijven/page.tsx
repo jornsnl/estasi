@@ -3,6 +3,7 @@ import Link from "next/link";
 import { submitAcademySignup } from "@/app/actions/academy-signup";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
+import { getBrandLogos } from "@/lib/brand-logos";
 import { getStore } from "@/lib/data";
 import { SIGNUP_PACKAGE_LABELS, SIGNUP_PACKAGES, SIGNUP_SITUATION_LABELS, SIGNUP_SITUATIONS } from "@/lib/pipeline/signup";
 import { getSignupPage, type SignupPage } from "@/lib/signup-page";
@@ -25,13 +26,17 @@ export const metadata: Metadata = {
   },
 };
 
+// Feedback Sabine: nine modules, each with its title and one sentence.
 const MODULES = [
-  { title: "Het vak weddingplanner", text: "Wat doet een weddingplanner precies, en past dit vak bij jou?" },
-  { title: "Ondernemen als weddingplanner", text: "Positionering, aanbod, prijzen en de basis van je eigen bedrijf." },
-  { title: "De klantreis en intake", text: "Van eerste kennismaking tot een helder voorstel dat overtuigt." },
-  { title: "Budget, planning en leveranciers", text: "Grip op geld, tijdlijnen en sterke samenwerkingen." },
-  { title: "De trouwdag", text: "Draaiboek, coördinatie en rustig blijven als het anders loopt." },
-  { title: "Zichtbaarheid en groei", text: "Marketing, netwerk en je volgende stap als planner." },
+  { title: "Jouw start als weddingprofessional", text: "Je ontdekt je motivatie, kwaliteiten en ontwikkelpunten, en maakt je eigen leerplan." },
+  { title: "Het vak van weddingplanner en ceremoniemeester", text: "Je leert wat beide rollen inhouden en stelt je eerste eigen pakketten samen." },
+  { title: "Ondernemen als weddingprofessional", text: "KvK, boekhouding, verzekeringen, overeenkomsten en het bepalen van je prijzen." },
+  { title: "Jouw merk, doelgroep en zichtbaarheid", text: "Je bepaalt voor wie je werkt, wat jou onderscheidt en hoe klanten je vinden." },
+  { title: "Van eerste aanvraag tot samenwerking", text: "Professioneel communiceren met een bruidspaar, van de eerste mail tot na de boeking." },
+  { title: "De bruiloft organiseren", text: "Van wensen naar een trouwplan, met budget, planning en een trouwconcept." },
+  { title: "Leveranciers, locaties en styling", text: "Locaties en leveranciers kiezen, offertes vergelijken en styling vertalen naar de praktijk." },
+  { title: "Het draaiboek en de laatste voorbereidingen", text: "Alles samenbrengen in een draaiboek en de laatste weken goed afronden." },
+  { title: "De trouwdag en de afronding", text: "De regie nemen op de dag zelf, schakelen bij het onverwachte en zorgen voor nazorg." },
 ];
 
 const STEPS = [
@@ -44,7 +49,7 @@ const STEPS = [
 const FAQ = [
   {
     q: "Heb ik ervaring nodig?",
-    a: "Nee. De opleiding begint bij de basis van het vak. Ben je al planner, dan haal je vooral veel uit de modules over ondernemen, de klantreis en groei.",
+    a: "Nee. De opleiding begint bij de basis van het vak. Ben je al planner, dan haal je vooral veel uit de modules over ondernemen, je merk en zichtbaarheid.",
   },
   {
     q: "Hoeveel tijd kost de opleiding?",
@@ -80,11 +85,14 @@ const Ornament = () => (
 
 const photo = (id: string) => `/api/inschrijven/foto/${id}`;
 
-/** Sabine's logo (uploaded in Instellingen, Inschrijfpagina); until then the Estasi monogram. */
-function BrandLogo({ fileId, className }: { fileId: string | null | undefined; className: string }) {
-  if (fileId) {
+/**
+ * Sabine's logo: the one of Instellingen, Inschrijfpagina, or else the Future Weddings Academy
+ * logo of Instellingen, Logo's; until then the Estasi monogram.
+ */
+function BrandLogo({ src, className }: { src: string | null; className: string }) {
+  if (src) {
     // eslint-disable-next-line @next/next/no-img-element -- uploaded logo, may be an SVG
-    return <img src={photo(fileId)} alt="Logo Future Weddings Academy" className={`${className} object-contain`} />;
+    return <img src={src} alt="Logo Future Weddings Academy" className={`${className} object-contain`} />;
   }
   return (
     <svg viewBox="0 0 64 64" role="img" aria-label="Logo Future Weddings Academy" className={className}>
@@ -99,12 +107,14 @@ function BrandLogo({ fileId, className }: { fileId: string | null | undefined; c
 export default async function InschrijvenPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;
   const thanks = params.bedankt === "1";
-  const [settings, page] = await Promise.all([
+  const [settings, page, logos] = await Promise.all([
     getStore()
       .getSettings()
       .catch(() => null),
     getSignupPage().catch((): SignupPage | null => null),
+    getBrandLogos().catch(() => null),
   ]);
+  const logoSrc = page?.logo_file_id ? photo(page.logo_file_id) : logos?.academy ? `/api/logo/academy/original?v=${logos.academy.slice(0, 8)}` : null;
   const spotsOpen = settings?.practicalSpotsAvailable ?? true;
   const spotsNote = settings?.practicalSpotsNote?.trim() ?? "";
   const contact = settings?.contactEmail?.trim() || "";
@@ -117,7 +127,7 @@ export default async function InschrijvenPage({ searchParams }: { searchParams: 
       <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <a href="#top" className="flex min-w-0 items-center gap-3">
-            <BrandLogo fileId={page?.logo_file_id} className="h-11 w-11 shrink-0 sm:h-12 sm:w-12" />
+            <BrandLogo src={logoSrc} className="h-11 w-11 shrink-0 sm:h-12 sm:w-12" />
             <span className="min-w-0 leading-tight">
               <span className="block font-serif text-xl text-bordeaux sm:text-[26px]">Future Weddings Academy</span>
               <span className="eyebrow mt-0.5 block text-[10px]">Estasi Weddings</span>
@@ -157,7 +167,7 @@ export default async function InschrijvenPage({ searchParams }: { searchParams: 
                 <div className="absolute inset-0 translate-x-3 translate-y-3 rounded-full bg-gold/60" aria-hidden="true" />
                 <div className="relative flex h-60 w-60 items-center justify-center rounded-full border-[6px] border-gold bg-white shadow-xl sm:h-72 sm:w-72 lg:h-80 lg:w-80">
                   <div className="absolute inset-3 rounded-full border border-gold/40" aria-hidden="true" />
-                  <BrandLogo fileId={page?.logo_file_id} className="h-[62%] w-[62%]" />
+                  <BrandLogo src={logoSrc} className="h-[62%] w-[62%]" />
                 </div>
               </div>
             </div>
@@ -168,7 +178,7 @@ export default async function InschrijvenPage({ searchParams }: { searchParams: 
         <section className="bg-gold text-ink">
           <ul className="mx-auto grid max-w-6xl gap-x-8 gap-y-3 px-4 py-6 text-[15px] font-medium sm:grid-cols-2 sm:px-6 lg:grid-cols-5">
             {[
-              "6 modules, van het vak tot je eigen bedrijf",
+              "9 modules, van je start tot de trouwdag",
               "Opdrachten met persoonlijke feedback van Sabine",
               "Community met andere (toekomstige) planners",
               "Meelopen op echte bruiloften (pakket B)",
@@ -204,7 +214,7 @@ export default async function InschrijvenPage({ searchParams }: { searchParams: 
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
             <div className="mx-auto max-w-2xl text-center">
               <p className="eyebrow">Het programma</p>
-              <h2 className="mt-3 text-3xl sm:text-4xl">Zes modules, één compleet vak</h2>
+              <h2 className="mt-3 text-3xl sm:text-4xl">Negen modules, één compleet vak</h2>
               <p className="mt-4 text-muted">Elke module bestaat uit korte lessen met video, tekst en opdrachten. Rond je een module af, dan gaat de volgende open.</p>
             </div>
             <ol className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -233,7 +243,7 @@ export default async function InschrijvenPage({ searchParams }: { searchParams: 
               <h3 className="mt-2 text-3xl">Online</h3>
               <p className="mt-2 text-muted">De complete opleiding, waar en wanneer het jou uitkomt.</p>
               <ul className="mt-6 space-y-3 text-[15px]">
-                {["Alle zes modules online", "Opdrachten met persoonlijke feedback", "Community en privéchat met Sabine", "Online certificaat"].map((i) => (
+                {["Alle negen modules online", "Opdrachten met persoonlijke feedback", "Community en privéchat met Sabine", "Online certificaat"].map((i) => (
                   <li key={i} className="flex gap-3"><Check />{i}</li>
                 ))}
               </ul>

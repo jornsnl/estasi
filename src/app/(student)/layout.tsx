@@ -7,6 +7,7 @@ import { menuCounts, viewerFor } from "@/lib/community/server";
 import { PACKAGE_LABELS } from "@/lib/domain/labels";
 import { touchActivity } from "@/lib/academy";
 import { requireStudent } from "@/lib/auth/session";
+import { metadataIcons } from "@/lib/brand-logo-urls";
 import { mustChangePassword } from "@/lib/auth/temporary-password";
 import { redirect } from "next/navigation";
 import { getStore } from "@/lib/data";
@@ -17,6 +18,7 @@ export const dynamic = "force-dynamic";
 // Installable on the home screen, needed for push notifications on iPhone (see src/app/academy.webmanifest).
 export const metadata: Metadata = {
   manifest: "/academy.webmanifest",
+  icons: metadataIcons("academy"),
   appleWebApp: { capable: true, title: "Academy", statusBarStyle: "default" },
 };
 

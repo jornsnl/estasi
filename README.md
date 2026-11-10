@@ -54,6 +54,8 @@ Overige commando's: `npm test` (regels voor toegang, voortgang en feedback; met 
 * Per cursist: gegevens en aankoopdatum aanpassen; toegang pauzeren, hervatten (einddatum schuift mee), verlengen, einddatum zetten, intrekken; alle antwoorden per les; feedback met bijlage; online afronding bevestigen; certificaat vrijgeven; praktijkstatus en upgrade A naar B; interne notities; wijzigingslog
 * Lesinhoud: modules en lessen toevoegen, bewerken, verwijderen en herschikken; per les blokken toevoegen, bewerken, verplicht/optioneel en "feedbackopdracht" markeren en herschikken. Geen Word of pdf nodig voor vragen
 * Instellingen: welkomstvideo en tekst, contactadres, praktijkplekken open/dicht, privacyuitleg boven de opdrachten
+* Instellingen, Logo's: logo Future Weddings Academy (mails en app-icoon voor cursisten), logo Estasi Weddings (mails en app-icoon voor bruidsparen) en het logo van de beheer-app. SVG, png of jpg; voor mails en iconen maakt de app er zelf een png van (`sharp`, `src/lib/brand-logos.ts`), geserveerd op `/api/logo/[academy|estasi|app]/[variant]`. Zonder logo blijven de oude iconen staan en tonen de mails alleen de naam
+* Bekijk als cursist (`/beheer/voorbeeld`): dashboard, Mijn opleiding en lessen zoals een nieuwe cursist van pakket A of B ze ziet, of als een bestaande cursist met de eigen voortgang en antwoorden. Alleen lezen: er wordt niets opgeslagen, ingediend of als gelezen gemarkeerd
 * Logboek van alle beheeracties
 
 ## Community en privéberichten (Academy)

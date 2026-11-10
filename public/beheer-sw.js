@@ -42,8 +42,9 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(data.title || "Wedding Plan Academy", {
       body: data.body || "",
       tag: data.tag || undefined,
-      icon: "/pwa/beheer-192.png",
-      badge: "/pwa/beheer-192.png",
+      // The logo Sabine uploaded (Instellingen, Logo's): the Academy logo, or the one the message names.
+      icon: data.icon || "/api/logo/academy/icon-192.png",
+      badge: data.icon || "/api/logo/academy/icon-192.png",
       data: { url: data.url || "/" },
     }),
   );

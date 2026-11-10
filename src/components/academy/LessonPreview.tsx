@@ -1,3 +1,4 @@
+import type { DraftState } from "@/app/actions/assignment";
 import type { Block, LessonDraft } from "@/lib/data";
 import { isContentBlock } from "@/lib/domain/blocks";
 import { AssignmentForm } from "./AssignmentForm";
@@ -10,15 +11,16 @@ import { ContentBlock } from "./ContentBlock";
  * A block type with its own student view (for example an assignment) adds a
  * preview to PREVIEWS; otherwise a short placeholder is shown.
  */
-const PREVIEWS: Partial<Record<Block["type"], (block: Block) => React.ReactNode>> = {
+const PREVIEWS: Partial<Record<Block["type"], (block: Block, initial: DraftState | null) => React.ReactNode>> = {
   // The student's own form, in preview mode: it can be tried out, nothing is saved or handed in.
-  assignment: (block) =>
+  assignment: (block, initial) =>
     block.type === "assignment" && (
-      <AssignmentForm lessonId="" assignment={block} initial={null} lastSubmitted={null} versions={[]} feedback={[]} otherFeedbackRequests={0} firstMeasurement={null} preview />
+      <AssignmentForm lessonId="" assignment={block} initial={initial} lastSubmitted={null} versions={[]} feedback={[]} otherFeedbackRequests={0} firstMeasurement={null} preview />
     ),
 };
 
-export function LessonPreview({ content, privacyNotice }: { content: LessonDraft; privacyNotice: string }) {
+/** `answers`: per block the answers of one student, for "Bekijk als cursist" with a real student. */
+export function LessonPreview({ content, privacyNotice, answers }: { content: LessonDraft; privacyNotice: string; answers?: Map<string, DraftState> }) {
   const firstAnswerable = content.blocks.findIndex((b) => !isContentBlock(b));
   return (
     <article className="mx-auto max-w-3xl">
@@ -39,7 +41,7 @@ export function LessonPreview({ content, privacyNotice }: { content: LessonDraft
             {isContentBlock(block) ? (
               <ContentBlock block={block} />
             ) : (
-              (PREVIEWS[block.type]?.(block) ?? <Placeholder block={block} />)
+              (PREVIEWS[block.type]?.(block, answers?.get(block.id) ?? null) ?? <Placeholder block={block} />)
             )}
           </div>
         ))}

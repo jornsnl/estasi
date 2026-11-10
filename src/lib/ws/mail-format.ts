@@ -11,6 +11,15 @@ export interface Mail {
   replyTo?: string;
   /** Which part of Estasi the mail comes from: the name in the header and footer. */
   brand?: MailBrand;
+  /** The logo on top (a png), set by sendMail from Instellingen, Logo's. */
+  logo?: MailLogo;
+}
+
+/** A logo in the mail header: its public address and the size to show it at, in CSS pixels. */
+export interface MailLogo {
+  url: string;
+  width: number;
+  height: number;
 }
 
 export type MailBrand = "academy" | "wedding-space" | "estasi";
@@ -28,7 +37,6 @@ const C = {
   line: "#e6dfd0",
   bordeaux: "#6b1e2e",
   gold: "#a89650",
-  goldLight: "#e8d9a8",
   goldInk: "#6e6131",
   ink: "#2c2c2c",
   muted: "#6f6a60",
@@ -73,16 +81,24 @@ function paragraph(block: string): string {
 }
 
 /**
- * The one design every mail goes out in: cream page, white card with the
- * Estasi monogram, bordeaux and gold. Tables and inline styles only, so it
- * holds in Outlook and Gmail; no images, so nothing is blocked.
+ * The one design every mail goes out in: cream page, white card, bordeaux and
+ * gold. Tables and inline styles only, so it holds in Outlook and Gmail. On top
+ * the logo Sabine uploaded (feedback Sabine: students see the Future Weddings
+ * Academy logo, couples the one of Estasi Weddings; the bordeaux E is gone).
+ * The name stays underneath in text, so a mail client that blocks images
+ * still shows who the mail is from.
  */
-export function toHtml(text: string, brand: MailBrand = "estasi", subject = ""): string {
+export function toHtml(text: string, brand: MailBrand = "estasi", subject = "", logo?: MailLogo): string {
   const name = BRAND_NAMES[brand];
   const body = escape(text.trim())
     .split(/\n{2,}/)
     .map(paragraph)
     .join("");
+  // Width and height as attributes too, for Outlook; the png is twice as large, sharp on a retina screen.
+  const logoTag =
+    logo && /^https?:\/\//.test(logo.url)
+      ? `<img src="${escape(logo.url)}" width="${Math.round(logo.width)}" height="${Math.round(logo.height)}" alt="${escape(brand === "academy" ? "Future Weddings Academy" : "Estasi Weddings")}" style="display:block;margin:0 auto;width:${Math.round(logo.width)}px;height:${Math.round(logo.height)}px;border:0;outline:none;text-decoration:none">`
+      : "";
   const preheader = escape((text.trim().split("\n").find((l) => l.trim() && !/^https?:\/\//.test(l.trim())) ?? "").slice(0, 140));
   return `<!doctype html>
 <html lang="nl">
@@ -100,10 +116,8 @@ export function toHtml(text: string, brand: MailBrand = "estasi", subject = ""):
 <tr><td align="center" style="padding:32px 12px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:580px">
 <tr><td align="center" style="padding:0 0 22px">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-<td width="44" height="44" align="center" valign="middle" bgcolor="${C.bordeaux}" style="width:44px;height:44px;border-radius:10px;background:${C.bordeaux};border:1px solid ${C.gold};font-family:${SERIF};font-size:26px;line-height:44px;font-weight:600;color:${C.goldLight}">E</td>
-</tr></table>
-<div style="margin:12px 0 0;font-family:${SERIF};font-size:20px;letter-spacing:0.5px;color:${C.bordeaux}">Estasi Weddings</div>
+${logoTag}
+<div style="margin:${logoTag ? "12px" : "0"} 0 0;font-family:${SERIF};font-size:20px;letter-spacing:0.5px;color:${C.bordeaux}">Estasi Weddings</div>
 <div style="margin:4px 0 0;font-family:${SANS};font-size:11px;font-weight:600;letter-spacing:2.4px;text-transform:uppercase;color:${C.goldInk}">${name}</div>
 </td></tr>
 <tr><td class="card" bgcolor="${C.card}" style="background:${C.card};border:1px solid ${C.line};border-top:3px solid ${C.bordeaux};border-radius:10px;padding:36px 36px 22px;font-family:${SANS};font-size:15px;line-height:1.65;color:${C.ink}">
@@ -132,7 +146,7 @@ export function resendPayload(mail: Mail, from: string) {
     to: recipients(mail.to).slice(0, 50),
     subject: mail.subject,
     text: mail.text,
-    html: toHtml(mail.text, mail.brand, mail.subject),
+    html: toHtml(mail.text, mail.brand, mail.subject, mail.logo),
     ...(mail.replyTo ? { reply_to: mail.replyTo } : {}),
   };
 }

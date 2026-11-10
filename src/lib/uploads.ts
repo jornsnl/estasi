@@ -60,3 +60,24 @@ export async function storeLogoUpload(value: FormDataEntryValue | null, uploaded
   if (!/<svg[\s>]/i.test(data.toString("utf8", 0, Math.min(data.length, 4096)))) throw new UploadError("Dit lijkt geen geldig SVG-bestand.");
   return getFiles().save(data, { name: value.name.slice(0, 200), mime: "image/svg+xml", belongsTo: null, uploadedBy });
 }
+
+/**
+ * Sabine's own logos (Instellingen, Logo's): SVG, png or jpg, at most 5 MB. An SVG is checked to
+ * be one; it is only ever shown through an <img> or turned into a png (src/lib/brand-logos.ts).
+ */
+export async function storeBrandLogoUpload(value: FormDataEntryValue | null, uploadedBy: string): Promise<FileRef | null> {
+  if (!value || typeof value === "string" || value.size === 0) return null;
+  const ext = value.name.split(".").pop()?.toLowerCase() ?? "";
+  const mime = ext === "svg" ? "image/svg+xml" : ext === "png" ? "image/png" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : "";
+  if (!mime || (value.type && value.type !== mime && !(mime === "image/svg+xml" && value.type === "text/xml"))) {
+    throw new UploadError("Een logo mag een SVG, png of jpg zijn.");
+  }
+  if (value.size > 5 * 1024 * 1024) throw new UploadError("Het logo is groter dan 5 MB.");
+  const data = Buffer.from(await value.arrayBuffer());
+  if (mime === "image/svg+xml" && !/<svg[\s>]/i.test(data.toString("utf8", 0, Math.min(data.length, 4096)))) {
+    throw new UploadError("Dit lijkt geen geldig SVG-bestand.");
+  }
+  return getFiles().save(data, { name: value.name.slice(0, 200), mime, belongsTo: null, uploadedBy });
+}
+
+export const BRAND_LOGO_ACCEPT_ATTR = "image/svg+xml,.svg,image/png,.png,image/jpeg,.jpg,.jpeg";

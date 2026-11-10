@@ -4,6 +4,9 @@
  * full screen like an app. Only linked from the /beheer layout, so students
  * and couples never get an "install" for the admin.
  */
+import { manifestIcons } from "@/lib/brand-logo-urls";
+
+// The icons follow the logo Sabine uploads in Instellingen, Logo's (src/app/api/logo).
 export const dynamic = "force-static";
 
 export function GET() {
@@ -21,20 +24,15 @@ export function GET() {
     orientation: "any",
     background_color: "#FAF8F3",
     theme_color: "#FFFFFF",
-    icons: [
-      { src: "/pwa/beheer-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/pwa/beheer-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/pwa/beheer-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-      { src: "/apple-icon.png", sizes: "180x180", type: "image/png" },
-    ],
+    icons: manifestIcons("app"),
     shortcuts: [
-      { name: "Cursisten", url: "/beheer", icons: [{ src: "/pwa/beheer-192.png", sizes: "192x192" }] },
-      { name: "Bruidsparen", url: "/beheer/bruidsparen", icons: [{ src: "/pwa/beheer-192.png", sizes: "192x192" }] },
-      { name: "Mijn takenbord", url: "/beheer/bruidsparen/takenbord", icons: [{ src: "/pwa/beheer-192.png", sizes: "192x192" }] },
-      { name: "Mijn agenda", url: "/beheer/bruidsparen/agenda", icons: [{ src: "/pwa/beheer-192.png", sizes: "192x192" }] },
+      { name: "Cursisten", url: "/beheer", icons: [{ src: "/api/logo/app/icon-192.png", sizes: "192x192" }] },
+      { name: "Bruidsparen", url: "/beheer/bruidsparen", icons: [{ src: "/api/logo/app/icon-192.png", sizes: "192x192" }] },
+      { name: "Mijn takenbord", url: "/beheer/bruidsparen/takenbord", icons: [{ src: "/api/logo/app/icon-192.png", sizes: "192x192" }] },
+      { name: "Mijn agenda", url: "/beheer/bruidsparen/agenda", icons: [{ src: "/api/logo/app/icon-192.png", sizes: "192x192" }] },
     ],
   };
   return new Response(JSON.stringify(manifest), {
-    headers: { "Content-Type": "application/manifest+json", "Cache-Control": "public, max-age=3600" },
+    headers: { "Content-Type": "application/manifest+json", "Cache-Control": "public, max-age=600" },
   });
 }
