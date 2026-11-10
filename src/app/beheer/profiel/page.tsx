@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { deleteOAuthClient, revokeGrant, saveMcpSettings } from "@/app/actions/mcp";
 import { removePasskey, renamePasskey } from "@/app/actions/passkeys";
+import { saveOwnerPhoto } from "@/app/actions/profile";
 import { Badge } from "@/components/Badge";
 import { CopyField } from "@/components/CopyField";
 import { InstallApp } from "@/components/InstallApp";
@@ -8,8 +9,10 @@ import { NotificationSettings } from "@/components/community/NotificationSetting
 import { ManualClientForm } from "@/components/ManualClientForm";
 import { Notice } from "@/components/Notice";
 import { PasskeyRegister } from "@/components/PasskeyRegister";
+import { PhotoInput } from "@/components/PhotoInput";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireOwner } from "@/lib/auth/session";
+import { getStore } from "@/lib/data";
 import { supabaseEnabled } from "@/lib/supabase/config";
 import { allTools } from "@/lib/mcp/tools";
 import { mcpResource } from "@/lib/oauth/config";
@@ -26,7 +29,8 @@ type Search = Record<string, string | string[] | undefined>;
 export default async function OwnerProfilePage({ searchParams }: { searchParams: Promise<Search> }) {
   const owner = await requireOwner();
   const store = getSecurityStore();
-  const [passkeys, settings, grants, clients] = await Promise.all([
+  const [profile, passkeys, settings, grants, clients] = await Promise.all([
+    getStore().getProfile(owner.id),
     store.listPasskeys(owner.id),
     mcpSettingsFor(owner.id),
     store.listGrants(owner.id),
@@ -51,6 +55,30 @@ export default async function OwnerProfilePage({ searchParams }: { searchParams:
         <p className="mt-2 text-sm text-muted">{owner.name} · {owner.email}</p>
       </div>
       <Notice searchParams={searchParams} />
+
+      <section id="profielfoto" className="card scroll-mt-6 space-y-4 p-6">
+        <div>
+          <h2 className="text-2xl">Profielfoto</h2>
+          <p className="mt-2 text-sm text-muted">Staat bij je berichten in de community en in de privéchat met cursisten.</p>
+        </div>
+        <form action={saveOwnerPhoto} className="flex flex-wrap items-start gap-4">
+          {profile?.photoFileId ? (
+            // eslint-disable-next-line @next/next/no-img-element -- photo behind a login check
+            <img src={`/api/bestanden/${profile.photoFileId}`} alt="" className="h-20 w-20 rounded-full border border-line object-cover" />
+          ) : (
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-bordeaux font-serif text-2xl text-white">{owner.name.charAt(0)}</div>
+          )}
+          <div className="space-y-2">
+            <PhotoInput name="photo" label="Profielfoto kiezen" saveLabel="Profielfoto opslaan" />
+            {profile?.photoFileId && (
+              <label className="flex items-center gap-2 text-xs text-muted">
+                <input type="checkbox" name="removePhoto" /> Foto verwijderen
+              </label>
+            )}
+            <SubmitButton className="btn-secondary px-3 py-1.5 text-sm">Opslaan</SubmitButton>
+          </div>
+        </form>
+      </section>
 
       <NotificationSettings userId={owner.id} owner />
 

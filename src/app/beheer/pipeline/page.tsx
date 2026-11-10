@@ -38,7 +38,8 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
     title: l.title,
     contactName: l.contact_name,
     interest: l.interest,
-    sourceLabel: SOURCE_LABELS[l.source],
+    // Her own words about where the contact comes from, when filled in (feedback Sabine).
+    sourceLabel: l.source_note || SOURCE_LABELS[l.source],
     stage: l.stage,
     position: l.position,
     valueCents: l.value_cents,

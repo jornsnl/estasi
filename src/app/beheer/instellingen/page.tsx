@@ -3,12 +3,12 @@ import { addPracticalSpotAction, removePracticalSpotAction, saveSettings, update
 import { sendTestMail } from "@/app/actions/mail-test";
 import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { Notice } from "@/components/Notice";
+import { PhotoInput } from "@/components/PhotoInput";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { SubmitButton } from "@/components/SubmitButton";
 import { getStore } from "@/lib/data";
 import { supabaseEnabled } from "@/lib/supabase/config";
 import { LIMITS } from "@/lib/domain/input";
-import { IMAGE_ACCEPT_ATTR } from "@/lib/uploads";
 import { authClient } from "@/lib/supabase/server";
 import { mailFrom, mailTransport } from "@/lib/ws/mail";
 import { listPracticalSpots, type PracticalSpot } from "@/lib/practical-spots";
@@ -66,7 +66,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               // eslint-disable-next-line @next/next/no-img-element -- private file behind /api/bestanden
               <img src={`/api/bestanden/${s.headerImageFileId}`} alt="" className="h-28 w-full max-w-md rounded-xl border border-line object-cover" />
             )}
-            <input type="file" name="headerImage" accept={IMAGE_ACCEPT_ATTR} aria-label="Headerfoto kiezen" className="text-sm" />
+            <PhotoInput name="headerImage" label="Headerfoto kiezen" saveLabel="Headerfoto opslaan" />
             {s.headerImageFileId && <label className="flex items-center gap-2 text-xs text-muted"><input type="checkbox" name="removeHeaderImage" /> Foto weghalen</label>}
             <p className="hint">Optioneel. Zonder foto krijgt de header de kleuren van Estasi. Een brede, liggende foto werkt het mooist.</p>
           </div>

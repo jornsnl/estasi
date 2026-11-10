@@ -4,7 +4,7 @@ import { addNoteAction, convertLeadAction, deleteLeadAction, setStageAction, upd
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { LeadFields } from "@/components/pipeline/LeadFields";
-import { INTEREST_LABELS, SOURCE_LABELS, STAGES, STAGE_COLORS, STAGE_LABELS } from "@/lib/pipeline/rules";
+import { INTEREST_LABELS, instagramUrl, SOURCE_LABELS, STAGES, STAGE_COLORS, STAGE_LABELS } from "@/lib/pipeline/rules";
 import { getLead, leadActivity, type Activity } from "@/lib/pipeline/server";
 import { one } from "@/lib/db";
 import { coupleName, formatDate, formatDateTime, formatMoney } from "@/lib/ws/format";
@@ -108,9 +108,19 @@ export default async function LeadPage({
         <aside className="space-y-4">
           <div className="card space-y-2 p-4">
             <p className="eyebrow">Contact</p>
+            {lead.contact_name && <p className="text-sm font-medium">{lead.contact_name}{lead.partner_name && ` & ${lead.partner_name}`}</p>}
             {lead.email && <a href={`mailto:${lead.email}`} className="block break-all text-sm text-bordeaux hover:underline">{lead.email}</a>}
             {lead.phone && <a href={`tel:${lead.phone}`} className="block text-sm text-bordeaux hover:underline">{lead.phone}</a>}
-            {!lead.email && !lead.phone && <p className="text-sm text-muted">Geen contactgegevens.</p>}
+            {lead.instagram &&
+              (instagramUrl(lead.instagram) ? (
+                <a href={instagramUrl(lead.instagram)!} target="_blank" rel="noopener noreferrer" className="block break-all text-sm text-bordeaux hover:underline">
+                  Instagram: {lead.instagram}
+                </a>
+              ) : (
+                <p className="text-sm">Instagram: {lead.instagram}</p>
+              ))}
+            {!lead.email && !lead.phone && !lead.instagram && <p className="text-sm text-muted">Geen contactgegevens.</p>}
+            {lead.source_note && <p className="text-sm text-muted">Via: {lead.source_note}</p>}
             {lead.wedding_date && <p className="text-sm text-muted">Trouwt op {formatDate(lead.wedding_date)}{lead.location && ` in ${lead.location}`}</p>}
           </div>
 

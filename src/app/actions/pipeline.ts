@@ -31,6 +31,8 @@ function fieldsFrom(formData: FormData): Omit<LeadFields, "title"> & { title: st
     partner_name: str(formData, "partnerName", 120),
     email: str(formData, "email", 200),
     phone: str(formData, "phone", 40),
+    instagram: str(formData, "instagram", 200),
+    source_note: str(formData, "sourceNote", 300),
     interest: isInterest(interest) ? interest : "weddingplanning",
     source: isSource(source) ? source : "handmatig",
     wedding_date: dateField(formData, "weddingDate"),

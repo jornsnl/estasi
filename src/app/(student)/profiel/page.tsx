@@ -3,6 +3,7 @@ import { Markdown } from "@/components/Markdown";
 import { PrivacyNotice } from "@/components/academy/PrivacyNotice";
 import { NotificationSettings } from "@/components/community/NotificationSettings";
 import { Notice } from "@/components/Notice";
+import { PhotoInput } from "@/components/PhotoInput";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
@@ -36,7 +37,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       <p className="eyebrow">Mijn profiel</p>
       <h1 className="mt-1 mb-2 text-4xl">Over jou</h1>
       <p className="mb-8 text-muted">
-        Deze gegevens zijn alleen zichtbaar voor jou en je opleider. In de community zien andere cursisten alleen je naam bij je berichten.
+        Deze gegevens zijn alleen zichtbaar voor jou en je opleider. In de community zien andere cursisten alleen je naam en je profielfoto bij je berichten.
       </p>
       <Notice searchParams={searchParams} />
 
@@ -53,8 +54,8 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
               </div>
             )}
             <div className="text-sm">
-              <label htmlFor="photo" className="label">Profielfoto</label>
-              <input id="photo" name="photo" type="file" accept="image/*" className="text-sm" />
+              <p className="label">Profielfoto</p>
+              <PhotoInput name="photo" label="Profielfoto kiezen" saveLabel="Profielfoto opslaan" />
               {profile?.photoFileId && (
                 <label className="mt-1 flex items-center gap-1.5 text-muted">
                   <input type="checkbox" name="removePhoto" /> foto verwijderen

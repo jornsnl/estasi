@@ -172,3 +172,12 @@ export function parseProbability(input: string): number | null {
   if (!Number.isFinite(value)) throw new Error(`"${input}" is geen geldige kans.`);
   return Math.min(100, Math.max(0, value));
 }
+
+/** A link to the Instagram of a contact: as written when it is a link, otherwise from the @name. */
+export function instagramUrl(value: string): string | null {
+  const v = value.trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  const handle = v.replace(/^@/, "").replace(/^(www\.)?instagram\.com\//i, "").replace(/\/+$/, "");
+  return /^[A-Za-z0-9._]{1,30}$/.test(handle) ? `https://www.instagram.com/${handle}/` : null;
+}

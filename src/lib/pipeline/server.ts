@@ -19,8 +19,12 @@ export interface Lead {
   partner_name: string;
   email: string;
   phone: string;
+  /** Instagram of the contact, as Sabine writes it (@naam or a link). Migration 0037. */
+  instagram: string;
   interest: Interest;
   source: Source;
+  /** Where the contact comes from, in her own words. Migration 0037. */
+  source_note: string;
   wedding_date: string | null;
   location: string;
   guests: number | null;
@@ -60,8 +64,10 @@ export const leadFields = z.object({
   partner_name: text(120),
   email: text(200).toLowerCase().refine((v) => !v || /^\S+@\S+\.\S+$/.test(v), "Controleer het e-mailadres."),
   phone: text(40),
+  instagram: text(200),
   interest: z.enum(INTERESTS),
   source: z.enum(SOURCES),
+  source_note: text(300),
   wedding_date: date.nullable(),
   location: text(200),
   guests: z.number().int().min(0).max(5000).nullable(),
@@ -127,12 +133,14 @@ export async function createLead(input: NewLeadInput): Promise<Result<Lead>> {
   const stage = v.stage ?? "nieuw";
   const lead = await one<Lead>(
     `insert into public.pipeline_leads (title, contact_name, partner_name, email, phone, interest, source, wedding_date, location, guests,
-                                        stage, position, value_cents, probability, notes, next_action, next_action_date, lost_reason)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) returning *`,
+                                        stage, position, value_cents, probability, notes, next_action, next_action_date, lost_reason,
+                                        instagram, source_note)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) returning *`,
     [
       v.title, v.contact_name ?? "", v.partner_name ?? "", v.email ?? "", v.phone ?? "", v.interest ?? "weddingplanning", v.source ?? "handmatig",
       v.wedding_date ?? null, v.location ?? "", v.guests ?? null, stage, await topPosition(stage), v.value_cents ?? null, v.probability ?? null,
       v.notes ?? "", v.next_action ?? "", v.next_action_date ?? null, v.lost_reason ?? "",
+      v.instagram ?? "", v.source_note ?? "",
     ],
   );
   return { ok: true, value: lead! };

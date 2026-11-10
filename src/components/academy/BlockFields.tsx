@@ -1,4 +1,5 @@
 import { Markdown } from "@/components/Markdown";
+import { PhotoInput } from "@/components/PhotoInput";
 import { VideoEmbed } from "@/components/VideoEmbed";
 import type { Block, BlockType } from "@/lib/data";
 import { LIMITS } from "@/lib/domain/input";
@@ -101,8 +102,8 @@ const EDITORS: Editors = {
         <p className="text-sm text-muted">Nog geen afbeelding.</p>
       )}
       <div>
-        <label className="label" htmlFor={id("file")}>{block.file ? "Andere afbeelding kiezen" : "Afbeelding kiezen"} (jpg, png, webp of gif)</label>
-        <input id={id("file")} type="file" name={n("file")} accept={IMAGE_ACCEPT_ATTR} className="text-sm" />
+        <p className="label">{block.file ? "Andere afbeelding kiezen" : "Afbeelding kiezen"} (jpg, png, webp of gif)</p>
+        <PhotoInput name={n("file")} label="Afbeelding kiezen" accept={`${IMAGE_ACCEPT_ATTR},image/heic,.heic`} saveLabel="Afbeelding opslaan" />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
