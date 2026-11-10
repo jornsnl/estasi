@@ -75,6 +75,7 @@ export default async function StudentDetail({
           {profile?.city && ` · ${profile.city}`}
           {profile?.companyName && ` · ${profile.companyName}`}
         </p>
+        <Link href={`/beheer/voorbeeld?cursist=${user.id}`} className="btn-secondary mt-3 inline-flex px-3 py-1.5 text-sm">Bekijk als deze cursist</Link>
       </header>
 
       <Notice searchParams={searchParams} />

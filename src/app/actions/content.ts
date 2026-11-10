@@ -9,7 +9,8 @@ import { LIMITS } from "@/lib/domain/input";
 import { applyEdit, copyLesson as copyOf, discardDraft, editableContent, orderBlocks, publishLesson, unpublishLesson } from "@/lib/domain/publishing";
 import { isPublished, parseModulePackages } from "@/lib/domain/visibility";
 import { readBlock } from "@/lib/lesson-blocks";
-import { storeImageUpload, storeLogoUpload, UploadError } from "@/lib/uploads";
+import { getBrandLogos, LOGO_KINDS, LOGO_LABELS, saveBrandLogos } from "@/lib/brand-logos";
+import { storeBrandLogoUpload, storeImageUpload, storeLogoUpload, UploadError } from "@/lib/uploads";
 import { getSignupPage, saveSignupPage, type SignupImageField } from "@/lib/signup-page";
 import { newId } from "@/lib/util/id";
 import { addPracticalSpot, removePracticalSpot, updatePracticalSpot } from "@/lib/practical-spots";
@@ -385,4 +386,32 @@ export async function saveSignupPageAction(formData: FormData) {
   await saveSignupPage(page);
   await audit(owner, "Inschrijfpagina aangepast");
   done(path, "Inschrijfpagina opgeslagen.");
+}
+
+/** Instellingen, Logo's (feedback Sabine): the logos in the mails and as app icon. */
+export async function saveBrandLogosAction(formData: FormData) {
+  const owner = await requireOwner();
+  const path = "/beheer/instellingen/logos";
+  const logos = await getBrandLogos();
+  const changed: string[] = [];
+  try {
+    for (const kind of LOGO_KINDS) {
+      if (formData.get(`remove-${kind}`) === "on" && logos[kind]) {
+        logos[kind] = null;
+        changed.push(`${LOGO_LABELS[kind]} weggehaald`);
+      }
+      const file = await storeBrandLogoUpload(formData.get(kind), owner.id);
+      if (file) {
+        logos[kind] = file.id;
+        changed.push(`${LOGO_LABELS[kind]} geüpload`);
+      }
+    }
+  } catch (err) {
+    if (err instanceof UploadError) done(path, err.message, true);
+    throw err;
+  }
+  if (changed.length === 0) done(path, "Kies eerst een logo om te uploaden.", true);
+  await saveBrandLogos(logos);
+  await audit(owner, "Logo's aangepast", changed.join(", "));
+  done(path, "Logo's opgeslagen. Nieuwe mails hebben meteen het nieuwe logo; een app op het beginscherm pakt het op na opnieuw installeren.");
 }

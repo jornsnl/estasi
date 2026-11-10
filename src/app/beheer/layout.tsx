@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { AdminPwa } from "@/components/AdminPwa";
 import { AppShell } from "@/components/AppShell";
 import { requireOwner } from "@/lib/auth/session";
+import { metadataIcons } from "@/lib/brand-logo-urls";
 import { kickNotifications } from "@/lib/community/notify";
 import { kickExpiryNotices } from "@/lib/academy-expiry";
 import { menuCounts, viewerFor } from "@/lib/community/server";
@@ -16,6 +17,7 @@ export const dynamic = "force-dynamic";
 // Installable as a home screen app (see src/app/beheer.webmanifest). Only here, not for students or couples.
 export const metadata: Metadata = {
   manifest: "/beheer.webmanifest",
+  icons: metadataIcons("app"),
   appleWebApp: { capable: true, title: "Estasi", statusBarStyle: "default" },
   applicationName: "Estasi Beheer",
   formatDetection: { telephone: false },
@@ -54,6 +56,8 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
         // Cursist toevoegen and Feedback are reached from the Cursisten page; the open feedback shows as a count here.
         { href: "/beheer", label: "Cursisten", section: "Future Weddings Academy", badge: feedback, exact: true, alsoActive: ["/beheer/cursisten", "/beheer/feedback"] },
         { href: "/beheer/inhoud", label: "Lesinhoud" },
+        // Feedback Sabine: see the student pages without signing in as a student.
+        { href: "/beheer/voorbeeld", label: "Bekijk als cursist" },
         { href: "/beheer/bruidsparen/pakketten", label: "Pakketten", section: "Diensten" },
         { href: "/beheer/bruidsparen/openingsdans", label: "Openingsdans" },
         { href: "/beheer/bruidsparen/aanraders", label: "Aanraders", group: true, strong: true },

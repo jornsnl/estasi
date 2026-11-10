@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Inter, Playfair_Display } from "next/font/google";
+import { metadataIcons } from "@/lib/brand-logo-urls";
 import "./globals.css";
 
 // Playfair Display is the heading font of Your Wedding Space (its own house style, see .ws-theme).
@@ -16,6 +17,8 @@ export const metadata: Metadata = {
   title: { default: "Future Weddings Academy", template: "%s · Future Weddings Academy" },
   description: "De online opleiding tot weddingplanner van Estasi Weddings.",
   robots: { index: false, follow: false },
+  // The Academy logo by default (login, sign up page); the beheer and the couple portal set their own.
+  icons: metadataIcons("academy"),
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,10 +1,12 @@
 import { Notice } from "@/components/Notice";
+import { metadataIcons } from "@/lib/brand-logo-urls";
 import { RsvpFormClient } from "@/components/ws/RsvpFormClient";
 import { coupleName, formatDate } from "@/lib/ws/format";
 import { fillTemplate, MAX_RELATIONS, publicForm, relationOptions } from "@/lib/ws/rsvp";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "RSVP", robots: { index: false, follow: false } };
+// Guests see the logo of Estasi Weddings, like the couple.
+export const metadata = { title: "RSVP", robots: { index: false, follow: false }, icons: metadataIcons("estasi") };
 
 /** The public RSVP page a guest opens from the invitation (link or QR code). No login. */
 export default async function RsvpPage({

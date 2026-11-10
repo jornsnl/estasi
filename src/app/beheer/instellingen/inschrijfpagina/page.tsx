@@ -30,7 +30,7 @@ export default async function SignupPageSettings({ searchParams }: { searchParam
             label="Logo"
             fileId={page.logo_file_id}
             accept={`${IMAGE_ACCEPT_ATTR},image/svg+xml,.svg`}
-            hint="SVG (aanbevolen), png of jpg. Staat in de header en groot in een licht gekantelde cirkel bovenaan de pagina."
+            hint="SVG (aanbevolen), png of jpg. Staat in de header en groot in een licht gekantelde cirkel bovenaan de pagina. Zonder logo hier staat het logo van Future Weddings Academy uit Instellingen, Logo&apos;s."
             contain
           />
           <ImageField name="trainerPhoto" label="Foto van jou bij 'Je opleider'" fileId={page.trainer_photo_file_id} hint="Wordt rond afgesneden. Een portretfoto met je gezicht in het midden werkt het best." round />

@@ -1,6 +1,7 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
 import { isUuid, one, query, wsConfigured } from "./db";
+import { mailLogo } from "@/lib/brand-logos";
 import { brandFor, mailError, recipients, resendPayload, senderAddress, toHtml, type Mail, type MailLogInfo } from "./mail-format";
 
 export type { Mail, MailLogInfo };
@@ -108,8 +109,10 @@ async function deliver(mail: Mail, to: string[]): Promise<Outcome> {
     return { ok: false, error: "Niet verstuurd: het versturen van e-mail staat niet ingesteld (geen RESEND_API_KEY of SMTP)." };
   }
   try {
+    // Never let the logo stop a mail: without it the header shows the name only.
+    if (!mail.logo) mail = { ...mail, logo: await mailLogo(mail.brand ?? "estasi", appUrl()).catch(() => undefined) };
     if (transport === "resend") await viaResend({ ...mail, to });
-    else await smtp()!.sendMail({ from: from(), to, replyTo: mail.replyTo, subject: mail.subject, text: mail.text, html: toHtml(mail.text, mail.brand, mail.subject) });
+    else await smtp()!.sendMail({ from: from(), to, replyTo: mail.replyTo, subject: mail.subject, text: mail.text, html: toHtml(mail.text, mail.brand, mail.subject, mail.logo) });
     return { ok: true };
   } catch (err) {
     // "fetch failed" alone says little: the cause names the network problem (DNS, timeout, refused).

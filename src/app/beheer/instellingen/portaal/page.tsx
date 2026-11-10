@@ -1,4 +1,4 @@
-import { archiveCategory, saveCategory, saveSettings } from "@/app/actions/ws-admin";
+import { saveSettings } from "@/app/actions/ws-admin";
 import { uploadContactPhoto } from "@/app/actions/ws-fase2";
 import Link from "next/link";
 import { FileUpload } from "@/components/ws/FileUpload";
@@ -7,15 +7,13 @@ import { aiConfigured } from "@/lib/ws/ai";
 import { Notice } from "@/components/Notice";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { SubmitButton } from "@/components/SubmitButton";
-import { query } from "@/lib/ws/db";
 import { getSettings } from "@/lib/ws/settings";
 import { mailConfigured } from "@/lib/ws/mail";
-import type { SupplierCategory } from "@/lib/ws/types";
 
 export const metadata = { title: "Instellingen" };
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const [s, categories] = await Promise.all([getSettings(), query<SupplierCategory>("select * from supplier_categories where couple_id is null order by archived, position, name")]);
+  const s = await getSettings();
   const field = (name: string, label: string, value: string, type = "text") => (
     <div><label className="label" htmlFor={name}>{label}</label><input id={name} name={name} type={type} defaultValue={value} className="input" /></div>
   );
@@ -85,30 +83,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <SubmitButton className="btn-primary" pendingText="Opslaan…">Instellingen opslaan</SubmitButton>
       </form>
 
-      <section id="categorieen" className="card scroll-mt-6 p-6">
-        <h2 className="text-xl">Leverancierscategorieën</h2>
-        <p className="mt-1 text-sm text-muted">Deze categorieën ziet elk bruidspaar bij &quot;Jullie leveranciers&quot;, ook zolang er nog niets is ingevuld.</p>
-        <ul className="mt-4 space-y-2">
-          {categories.map((c) => (
-            <li key={c.id} className={`flex flex-wrap items-center gap-2 ${c.archived ? "opacity-50" : ""}`}>
-              <form action={saveCategory} className="flex flex-1 gap-2">
-                <input type="hidden" name="categoryId" value={c.id} />
-                <input name="name" defaultValue={c.name} required aria-label="Naam categorie" className="input py-1.5" />
-                <SubmitButton className="btn-secondary py-1.5">Opslaan</SubmitButton>
-              </form>
-              <form action={archiveCategory}>
-                <input type="hidden" name="categoryId" value={c.id} />
-                <input type="hidden" name="archived" value={c.archived ? "0" : "1"} />
-                <SubmitButton className="btn-ghost py-1.5 text-xs">{c.archived ? "Weer tonen" : "Verbergen"}</SubmitButton>
-              </form>
-            </li>
-          ))}
-        </ul>
-        <form action={saveCategory} className="mt-4 flex gap-2">
-          <input name="name" required placeholder="Nieuwe categorie" aria-label="Nieuwe categorie" className="input py-1.5" />
-          <SubmitButton className="btn-primary py-1.5">Toevoegen</SubmitButton>
-        </form>
-      </section>
+      <p className="rounded-xl border border-line bg-white p-4 text-sm text-muted">
+        De leverancierscategorieën staan bij{" "}
+        <Link href="/beheer/bruidsparen/standaardlijsten#categorieen" className="text-bordeaux underline">Bruidsparen, Standaardlijsten</Link>.
+      </p>
     </div>
   );
 }
