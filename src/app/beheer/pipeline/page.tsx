@@ -66,6 +66,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
             <Link href="/beheer/pipeline" className={`px-3 py-2 ${!list ? "bg-bordeaux text-white" : "bg-white text-muted hover:text-ink"}`}>Bord</Link>
             <Link href="/beheer/pipeline?weergave=lijst" className={`px-3 py-2 ${list ? "bg-bordeaux text-white" : "bg-white text-muted hover:text-ink"}`}>Lijst</Link>
           </div>
+          <Link href="/beheer/omzet" className="btn-secondary">Omzet</Link>
           <Link href={`${base}${list ? "&" : "?"}nieuw=1`} className="btn-primary">Nieuwe lead</Link>
         </div>
       </header>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { saveSettings } from "@/app/actions/content";
+import { addPracticalSpotAction, removePracticalSpotAction, saveSettings, updatePracticalSpotAction } from "@/app/actions/content";
 import { sendTestMail } from "@/app/actions/mail-test";
 import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { Notice } from "@/components/Notice";
@@ -11,11 +11,21 @@ import { LIMITS } from "@/lib/domain/input";
 import { IMAGE_ACCEPT_ATTR } from "@/lib/uploads";
 import { authClient } from "@/lib/supabase/server";
 import { mailFrom, mailTransport } from "@/lib/ws/mail";
+import { listPracticalSpots, type PracticalSpot } from "@/lib/practical-spots";
+import { PACKAGE_LABELS } from "@/lib/domain/labels";
+import { todayIso } from "@/lib/ws/format";
 
 export const metadata = { title: "Instellingen" };
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const s = await getStore().getSettings();
+  const store = getStore();
+  const today = todayIso();
+  const [s, spots, students, enrollments] = await Promise.all([store.getSettings(), listPracticalSpots(today), store.listUsers("student"), store.listEnrollments()]);
+  const packageOf = new Map(enrollments.map((e) => [e.userId, e.package]));
+  // Package B students first: they are the ones who walk along.
+  const studentOptions = students
+    .map((u) => ({ id: u.id, label: `${u.name}${packageOf.has(u.id) ? ` (pakket ${PACKAGE_LABELS[packageOf.get(u.id)!]})` : ""}`, b: packageOf.get(u.id) === "B" }))
+    .sort((a, b) => Number(b.b) - Number(a.b) || a.label.localeCompare(b.label, "nl"));
   let mfaLinked: boolean | null = null;
   if (supabaseEnabled()) {
     const { data } = await (await authClient()).auth.mfa.listFactors();
@@ -46,19 +56,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <form action={saveSettings} className="space-y-6">
         <section className="card space-y-4 p-6">
           <h2 className="text-2xl">Dashboard</h2>
-          <div>
-            <label htmlFor="welcomeVideoUrl" className="label">Welkomstvideo (link)</label>
-            <input id="welcomeVideoUrl" name="welcomeVideoUrl" inputMode="url" autoComplete="off" defaultValue={s.welcomeVideoUrl} maxLength={LIMITS.url} className="input" />
-          </div>
-          <div>
-            <label htmlFor="welcomeTitle" className="label">Titel van het welkomstbericht</label>
-            <input id="welcomeTitle" name="welcomeTitle" defaultValue={s.welcomeTitle} maxLength={120} className="input" placeholder="Een persoonlijk welkom" />
-          </div>
-          <div>
-            <label htmlFor="welcomeText" className="label">Welkomstbericht</label>
-            <textarea id="welcomeText" name="welcomeText" rows={4} defaultValue={s.welcomeText} maxLength={LIMITS.welcomeText} className="input" />
-            <p className="hint">Staat als blok op de hoofdpagina van elke cursist, met de welkomstvideo ernaast als die er is. Leeg: geen welkomstblok.</p>
-          </div>
+          <p className="text-sm text-muted">
+            De welkomstvideo en het welkomstbericht zijn alleen voor bruidsparen en stel je in bij{" "}
+            <Link href="/beheer/rondleiding" className="text-bordeaux underline">Systeem, Rondleiding</Link>. Cursisten krijgen ze niet te zien.
+          </p>
           <div className="space-y-1">
             <p className="label">Headerfoto op de hoofdpagina</p>
             {s.headerImageFileId && (
@@ -86,6 +87,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <label htmlFor="practicalSpotsNote" className="label">Notitie (intern)</label>
             <input id="practicalSpotsNote" name="practicalSpotsNote" defaultValue={s.practicalSpotsNote} maxLength={LIMITS.practicalSpotsNote} className="input" placeholder="Bijvoorbeeld: 2 plekken in juni" />
           </div>
+          <p className="hint">
+            De bruiloften zelf, met datum, bruidspaar en de gekoppelde cursist, staan <a href="#praktijkplekken" className="text-bordeaux underline">onder het formulier</a>.
+          </p>
         </section>
 
         <section className="card space-y-4 p-6">
@@ -106,6 +110,27 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
         <SubmitButton pendingText="Opslaan…">Instellingen opslaan</SubmitButton>
       </form>
+
+      <section id="praktijkplekken" className="card mt-10 scroll-mt-6 space-y-4 p-6">
+        <div>
+          <h2 className="text-2xl">Praktijkplekken per bruiloft</h2>
+          <p className="mt-1 text-sm text-muted">Per bruiloft de datum, de namen van het bruidspaar en welke cursist eraan gekoppeld is.</p>
+        </div>
+        {spots.length === 0 ? (
+          <p className="rounded-lg bg-cream p-4 text-sm text-muted">Nog geen bruiloften toegevoegd.</p>
+        ) : (
+          <ul className="space-y-3">
+            {spots.map((spot) => (
+              <SpotRow key={spot.id} spot={spot} past={spot.wedding_date < today} students={studentOptions} />
+            ))}
+          </ul>
+        )}
+        <form action={addPracticalSpotAction} className="space-y-3 rounded-lg border border-dashed border-line p-4">
+          <p className="font-medium">Bruiloft toevoegen</p>
+          <SpotFields students={studentOptions} />
+          <SubmitButton className="btn-secondary" pendingText="Toevoegen…">Toevoegen</SubmitButton>
+        </form>
+      </section>
 
       <section id="testmail" className="card mt-10 space-y-4 p-6">
         <h2 className="text-2xl">E-mail</h2>
@@ -137,3 +162,62 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     </div>
   );
 }
+
+type StudentOption = { id: string; label: string };
+
+function SpotFields({ spot, students }: { spot?: PracticalSpot; students: StudentOption[] }) {
+  const key = spot?.id ?? "nieuw";
+  return (
+    <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+      <div>
+        <label className="label" htmlFor={`date-${key}`}>Datum</label>
+        <input id={`date-${key}`} name="weddingDate" type="date" required defaultValue={spot?.wedding_date} className="input" />
+      </div>
+      <div>
+        <label className="label" htmlFor={`names-${key}`}>Bruidspaar</label>
+        <input id={`names-${key}`} name="coupleNames" required maxLength={200} defaultValue={spot?.couple_names} className="input" placeholder="Bijvoorbeeld: Lisa & Tom" />
+      </div>
+      <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="label" htmlFor={`student-${key}`}>Gekoppelde cursist</label>
+          <select id={`student-${key}`} name="studentId" defaultValue={spot?.student_user_id ?? ""} className="input">
+            <option value="">Nog geen cursist</option>
+            {spot?.student_user_id && !students.some((s) => s.id === spot.student_user_id) && (
+              <option value={spot.student_user_id}>{spot.student_name ?? "Onbekende cursist"}</option>
+            )}
+            {students.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor={`note-${key}`}>Notitie (intern)</label>
+          <input id={`note-${key}`} name="note" maxLength={300} defaultValue={spot?.note} className="input" placeholder="Bijvoorbeeld: locatie of tijden" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SpotRow({ spot, past, students }: { spot: PracticalSpot; past: boolean; students: StudentOption[] }) {
+  return (
+    <li className={`rounded-lg border border-line p-4 ${past ? "bg-cream/60" : "bg-white"}`}>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-medium">
+          {formatDay(spot.wedding_date)} · {spot.couple_names}
+          {past && <span className="ml-2 text-xs font-normal text-muted">geweest</span>}
+        </p>
+        <p className={`text-sm ${spot.student_name ? "text-success" : "text-muted"}`}>{spot.student_name ? `Cursist: ${spot.student_name}` : "Nog geen cursist gekoppeld"}</p>
+      </div>
+      <form action={updatePracticalSpotAction} className="space-y-3">
+        <input type="hidden" name="id" value={spot.id} />
+        <SpotFields spot={spot} students={students} />
+        <div className="flex flex-wrap gap-2">
+          <SubmitButton className="btn-secondary" pendingText="Opslaan…">Opslaan</SubmitButton>
+          <button type="submit" formAction={removePracticalSpotAction} formNoValidate className="btn-ghost text-bordeaux">Verwijderen</button>
+        </div>
+      </form>
+    </li>
+  );
+}
+
+const formatDay = (iso: string) =>
+  new Date(`${iso}T12:00:00Z`).toLocaleDateString("nl-NL", { weekday: "short", day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Amsterdam" });

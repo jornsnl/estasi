@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
-import { resendInvite, setCouplePackages, setCoupleStatus, shareCouple, updateCouple, uploadCover } from "@/app/actions/ws-admin";
+import { resendInvite, saveCouplePayment, setCouplePackages, setCoupleStatus, shareCouple, updateCouple, uploadCover } from "@/app/actions/ws-admin";
 import { CoupleFields } from "@/components/ws/CoupleFields";
+import { CouplePaymentFields } from "@/components/ws/CouplePaymentFields";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireCoupleAdmin } from "@/lib/ws/access";
@@ -121,6 +122,13 @@ export default async function CoupleSettings({
           ))}
         </div>
         <SubmitButton className="btn-secondary" pendingText="Opslaan…">Pakketten opslaan</SubmitButton>
+      </form>
+
+      <form id="betaling" action={saveCouplePayment} className="card scroll-mt-6 space-y-4 p-6">
+        <input type="hidden" name="coupleId" value={couple.id} />
+        <CouplePaymentFields couple={couple} />
+        <p className="text-xs text-muted">Alleen jij ziet dit, het bruidspaar niet. Alle openstaande bedragen samen staan onder Pipeline, Omzet.</p>
+        <SubmitButton className="btn-secondary" pendingText="Opslaan…">Prijs en betaling opslaan</SubmitButton>
       </form>
 
       <form action={updateCouple} className="card space-y-6 p-6">

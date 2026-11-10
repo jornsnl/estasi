@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { practicalSpotsOf } from "@/lib/practical-spots";
 import { notFound } from "next/navigation";
 import { changeAccess, changeCompletion, changeModuleUnlock, newSetupLink, setTemporaryPassword, updateStudentDetails } from "@/app/actions/admin";
 import { generateTemporaryPassword, mustChangePassword } from "@/lib/auth/temporary-password";
@@ -40,7 +41,7 @@ export default async function StudentDetail({
   const user = await store.getUser(userId);
   if (!user || user.role !== "student") notFound();
 
-  const [o, profile, feedback, log, settings, completions, lessons] = await Promise.all([
+  const [o, profile, feedback, log, settings, completions, lessons, spots] = await Promise.all([
     studentOverview(user),
     store.getProfile(userId),
     listAssignmentFeedback({ userId }),
@@ -48,6 +49,7 @@ export default async function StudentDetail({
     store.getSettings(),
     store.listCompletions(userId),
     store.listLessons(),
+    practicalSpotsOf(userId),
   ]);
   const e = o.enrollment;
   const completedAt = new Map(completions.map((c) => [c.lessonId, c.completedAt]));
@@ -194,6 +196,14 @@ export default async function StudentDetail({
                 )}
               </Row>
               <CertificateControls userId={userId} enrollment={e} onlineMissing={onlineCertificateCheck(o).missing} />
+              {spots.length > 0 && (
+                <Row label="Praktijkplek">
+                  <span>
+                    {spots.map((spot) => `${formatDate(spot.wedding_date)} · ${spot.couple_names}`).join(", ")}{" "}
+                    <Link href="/beheer/instellingen#praktijkplekken" className="text-bordeaux underline">Praktijkplekken</Link>
+                  </span>
+                </Row>
+              )}
               <Row label="Praktijkdeel">
                 {e.package === "B" ? (
                   <form action={changeCompletion} className="flex items-center gap-2">

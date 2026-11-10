@@ -37,22 +37,24 @@ export const STAGE_COLORS: Record<Stage, string> = {
 export const OPEN_STAGES: Stage[] = ["nieuw", "contact", "kennismaking", "offerte"];
 export const isClosed = (stage: Stage) => !OPEN_STAGES.includes(stage);
 
-export const INTERESTS = ["weddingplanning", "openingsdans", "academy", "overig"] as const;
+export const INTERESTS = ["weddingplanning", "ceremoniemeester", "openingsdans", "academy", "overig"] as const;
 export type Interest = (typeof INTERESTS)[number];
 
 export const INTEREST_LABELS: Record<Interest, string> = {
   weddingplanning: "Weddingplanning",
+  ceremoniemeester: "Ceremoniemeester",
   openingsdans: "Openingsdans",
   academy: "Academy",
   overig: "Overig",
 };
 
-export const SOURCES = ["website", "instagram", "aanbeveling", "beurs", "mail", "handmatig", "overig"] as const;
+export const SOURCES = ["website", "instagram", "meta_ads", "aanbeveling", "beurs", "mail", "handmatig", "overig"] as const;
 export type Source = (typeof SOURCES)[number];
 
 export const SOURCE_LABELS: Record<Source, string> = {
   website: "Website",
   instagram: "Instagram",
+  meta_ads: "Meta Ads",
   aanbeveling: "Via via",
   beurs: "Beurs",
   mail: "Mail",

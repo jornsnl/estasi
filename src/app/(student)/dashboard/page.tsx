@@ -4,7 +4,6 @@ import { NewFeedbackNotice } from "@/components/academy/NewFeedbackNotice";
 import { Badge } from "@/components/Badge";
 import { ModuleCard } from "@/components/ModuleCard";
 import { ProgressBar } from "@/components/ProgressBar";
-import { VideoEmbed } from "@/components/VideoEmbed";
 import { nextLesson, studentOverview } from "@/lib/academy";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
@@ -45,17 +44,6 @@ export default async function Dashboard() {
           )}
         </div>
       </header>
-
-      {/* The welcome message, set in Instellingen; the welcome video next to it when there is one. */}
-      {(settings.welcomeText || settings.welcomeVideoUrl) && (
-        <section aria-labelledby="welkom-titel" className={`card p-6 sm:p-8 ${settings.welcomeVideoUrl ? "grid gap-6 lg:grid-cols-[1.4fr_1fr]" : ""}`}>
-          {settings.welcomeVideoUrl && <VideoEmbed url={settings.welcomeVideoUrl} title="Welkomstvideo" />}
-          <div className="self-center">
-            <h2 id="welkom-titel" className="text-2xl">{settings.welcomeTitle || "Een persoonlijk welkom"}</h2>
-            {settings.welcomeText && <p className="mt-2 whitespace-pre-line text-muted">{settings.welcomeText}</p>}
-          </div>
-        </section>
-      )}
 
       {walkAlong.length > 0 && (
         <section aria-labelledby="meeloop-titel" className="card p-6">

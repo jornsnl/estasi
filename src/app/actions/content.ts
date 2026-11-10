@@ -5,12 +5,14 @@ import { audit } from "@/lib/academy";
 import { requireOwner } from "@/lib/auth/session";
 import { getStore, type Block, type ContentStatus, type Lesson } from "@/lib/data";
 import { emptyBlock } from "@/lib/domain/blocks";
-import { LIMITS, normaliseUrl } from "@/lib/domain/input";
+import { LIMITS } from "@/lib/domain/input";
 import { applyEdit, copyLesson as copyOf, discardDraft, editableContent, orderBlocks, publishLesson, unpublishLesson } from "@/lib/domain/publishing";
 import { isPublished, parseModulePackages } from "@/lib/domain/visibility";
 import { readBlock } from "@/lib/lesson-blocks";
-import { storeImageUpload, UploadError } from "@/lib/uploads";
+import { storeImageUpload, storeLogoUpload, UploadError } from "@/lib/uploads";
+import { getSignupPage, saveSignupPage, type SignupImageField } from "@/lib/signup-page";
 import { newId } from "@/lib/util/id";
+import { addPracticalSpot, removePracticalSpot, updatePracticalSpot } from "@/lib/practical-spots";
 
 const str = (formData: FormData, name: string, max = 500) => String(formData.get(name) ?? "").trim().slice(0, max);
 const statusOf = (formData: FormData): ContentStatus => (str(formData, "status") === "published" ? "published" : "draft");
@@ -296,9 +298,11 @@ export async function saveSettings(formData: FormData) {
     throw err;
   }
   await store.saveSettings({
-    welcomeVideoUrl: normaliseUrl(str(formData, "welcomeVideoUrl", LIMITS.url)),
-    welcomeTitle: str(formData, "welcomeTitle", 120),
-    welcomeText: str(formData, "welcomeText", LIMITS.welcomeText),
+    // Feedback: the welcome pop-up (video and message) is for couples only, so the Academy no longer
+    // asks for one. What was stored stays as it was.
+    welcomeVideoUrl: before.welcomeVideoUrl,
+    welcomeTitle: before.welcomeTitle,
+    welcomeText: before.welcomeText,
     headerImageFileId,
     contactEmail: str(formData, "contactEmail", LIMITS.contactEmail) || before.contactEmail,
     practicalSpotsAvailable,
@@ -310,4 +314,75 @@ export async function saveSettings(formData: FormData) {
     await audit(owner, practicalSpotsAvailable ? "Praktijkplekken opengezet" : "Praktijkplekken gesloten");
   }
   done("/beheer/instellingen", "Instellingen opgeslagen.");
+}
+
+// Praktijkplekken (feedback Sabine): weddings with a date, the couple's names and a linked student.
+
+const SPOTS_PATH = "/beheer/instellingen#praktijkplekken";
+
+async function spotInput(formData: FormData) {
+  const date = str(formData, "weddingDate", 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) done(SPOTS_PATH, "Vul de datum van de bruiloft in.", true);
+  const names = str(formData, "coupleNames", 200);
+  if (!names) done(SPOTS_PATH, "Vul de namen van het bruidspaar in.", true);
+  const studentId = str(formData, "studentId", 40);
+  let student = null;
+  if (studentId) {
+    const user = await getStore().getUser(studentId);
+    if (!user || user.role !== "student") done(SPOTS_PATH, "Die cursist bestaat niet (meer).", true);
+    student = user;
+  }
+  return { input: { wedding_date: date, couple_names: names, student_user_id: student?.id ?? null, note: str(formData, "note", 300) }, student };
+}
+
+export async function addPracticalSpotAction(formData: FormData) {
+  const owner = await requireOwner();
+  const { input, student } = await spotInput(formData);
+  await addPracticalSpot(input);
+  await audit(owner, "Praktijkplek toegevoegd", `${input.couple_names}, ${input.wedding_date}${student ? ` · ${student.name}` : ""}`, student?.id ?? null);
+  done(SPOTS_PATH, "Praktijkplek toegevoegd.");
+}
+
+export async function updatePracticalSpotAction(formData: FormData) {
+  const owner = await requireOwner();
+  const { input, student } = await spotInput(formData);
+  if (!(await updatePracticalSpot(str(formData, "id", 40), input))) done(SPOTS_PATH, "Die praktijkplek bestaat niet meer.", true);
+  await audit(owner, "Praktijkplek aangepast", `${input.couple_names}, ${input.wedding_date}${student ? ` · ${student.name}` : " · geen cursist"}`, student?.id ?? null);
+  done(SPOTS_PATH, "Praktijkplek opgeslagen.");
+}
+
+export async function removePracticalSpotAction(formData: FormData) {
+  const owner = await requireOwner();
+  const removed = await removePracticalSpot(str(formData, "id", 40));
+  if (removed) await audit(owner, "Praktijkplek verwijderd", `${removed.couple_names}, ${removed.wedding_date}`, removed.student_user_id);
+  done(SPOTS_PATH, removed ? "Praktijkplek verwijderd." : "Die praktijkplek bestaat niet meer.");
+}
+
+// Inschrijfpagina (feedback Sabine): logo, photo at "Je opleider" and the review with two photos.
+
+export async function saveSignupPageAction(formData: FormData) {
+  const owner = await requireOwner();
+  const path = "/beheer/instellingen/inschrijfpagina";
+  const page = await getSignupPage();
+  const images: [SignupImageField, string][] = [
+    ["logo_file_id", "logo"],
+    ["trainer_photo_file_id", "trainerPhoto"],
+    ["review_photo1_file_id", "reviewPhoto1"],
+    ["review_photo2_file_id", "reviewPhoto2"],
+  ];
+  try {
+    for (const [field, name] of images) {
+      if (formData.get(`remove-${name}`) === "on") page[field] = null;
+      const file = field === "logo_file_id" ? await storeLogoUpload(formData.get(name), owner.id) : await storeImageUpload(formData.get(name), owner.id);
+      if (file) page[field] = file.id;
+    }
+  } catch (err) {
+    if (err instanceof UploadError) done(path, err.message, true);
+    throw err;
+  }
+  page.review_text = str(formData, "reviewText", 3000);
+  page.review_name = str(formData, "reviewName", 120);
+  await saveSignupPage(page);
+  await audit(owner, "Inschrijfpagina aangepast");
+  done(path, "Inschrijfpagina opgeslagen.");
 }

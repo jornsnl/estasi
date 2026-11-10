@@ -7,7 +7,7 @@ import { kickExpiryNotices } from "@/lib/academy-expiry";
 import { menuCounts, viewerFor } from "@/lib/community/server";
 import { devAuthAllowed } from "@/lib/auth/dev-mode";
 import { openFeedbackRequestCount } from "@/lib/data/assignments";
-import { one } from "@/lib/ws/db";
+import { sabineOpenCount } from "@/lib/ws/sabine-board";
 import { followUpCount } from "@/lib/pipeline/server";
 import { todayIso } from "@/lib/ws/format";
 
@@ -23,20 +23,12 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { themeColor: "#ffffff" };
 
-/** Sabine's open tasks over all couples that are not archived, the same as on her task board. */
-async function openSabineTaskCount(): Promise<number> {
-  const row = await one<{ n: number }>(
-    "select count(*)::int as n from tasks t join couples c on c.id = t.couple_id where t.lane = 'sabine' and t.done_at is null and c.status <> 'archived'",
-  );
-  return row?.n ?? 0;
-}
-
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
   const user = await requireOwner();
   const [counts, feedback, openTasks, followUps] = await Promise.all([
     menuCounts(await viewerFor(user)),
     openFeedbackRequestCount().catch(() => 0),
-    openSabineTaskCount().catch(() => 0),
+    sabineOpenCount().catch(() => 0),
     followUpCount(todayIso()).catch(() => 0),
   ]);
   kickNotifications();
@@ -47,10 +39,13 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
       subtitle="Opleider"
       profileHref="/beheer/profiel"
       items={[
+        // Everything on the Taken page: own tasks, open questions, assignments to summarise and feedback for students.
         { href: "/beheer/bruidsparen/takenbord", label: "Taken", badge: openTasks, strong: true },
         { href: "/beheer/bruidsparen/agenda", label: "Agenda", strong: true },
         // The badge: open leads whose next step is due today or earlier.
         { href: "/beheer/pipeline", label: "Pipeline", badge: followUps, strong: true },
+        // Feedback Sabine: revenue per year or quarter and the open amounts of all couples.
+        { href: "/beheer/omzet", label: "Omzet", sub: true },
         { href: "/beheer/community", label: "Community", section: "Communicatie", sectionBadge: counts.community + counts.private, badge: counts.community },
         { href: "/beheer/berichten", label: "Privéberichten", badge: counts.private },
         { href: "/beheer/bruidsparen", label: "Bruidsparen", section: "Your Wedding Space", exact: true, alsoActive: ["/beheer/bruidsparen/nieuw"] },

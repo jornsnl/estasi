@@ -45,3 +45,18 @@ export async function storeUpload(
   const data = Buffer.from(await value.arrayBuffer());
   return getFiles().save(data, { name: value.name.slice(0, 200), mime: value.type, ...owner });
 }
+
+/**
+ * The logo of the public sign up page: an image or an SVG (Sabine's logo is an SVG). An SVG can carry
+ * script, so it is only ever shown through an <img> and served with a sandboxing policy
+ * (src/app/api/inschrijven/foto/[id]).
+ */
+export async function storeLogoUpload(value: FormDataEntryValue | null, uploadedBy: string): Promise<FileRef | null> {
+  if (!value || typeof value === "string" || value.size === 0) return null;
+  const ext = value.name.split(".").pop()?.toLowerCase() ?? "";
+  if (ext !== "svg") return storeImageUpload(value, uploadedBy);
+  if (value.size > 2 * 1024 * 1024) throw new UploadError("Het logo is groter dan 2 MB.");
+  const data = Buffer.from(await value.arrayBuffer());
+  if (!/<svg[\s>]/i.test(data.toString("utf8", 0, Math.min(data.length, 4096)))) throw new UploadError("Dit lijkt geen geldig SVG-bestand.");
+  return getFiles().save(data, { name: value.name.slice(0, 200), mime: "image/svg+xml", belongsTo: null, uploadedBy });
+}

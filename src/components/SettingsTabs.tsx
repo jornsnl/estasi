@@ -3,6 +3,7 @@ import Link from "next/link";
 const TABS = [
   { key: "algemeen", href: "/beheer/instellingen", label: "Algemeen" },
   { key: "portaal", href: "/beheer/instellingen/portaal", label: "Portaal" },
+  { key: "inschrijfpagina", href: "/beheer/instellingen/inschrijfpagina", label: "Inschrijfpagina" },
 ] as const;
 
 /** The tabs on top of Beheer, Instellingen: the Academy and admin settings, and those of the Wedding Space portal. */
