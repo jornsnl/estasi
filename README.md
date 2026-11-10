@@ -282,6 +282,17 @@ Alle leads van Estasi Weddings op één bord: **Pipeline** (`/beheer/pipeline`),
 
 Code: `src/lib/pipeline/rules.ts` (fasen, forecast, volgorde; getest in `tests/pipeline.test.ts`), `src/lib/pipeline/server.ts` (opslaan met zod, gedeeld door beheer en MCP), `src/app/actions/pipeline.ts`, `src/app/beheer/pipeline/`, `src/components/pipeline/`, `src/lib/mcp/tools/pipeline.ts`. Tabellen (migratie `0034`): `pipeline_leads` en `pipeline_activity`. Faseovergangen en de tijdstippen houdt een trigger bij, dus ook wijzigingen via MCP komen in de tijdlijn.
 
+### Inschrijfpagina Academy (`/inschrijven`)
+
+Openbare landingspagina op `academy.estasiweddings.nl/inschrijven`, zonder inloggen en wel vindbaar in zoekmachines (de rest van de app staat op noindex). Programma, pakketten A en B (met de melding uit de instellingen als de praktijkplekken vol zijn), over Sabine, werkwijze, veelgestelde vragen en een inschrijfformulier.
+
+* Elke inschrijving wordt een lead in de pipeline: fase Nieuw, interesse Academy, bron Website, met pakketvoorkeur, situatie, woonplaats en motivatie in de notities en als volgende stap "Bellen voor een kennismaking" met vandaag als datum (dus meteen onder Opvolgen)
+* Schrijft iemand zich opnieuw in terwijl er al een open Academy-lead met hetzelfde adres is, dan komt er een notitie bij die lead in plaats van een tweede kaart
+* Sabine krijgt een mail met een link naar de lead (antwoorden gaat rechtstreeks naar de inschrijver), de inschrijver een korte bevestiging. Beide staan in de mailgeschiedenis als *Academy inschrijving*
+* Tegen spam: een verborgen veld en hoogstens vijf inschrijvingen per uur per IP-adres
+
+Code: `src/app/inschrijven/page.tsx`, `src/app/actions/academy-signup.ts`, `src/lib/pipeline/signup.ts` (getest in `tests/academy-signup.test.ts`).
+
 ## Your Wedding Space (portaal per bruidspaar)
 
 De opvolger van Sabine's Notion-template, op basis van haar document *Reverse engineering: Your Wedding Space* en de schets. Het zit in deze app: één login, één beheer, dezelfde database (eigen schema `wedding_space`, zodat tabellen nooit botsen met de Academy).
