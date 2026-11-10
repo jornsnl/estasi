@@ -2,41 +2,10 @@ import Link from "next/link";
 import { toggleTask } from "@/app/actions/ws-portal";
 import { FeedbackStatusBadge } from "@/components/academy/FeedbackStatusBadge";
 import { Notice } from "@/components/Notice";
-import { listFeedbackRequests } from "@/lib/data/assignments";
-import { stillOnTaskPage } from "@/lib/domain/feedback";
-import { query } from "@/lib/ws/db";
+import { loadSabineBoard, type Row } from "@/lib/ws/sabine-board";
 import { coupleName, formatDate, formatDateTime, todayIso } from "@/lib/ws/format";
 
 export const metadata = { title: "Taken" };
-
-interface Row {
-  id: string;
-  title: string;
-  deadline: string | null;
-  couple_id: string;
-  partner1_first: string;
-  partner2_first: string;
-  wedding_date: string | null;
-}
-
-interface OpenQuestion {
-  id: string;
-  body: string;
-  asked_by_name: string;
-  asked_at: Date;
-  couple_id: string;
-  partner1_first: string;
-  partner2_first: string;
-}
-
-interface ToSummarise {
-  id: string;
-  title: string;
-  submitted_at: Date;
-  couple_id: string;
-  partner1_first: string;
-  partner2_first: string;
-}
 
 /**
  * Sabine's Taken page (h9.5, extended after feedback). Everything that waits
@@ -48,27 +17,7 @@ interface ToSummarise {
  *      request leaves the page once it is Klaar and the feedback was sent.
  */
 export default async function SabineBoard({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const [rows, questions, summaries, feedback] = await Promise.all([
-    query<Row>(
-      `select t.id, t.title, t.deadline, c.id as couple_id, c.partner1_first, c.partner2_first, c.wedding_date
-         from tasks t join couples c on c.id = t.couple_id
-        where t.lane = 'sabine' and t.done_at is null and c.status <> 'archived'
-        order by c.wedding_date nulls last, c.id, t.deadline nulls last, t.position`,
-    ),
-    query<OpenQuestion>(
-      `select q.id, q.body, q.asked_by_name, q.asked_at, c.id as couple_id, c.partner1_first, c.partner2_first
-         from questions q join couples c on c.id = q.couple_id
-        where q.answered_at is null and c.status <> 'archived'
-        order by q.asked_at`,
-    ),
-    query<ToSummarise>(
-      `select a.id, a.title, a.submitted_at, c.id as couple_id, c.partner1_first, c.partner2_first
-         from assignments a join couples c on c.id = a.couple_id
-        where a.submitted_at is not null and coalesce(a.ai_summary, '') = '' and c.status <> 'archived'
-        order by a.submitted_at`,
-    ),
-    listFeedbackRequests().then((list) => list.filter(stillOnTaskPage)).catch(() => []),
-  ]);
+  const { rows, questions, summaries, feedback } = await loadSabineBoard();
   const groups = new Map<string, Row[]>();
   for (const row of rows) groups.set(row.couple_id, [...(groups.get(row.couple_id) ?? []), row]);
   const today = todayIso();

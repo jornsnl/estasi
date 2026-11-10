@@ -376,7 +376,7 @@ export const academyTools = [
   defineTool({
     name: "academy_get_settings",
     title: "Academy: instellingen",
-    description: "Instellingen van de Academy: welkomstvideo en tekst, contactadres, praktijkplekken en de privacyuitleg boven de opdrachten.",
+    description: "Instellingen van de Academy: contactadres, headerfoto, praktijkplekken en de privacyuitleg boven de opdrachten.",
     scope: "read",
     input: z.object({}),
     run: async () => getStore().getSettings(),

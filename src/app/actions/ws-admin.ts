@@ -39,6 +39,13 @@ export async function createCoupleAction(formData: FormData) {
     ? meetingsInput
     : Math.max(0, ...packages.map((p) => p.meetings));
 
+  // Feedback Sabine: the agreed price and whether the couple pays at once or in two halves.
+  let agreed_price_cents: number | null = null;
+  try {
+    agreed_price_cents = parseMoney(str(formData, "agreedPrice", 20));
+  } catch {
+    done(back, "Vul de afgesproken prijs in als bedrag, bijvoorbeeld 2.450 of 2450,00.", true);
+  }
   const id = await createCouple(
     {
       partner1_first,
@@ -55,6 +62,8 @@ export async function createCoupleAction(formData: FormData) {
       location: str(formData, "location", 200),
       package_ids: packages.map((p) => p.id),
       meetings,
+      agreed_price_cents,
+      payment_plan: formData.get("payInTwo") === "on" ? "two" : "once",
     },
     admin.id,
   );
@@ -322,4 +331,27 @@ export async function addAgendaItem(formData: FormData) {
     );
   });
   done("/beheer/bruidsparen/agenda", `Toegevoegd op ${formatDate(onDate)}.`);
+}
+
+/** Price, payment plan, date of sale and what has been paid (feedback Sabine). */
+export async function saveCouplePayment(formData: FormData) {
+  const { couple } = await requireCoupleAdmin(str(formData, "coupleId", 40));
+  const back = `/k/${couple.id}/gegevens#betaling`;
+  let price: number | null = null;
+  try {
+    price = parseMoney(str(formData, "agreedPrice", 20));
+  } catch {
+    done(back, "Vul de afgesproken prijs in als bedrag, bijvoorbeeld 2.450 of 2450,00.", true);
+  }
+  const plan = formData.get("payInTwo") === "on" ? "two" : "once";
+  const soldOn = dateField(formData, "soldOn") ?? couple.sold_on;
+  // Keep the moment a part was ticked; a new tick gets "now", an untick clears it.
+  const stamp = (field: string, before: Date | null) => (formData.get(field) === "on" ? before ?? new Date() : null);
+  const first = stamp("paidFirst", couple.paid_first_at);
+  const second = plan === "two" ? stamp("paidSecond", couple.paid_second_at) : null;
+  await query(
+    "update couples set agreed_price_cents = $2, payment_plan = $3, sold_on = $4, paid_first_at = $5, paid_second_at = $6 where id = $1",
+    [couple.id, price, plan, soldOn, first, second],
+  );
+  done(back, "Prijs en betaling opgeslagen.");
 }

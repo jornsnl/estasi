@@ -401,7 +401,7 @@ export function AssignmentForm(props: Props) {
           <div key={part.id} className="space-y-5">
             {(part.title || part.intro) && (
               <div className={pi > 0 ? "border-t border-line pt-6" : ""}>
-                {part.title && <h4 className="font-sans text-lg font-semibold">{part.title}</h4>}
+                {part.title && <h4 className="font-sans text-lg font-semibold whitespace-pre-line">{part.title}</h4>}
                 {part.intro && <p className="mt-1 whitespace-pre-wrap text-[15px] text-muted">{part.intro}</p>}
               </div>
             )}
@@ -618,7 +618,8 @@ function FieldInput({
   const inputId = `in-${field.id}`;
   const label = (
     <>
-      <span className={prominent ? "font-sans text-lg font-medium" : "font-medium"}>{field.label || "Antwoord"}</span>
+      {/* Feedback Sabine: a label typed over several lines keeps its lines for the student. */}
+      <span className={`whitespace-pre-line ${prominent ? "font-sans text-lg font-medium" : "font-medium"}`}>{field.label || "Antwoord"}</span>
       <RequiredBadge required={field.required} />
     </>
   );
@@ -720,7 +721,7 @@ function FieldInput({
               const value = answer?.rows?.[row.id];
               return (
                 <div key={row.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="text-[15px]">
+                  <span className="text-[15px] whitespace-pre-line">
                     <span className="text-muted">{i + 1}.</span> {row.label}
                   </span>
                   {field.mode === "score" ? (

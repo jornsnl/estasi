@@ -48,6 +48,13 @@ export interface Couple {
   guests_day_kids: number | null;
   guests_evening: number | null;
   total_budget_cents: number | null;
+  /** Price and payment (feedback Sabine, migration 0035). */
+  agreed_price_cents: number | null;
+  payment_plan: "once" | "two";
+  paid_first_at: Date | null;
+  paid_second_at: Date | null;
+  /** The date of the sale, for the revenue overview (Pipeline, Omzet). */
+  sold_on: string;
 }
 
 export interface Settings {

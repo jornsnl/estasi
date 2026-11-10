@@ -20,6 +20,8 @@
   --color-muted: #6b6560;
   --color-success: #3f6b4a;
   --color-success-soft: #e9f1eb;
+  /* Light gold for text on bordeaux (the sign up page). */
+  --color-gold-light: #e8d9a8;
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-cormorant), ui-serif, Georgia, serif;
@@ -256,4 +258,26 @@
   background: transparent;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
   cursor: pointer;
+}
+
+/*
+ * The public sign up page of the Academy (/inschrijven), feedback Sabine: less cream, more of
+ * the house colours bordeaux #6B1E2E and gold green #A89650, with Playfair Display for headings
+ * as in Your Wedding Space. White stays the base, so it remains clean. Text on gold green is
+ * dark (white on #A89650 does not reach 4.5:1 contrast).
+ */
+.signup-theme {
+  --color-cream: #f7f3ec;
+  --color-line: #e6dfd0;
+  --color-gold: #a89650;
+  --color-gold-soft: #f1ecdc;
+  --color-gold-ink: #6e6131;
+  --color-bordeaux: #6b1e2e;
+  --color-bordeaux-soft: #f6eef0;
+  --color-ink: #2c2c2c;
+  --font-serif: var(--font-playfair), ui-serif, Georgia, serif;
+}
+.signup-theme :is(h1, h2, h3) {
+  font-weight: 600;
+  letter-spacing: 0;
 }

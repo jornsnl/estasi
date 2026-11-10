@@ -1,5 +1,6 @@
 import { createCoupleAction } from "@/app/actions/ws-admin";
 import { CoupleFields } from "@/components/ws/CoupleFields";
+import { CouplePaymentFields } from "@/components/ws/CouplePaymentFields";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { query } from "@/lib/ws/db";
@@ -44,6 +45,7 @@ export default async function NewCouple({ searchParams }: { searchParams: Promis
             <p className="hint">Leeg laten = het aantal van het pakket (bij meerdere pakketten het hoogste).</p>
           </div>
         </fieldset>
+        <CouplePaymentFields />
         <SubmitButton className="btn-primary" pendingText="Aanmaken…">Portaal aanmaken</SubmitButton>
       </form>
     </div>

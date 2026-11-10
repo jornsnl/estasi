@@ -21,6 +21,8 @@ export interface NavItem {
   strong?: boolean;
   /** Other paths where this item counts as the current page (pages reached through tabs). */
   alsoActive?: string[];
+  /** A sub page of the item above it, shown indented and smaller (for example Pipeline, Omzet). */
+  sub?: boolean;
 }
 
 interface Block {
@@ -88,7 +90,7 @@ function Item({ item, active }: { item: NavItem; active: boolean }) {
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
-      className={`block rounded-md border-l-2 px-3 py-2 text-[15px] transition-colors ${
+      className={`block rounded-md border-l-2 transition-colors ${item.sub ? "py-1.5 pr-3 pl-7 text-[14px]" : "px-3 py-2 text-[15px]"} ${
         active ? "border-bordeaux bg-bordeaux-soft font-medium text-bordeaux" : `border-transparent text-ink hover:bg-cream ${item.strong ? "font-semibold" : ""}`
       }`}
     >

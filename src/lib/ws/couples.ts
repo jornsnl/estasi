@@ -75,6 +75,8 @@ export interface NewCouple {
   location: string;
   package_ids: string[];
   meetings: number;
+  agreed_price_cents?: number | null;
+  payment_plan?: "once" | "two";
 }
 
 /**
@@ -91,13 +93,15 @@ export async function createCouple(input: NewCouple, createdBy: string): Promise
     const couple = await one<{ id: string }>(
       `insert into couples (partner1_first, partner1_last, partner1_email, partner1_phone,
                             partner2_first, partner2_last, partner2_email, partner2_phone,
-                            address, wedding_date, wedding_date_confirmed, location, package_id, suppliers_enabled, welcome_text)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) returning id`,
+                            address, wedding_date, wedding_date_confirmed, location, package_id, suppliers_enabled, welcome_text,
+                            agreed_price_cents, payment_plan)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) returning id`,
       [
         input.partner1_first, input.partner1_last, input.partner1_email, input.partner1_phone,
         input.partner2_first, input.partner2_last, input.partner2_email, input.partner2_phone,
         input.address, input.wedding_date, input.wedding_date_confirmed, input.location,
         packages[0]?.id ?? null, packages.length === 0 || packages.some((p) => p.suppliers_enabled), settings.default_welcome,
+        input.agreed_price_cents ?? null, input.payment_plan ?? "once",
       ],
       db,
     );

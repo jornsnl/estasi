@@ -18,7 +18,7 @@ export function AnswersView({ assignment, answers }: { assignment: AssignmentBlo
           {part.title && <p className="font-semibold">{part.title}</p>}
           {part.fields.map((field) => (
             <div key={field.id}>
-              <p className="text-sm font-medium">
+              <p className="text-sm font-medium whitespace-pre-line">
                 {field.label || "(veld zonder tekst)"}
                 {field.required && <span className="ml-1 text-bordeaux">*</span>}
               </p>
@@ -64,7 +64,7 @@ function FieldAnswerView({ field, answer }: { field: AssignmentField; answer: Fi
           <tbody>
             {field.rows.map((r) => (
               <tr key={r.id} className="border-b border-line/60">
-                <td className="py-1 pr-3">{r.label}</td>
+                <td className="py-1 pr-3 whitespace-pre-line">{r.label}</td>
                 <td className="py-1 text-right">{answer.rows?.[r.id] ?? "–"}</td>
               </tr>
             ))}
