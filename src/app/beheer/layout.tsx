@@ -8,6 +8,8 @@ import { menuCounts, viewerFor } from "@/lib/community/server";
 import { devAuthAllowed } from "@/lib/auth/dev-mode";
 import { openFeedbackRequestCount } from "@/lib/data/assignments";
 import { one } from "@/lib/ws/db";
+import { followUpCount } from "@/lib/pipeline/server";
+import { todayIso } from "@/lib/ws/format";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +33,11 @@ async function openSabineTaskCount(): Promise<number> {
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
   const user = await requireOwner();
-  const [counts, feedback, openTasks] = await Promise.all([
+  const [counts, feedback, openTasks, followUps] = await Promise.all([
     menuCounts(await viewerFor(user)),
     openFeedbackRequestCount().catch(() => 0),
     openSabineTaskCount().catch(() => 0),
+    followUpCount(todayIso()).catch(() => 0),
   ]);
   kickNotifications();
   kickExpiryNotices();
@@ -46,6 +49,8 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
       items={[
         { href: "/beheer/bruidsparen/takenbord", label: "Taken", badge: openTasks, strong: true },
         { href: "/beheer/bruidsparen/agenda", label: "Agenda", strong: true },
+        // The badge: open leads whose next step is due today or earlier.
+        { href: "/beheer/pipeline", label: "Pipeline", badge: followUps, strong: true },
         { href: "/beheer/community", label: "Community", section: "Communicatie", sectionBadge: counts.community + counts.private, badge: counts.community },
         { href: "/beheer/berichten", label: "Privéberichten", badge: counts.private },
         { href: "/beheer/bruidsparen", label: "Bruidsparen", section: "Your Wedding Space", exact: true, alsoActive: ["/beheer/bruidsparen/nieuw"] },

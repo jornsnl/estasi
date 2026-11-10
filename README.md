@@ -268,6 +268,20 @@ Grenzen (Supabase Free: 50 MB per bestand, 1 GB in totaal): foto's tot 15 MB (na
 
 Er is geen schijf en geen `SESSION_SECRET` nodig. `DATA_BACKEND` is niet meer nodig: staat hij nog in de hosting, dan doet hij niets en mag hij weg.
 
+## Salespipeline (beheer)
+
+Alle leads van Estasi Weddings op één bord: **Pipeline** (`/beheer/pipeline`), bovenaan het menu. Opgezet naar de salespipeline van SVB Solutions.
+
+* Fasen: Nieuw, Contact gehad, Kennismaking gepland, Offerte verstuurd, Geboekt en Afgevallen. Geboekte en afgevallen leads blijven 90 dagen op het bord staan
+* Per lead: naam op de kaart, contactpersoon en partner, e-mail, telefoon, interesse (weddingplanning, openingsdans, Academy, overig), bron, trouwdatum, locatie, aantal gasten, verwachte waarde (excl. btw), kans, volgende stap met datum, notities en een tijdlijn met faseovergangen en notities
+* **Bord** (slepen tussen de kolommen; op de telefoon en met het toetsenbord via het fasemenu op de kaart) en **Lijst**
+* **Forecast** bovenaan: per open fase de som van waarde × kans. Zonder eigen kans geldt een standaard per fase (nieuw 10%, contact 20%, kennismaking 40%, offerte 60%). Leads zonder waarde tellen niet mee in de bedragen
+* **Opvolgen**: leads met een volgende stap vandaag of eerder staan bovenaan, en het aantal staat naast Pipeline in het menu
+* **Maak bruidspaar**: maakt een portaal in Your Wedding Space als concept met de gegevens van de lead (of koppelt het bruidspaar met hetzelfde e-mailadres) en zet de lead op Geboekt. Het bruidspaar ziet niets totdat Sabine het pakket kiest en deelt
+* MCP (koppeling met Claude): `pipeline_list_leads` (met forecast), `pipeline_get_lead`, `pipeline_save_lead`, `pipeline_move_lead`, `pipeline_add_note`
+
+Code: `src/lib/pipeline/rules.ts` (fasen, forecast, volgorde; getest in `tests/pipeline.test.ts`), `src/lib/pipeline/server.ts` (opslaan met zod, gedeeld door beheer en MCP), `src/app/actions/pipeline.ts`, `src/app/beheer/pipeline/`, `src/components/pipeline/`, `src/lib/mcp/tools/pipeline.ts`. Tabellen (migratie `0034`): `pipeline_leads` en `pipeline_activity`. Faseovergangen en de tijdstippen houdt een trigger bij, dus ook wijzigingen via MCP komen in de tijdlijn.
+
 ## Your Wedding Space (portaal per bruidspaar)
 
 De opvolger van Sabine's Notion-template, op basis van haar document *Reverse engineering: Your Wedding Space* en de schets. Het zit in deze app: één login, één beheer, dezelfde database (eigen schema `wedding_space`, zodat tabellen nooit botsen met de Academy).
