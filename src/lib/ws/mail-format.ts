@@ -155,12 +155,13 @@ export const MAIL_KINDS = {
   privebericht: "Academy privébericht",
   toegang: "Academy toegang loopt af",
   academy_feedback: "Academy feedback",
+  academy_inschrijving: "Academy inschrijving",
   test: "Testmail",
   overig: "Overig",
 } as const;
 export type MailKind = keyof typeof MAIL_KINDS;
 
-const ACADEMY_KINDS = new Set<string>(["community", "privebericht", "toegang", "academy_feedback"]);
+const ACADEMY_KINDS = new Set<string>(["community", "privebericht", "toegang", "academy_feedback", "academy_inschrijving"]);
 
 /** The brand of a mail follows from its kind: Academy, Wedding Space, or plain Estasi for the rest. */
 export const brandFor = (kind: string | undefined): MailBrand =>
