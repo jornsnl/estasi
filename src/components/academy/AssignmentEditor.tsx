@@ -1,5 +1,6 @@
 "use client";
 
+import { FormatTextarea } from "./FormatTextarea";
 import { useEffect, useRef, useState } from "react";
 import type { AssignmentBlock, AssignmentField, AssignmentPart, FieldType, ScaleRow, UploadKind } from "@/lib/data/types";
 import {
@@ -103,7 +104,7 @@ export function AssignmentEditor({ block, others }: { block: AssignmentBlock; ot
         </div>
         <div>
           <label className="label" htmlFor={name("intro")}>Uitleg bij de opdracht (optioneel)</label>
-          <textarea id={name("intro")} value={a.intro} rows={3} maxLength={ASSIGNMENT_LIMITS.intro} className="input" onChange={(e) => set({ intro: e.target.value })} />
+          <FormatTextarea id={name("intro")} value={a.intro} rows={3} maxLength={ASSIGNMENT_LIMITS.intro} onChange={(e) => set({ intro: e.target.value })} />
         </div>
       </div>
 
@@ -163,7 +164,7 @@ export function AssignmentEditor({ block, others }: { block: AssignmentBlock; ot
           </div>
           <div className="grid gap-3">
             <input aria-label={`Kop van onderdeel ${pi + 1}`} value={part.title} maxLength={ASSIGNMENT_LIMITS.title} className="input" placeholder={a.parts.length > 1 ? `Onderdeel ${pi + 1}: …` : "Kop (optioneel)"} onChange={(e) => setPart(pi, { title: e.target.value })} />
-            <textarea aria-label={`Uitleg bij onderdeel ${pi + 1}`} value={part.intro} rows={2} maxLength={ASSIGNMENT_LIMITS.intro} className="input" placeholder="Uitleg bij dit onderdeel (optioneel)" onChange={(e) => setPart(pi, { intro: e.target.value })} />
+            <FormatTextarea aria-label={`Uitleg bij onderdeel ${pi + 1}`} value={part.intro} rows={2} maxLength={ASSIGNMENT_LIMITS.intro} placeholder="Uitleg bij dit onderdeel (optioneel)" onChange={(e) => setPart(pi, { intro: e.target.value })} />
           </div>
 
           <ol className="mt-4 space-y-3">
@@ -252,7 +253,7 @@ function FieldSettings({ field, onChange }: { field: AssignmentField; onChange: 
     <div className="grid gap-3">
       <div>
         <label className="label" htmlFor={id("label")}>Vraag of opdracht</label>
-        <textarea id={id("label")} value={field.label} rows={2} maxLength={ASSIGNMENT_LIMITS.label} className="input" onChange={(e) => onChange({ ...field, label: e.target.value })} />
+        <FormatTextarea id={id("label")} value={field.label} rows={2} maxLength={ASSIGNMENT_LIMITS.label} onChange={(e) => onChange({ ...field, label: e.target.value })} />
       </div>
       <div>
         <label className="label" htmlFor={id("help")}>Toelichting (optioneel)</label>
@@ -326,7 +327,7 @@ function FieldSettings({ field, onChange }: { field: AssignmentField; onChange: 
           </div>
           <div className="sm:col-span-2">
             <label className="label" htmlFor={id("expl")}>Uitleg van de scores (staat boven de schaal)</label>
-            <textarea id={id("expl")} value={field.explanation} rows={4} maxLength={ASSIGNMENT_LIMITS.intro} className="input" onChange={(e) => onChange({ ...field, explanation: e.target.value })} />
+            <FormatTextarea id={id("expl")} value={field.explanation} rows={4} maxLength={ASSIGNMENT_LIMITS.intro} onChange={(e) => onChange({ ...field, explanation: e.target.value })} />
           </div>
         </div>
       )}

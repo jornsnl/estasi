@@ -8,6 +8,7 @@ import { formatBytes } from "@/lib/util/format";
 import { HEADING_STYLES } from "@/lib/domain/blocks";
 import { AssignmentEditor, type AssignmentChoice } from "./AssignmentEditor";
 import { HeadingContent } from "./HeadingContent";
+import { FormatTextarea } from "./FormatTextarea";
 import { RichTextEditor } from "./RichTextEditor";
 
 /**
@@ -59,7 +60,7 @@ const EDITORS: Editors = {
       </div>
       <div>
         <label className="label" htmlFor={id("items")}>Leerdoelen (één per regel)</label>
-        <textarea id={id("items")} name={n("items")} defaultValue={block.items.join("\n")} rows={4} className="input" placeholder={"Je weet hoe je een draaiboek opbouwt\nJe kunt een budget verdelen"} />
+        <FormatTextarea id={id("items")} name={n("items")} defaultValue={block.items.join("\n")} rows={4} placeholder={"Je weet hoe je een draaiboek opbouwt\nJe kunt een budget verdelen"} />
       </div>
     </>
   ),

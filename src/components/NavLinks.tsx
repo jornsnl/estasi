@@ -1,8 +1,34 @@
 "use client";
 
+import { Calendar, GraduationCap, Heart, Kanban, ListChecks, MessageCircle, Settings, Sparkles, Star, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+
+/**
+ * Feedback Sabine: the main parts of the admin menu have a thin line icon (Lucide, stroke 1.5) in
+ * the colour of the text, bordeaux on the current item. Sub items have none. Passed by name, so the
+ * server layout can hand them to this client component.
+ */
+const ICONS = {
+  "list-checks": ListChecks,
+  calendar: Calendar,
+  kanban: Kanban,
+  "message-circle": MessageCircle,
+  heart: Heart,
+  "graduation-cap": GraduationCap,
+  sparkles: Sparkles,
+  star: Star,
+  settings: Settings,
+} satisfies Record<string, LucideIcon>;
+
+export type NavIcon = keyof typeof ICONS;
+
+function Icon({ name }: { name?: NavIcon }) {
+  if (!name) return null;
+  const Svg = ICONS[name];
+  return <Svg aria-hidden strokeWidth={1.5} className="h-[18px] w-[18px] shrink-0" />;
+}
 
 export interface NavItem {
   href: string;
@@ -23,10 +49,15 @@ export interface NavItem {
   alsoActive?: string[];
   /** A sub page of the item above it, shown indented and smaller (for example Pipeline, Omzet). */
   sub?: boolean;
+  /** Icon in front of a main item (not for sub items). */
+  icon?: NavIcon;
+  /** Icon in front of the heading of the group this item starts (with section). */
+  sectionIcon?: NavIcon;
 }
 
 interface Block {
   section?: string;
+  icon?: NavIcon;
   /** The heading's own count (always shown). */
   badge: number;
   /** The counts inside the group added up (shown on the heading while the group is folded). */
@@ -53,7 +84,7 @@ function blocks(items: NavItem[]): Block[] {
   for (const item of items) {
     const last = out[out.length - 1];
     if (item.section || item.group || !last) {
-      out.push({ section: item.section, badge: item.sectionBadge ?? 0, inside: 0, spaced: out.length > 0, items: [item] });
+      out.push({ section: item.section, icon: item.sectionIcon, badge: item.sectionBadge ?? 0, inside: 0, spaced: out.length > 0, items: [item] });
     } else last.items.push(item);
   }
   for (const b of out) b.inside = b.items.reduce((n, i) => n + (i.badge ?? 0), 0);
@@ -94,8 +125,9 @@ function Item({ item, active }: { item: NavItem; active: boolean }) {
         active ? "border-bordeaux bg-bordeaux-soft font-medium text-bordeaux" : `border-transparent text-ink hover:bg-cream ${item.strong ? "font-semibold" : ""}`
       }`}
     >
-      <span className="flex items-center justify-between gap-2">
-        {item.label}
+      <span className="flex items-center gap-2.5">
+        {!item.sub && <Icon name={item.icon} />}
+        <span className="flex-1">{item.label}</span>
         {!active && item.badge ? <Count n={item.badge} label="ongelezen" /> : null}
       </span>
     </Link>
@@ -155,6 +187,7 @@ export function NavLinks({ items }: { items: NavItem[] }) {
           );
         }
         const isOpen = open.has(g.section);
+        const here = g.section === current;
         const id = `menu-groep-${index}`;
         return (
           <div key={g.section} className={g.spaced ? (index === 1 ? "mt-3" : "mt-1") : ""}>
@@ -165,8 +198,9 @@ export function NavLinks({ items }: { items: NavItem[] }) {
               aria-expanded={isOpen}
               aria-controls={id}
               onClick={() => toggle(g.section!)}
-              className="flex w-full items-center gap-2 rounded-md border-l-2 border-transparent px-3 py-2 text-left text-[15px] font-semibold text-ink hover:bg-cream"
+              className={`flex w-full items-center gap-2.5 rounded-md border-l-2 border-transparent px-3 py-2 text-left text-[15px] font-semibold hover:bg-cream ${here ? "text-bordeaux" : "text-ink"}`}
             >
+              <Icon name={g.icon} />
               <span className="flex-1">{g.section}</span>
               {(g.badge || (!isOpen && g.inside)) ? <Count n={g.badge || g.inside} label="open" /> : null}
               <svg viewBox="0 0 12 12" aria-hidden className={`h-3.5 w-3.5 shrink-0 text-muted transition-transform ${isOpen ? "rotate-180" : ""}`}>

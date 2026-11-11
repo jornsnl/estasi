@@ -4,6 +4,7 @@
 // choice and upload blocks into assignments. Pure functions without server
 // imports, so the client components and the tests use them too.
 
+import { stripInlineFormat } from "./inline-format";
 import type {
   AssignmentAnswers,
   AssignmentBlock,
@@ -483,7 +484,7 @@ export function compareScans(first: Measured | null, repeat: Measured): ScanComp
     };
     const rows: ScanRowComparison[] =
       field.type === "scale"
-        ? [{ label: field.label, before: value(original, beforeAnswer), after: value(field, afterAnswer), change: null }]
+        ? [{ label: stripInlineFormat(field.label), before: value(original, beforeAnswer), after: value(field, afterAnswer), change: null }]
         : (field as Extract<AssignmentField, { type: "scale_rows" }>).rows.map((row) => ({
             label: row.label,
             before: value(original, beforeAnswer, row.label, row.id),
@@ -492,7 +493,7 @@ export function compareScans(first: Measured | null, repeat: Measured): ScanComp
           }));
     for (const r of rows) r.change = typeof r.before === "number" && typeof r.after === "number" ? r.after - r.before : null;
     const scale = field as { min: number; max: number };
-    return { fieldId: field.id, label: field.label, min: scale.min, max: scale.max, rows };
+    return { fieldId: field.id, label: stripInlineFormat(field.label), min: scale.min, max: scale.max, rows };
   });
 }
 
@@ -588,10 +589,10 @@ export function answersAsText(assignment: AssignmentBlock, answers: AssignmentAn
           answer = a.url ?? "";
           break;
       }
-      return { part: part.title, question: field.label, required: field.required, answer, files: a.files ?? [] };
+      return { part: part.title, question: stripInlineFormat(field.label), required: field.required, answer, files: a.files ?? [] };
     }),
   );
 }
 
 /** A short name for an assignment: its title, or else its first question. */
-export const assignmentTitle = (a: AssignmentBlock) => a.title || allFields(a)[0]?.label?.slice(0, 120) || "Opdracht";
+export const assignmentTitle = (a: AssignmentBlock) => a.title || stripInlineFormat(allFields(a)[0]?.label ?? "").slice(0, 120) || "Opdracht";

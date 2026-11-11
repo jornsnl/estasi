@@ -58,6 +58,9 @@ Overige commando's: `npm test` (regels voor toegang, voortgang en feedback; met 
 * Foto's uploaden: elk fotoveld van de Academy (`src/components/PhotoInput.tsx`) verkleint een foto eerst in de browser (maximaal 2400 px, JPG, `src/lib/shrink-photo.ts`), toont een voorbeeld en zet er een opslaanknop naast; Your Wedding Space (`FileUpload`) toont die knop ook zodra een bestand klaar is. Lukt opslaan in de opslag niet, dan krijgt de gebruiker een melding in plaats van een foutpagina. De headerfoto van het dashboard en de foto's van modules zijn ook voor cursisten te zien
 * Agenda: bovenaan een maandkalender; datums met een afspraak met Sabine of een bruiloft hebben een bordeaux kader, een deadline is een stip
 * Pipeline: per lead ook Instagram en in eigen woorden waar het contact vandaan komt (migratie `0037`)
+* Menu: de hoofdonderdelen hebben een dun lijnicoon (`lucide-react`, lijndikte 1,5, bordeaux bij het actieve onderdeel); subitems niet. Iconen gaan als naam mee (`icon`, `sectionIcon` in `src/app/beheer/layout.tsx`, kaart in `src/components/NavLinks.tsx`)
+* Praktijkplekken (Instellingen): één vak met het vinkje (slaat meteen op), het toevoegen per bruiloft en een compacte tabel met bruidspaar, trouwdatum, locatie (migratie `0038`), gekoppelde cursist en interne notitie
+* Opmaak in schrijfblokken: in de tekstvakken van opdrachten (uitleg, vraag, uitleg van de scores) en bij leerdoelen kiest de opleider zelf vet, schuin of onderstreept (`**vet**`, `*schuin*`, `__onderstreept__`, `src/lib/domain/inline-format.ts`, getest in `tests/inline-format.test.ts`). Een vraag is niet meer vanzelf dikgedrukt
 * Bekijk als cursist (`/beheer/voorbeeld`): dashboard, Mijn opleiding en lessen zoals een nieuwe cursist van pakket A of B ze ziet, of als een bestaande cursist met de eigen voortgang en antwoorden. Alleen lezen: er wordt niets opgeslagen, ingediend of als gelezen gemarkeerd
 * Logboek van alle beheeracties
 

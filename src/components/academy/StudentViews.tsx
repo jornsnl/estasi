@@ -52,16 +52,18 @@ export function DashboardView({
 
   return (
     <div className="space-y-10">
-      {/* Feedback: the main page looked empty. A header in the colours of Estasi, with Sabine's photo when she set one. */}
-      <header className="relative overflow-hidden rounded-3xl bg-bordeaux text-white shadow-sm">
+      {/* Feedback: the main page looked empty. A header in the colours of Estasi, with Sabine's photo when she set one.
+          Feedback Sabine: the photo was covered by an almost solid bordeaux layer, so after uploading it looked as if
+          nothing happened. Now only a soft shade on the side of the text, so the photo itself shows. */}
+      <header className={`relative overflow-hidden rounded-3xl bg-bordeaux text-white shadow-sm ${settings.headerImageFileId ? "flex min-h-64 items-end sm:min-h-80" : ""}`}>
         {settings.headerImageFileId && (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element -- private course file behind /api/bestanden */}
             <img src={`/api/bestanden/${settings.headerImageFileId}`} alt="" className="absolute inset-0 h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-r from-bordeaux/90 via-bordeaux/60 to-bordeaux/10" aria-hidden />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent sm:bg-gradient-to-r sm:from-black/55 sm:via-black/15" aria-hidden />
           </>
         )}
-        <div className="relative px-6 py-10 sm:px-10 sm:py-14">
+        <div className={`relative px-6 py-10 sm:px-10 sm:py-14 ${settings.headerImageFileId ? "[text-shadow:0_1px_12px_rgb(0_0_0/0.35)]" : ""}`}>
           <p className="text-[11px] font-semibold tracking-[0.2em] text-gold-soft uppercase">Future Weddings Academy</p>
           <h1 className="mt-2 text-4xl text-white sm:text-5xl">Welkom, {o.user.name.split(" ")[0]}</h1>
           {active && current && <p className="mt-3 max-w-xl text-[15px] text-white/85">Je bent bezig met {current.module.title}.</p>}
