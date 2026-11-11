@@ -2,7 +2,7 @@ import { addInvitation, importInvitations } from "@/app/actions/ws-invitations";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { GuestTabs } from "@/components/ws/GuestTabs";
-import { ChildrenFields, InvitationTable } from "@/components/ws/InvitationTable";
+import { HouseholdFields, InvitationTable } from "@/components/ws/InvitationTable";
 import { requirePlanning } from "@/lib/ws/access";
 import { invitationTotals } from "@/lib/ws/guest-counts";
 import { invitationsFor, syncInvitationChildren } from "@/lib/ws/invitations";
@@ -56,7 +56,7 @@ export default async function InvitationsPage({
         groups={groups.map((g) => ({ id: g.id, name: g.name }))}
         rows={rows.map((r) => ({
           id: r.id, names: r.names, party_size: r.party_size, group_id: r.group_id, address: r.address, email: r.email,
-          send_via: r.send_via, sent: r.sent, responded: r.responded, match_id: r.match_id, candidate: r.candidate, children: r.children,
+          send_via: r.send_via, sent: r.sent, responded: r.responded, match_id: r.match_id, candidate: r.candidate, children: r.children, people: r.people ?? [],
         }))}
       />
 
@@ -64,12 +64,11 @@ export default async function InvitationsPage({
         <form action={addInvitation} className="card grid gap-2 p-5 sm:grid-cols-2">
           <input type="hidden" name="coupleId" value={couple.id} />
           <h2 className="text-lg sm:col-span-2">Huishouden toevoegen</h2>
-          <input name="names" required placeholder="Namen, bijvoorbeeld Jan & Els de Vries" aria-label="Namen" className="input sm:col-span-2" />
-          <label className="text-sm">Aantal personen (inclusief kinderen)<input name="partySize" type="number" min={1} max={50} defaultValue={2} className="input mt-0.5" /></label>
-          <label className="text-sm">Gastengroep<select name="groupId" className="input mt-0.5">
+          <input name="names" required placeholder="Namen op de kaart, bijvoorbeeld Jan & Els de Vries" aria-label="Namen" className="input sm:col-span-2" />
+          <label className="text-sm sm:col-span-2">Gastengroep<select name="groupId" className="input mt-0.5">
             {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
           </select></label>
-          <ChildrenFields />
+          <HouseholdFields />
           <input name="address" placeholder="Adres" aria-label="Adres" className="input sm:col-span-2" />
           <input name="email" type="email" placeholder="E-mail" aria-label="E-mail" className="input" />
           <select name="sendVia" aria-label="Kaart versturen via" className="input"><option value="post">Kaart per post</option><option value="mail">Kaart per mail</option></select>

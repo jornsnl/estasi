@@ -114,8 +114,12 @@ export function SectionedAssignment({
                 <p className="text-sm font-medium">Jullie moodboard</p>
                 {moodboard.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- uploaded images behind a login check */}
-                    {moodboard.map((m) => <img key={m.id} src={`/api/ws-bestanden/${m.file_id}`} alt="" className="h-20 w-20 rounded-lg object-cover" />)}
+                    {moodboard.map((m) => (
+                      <a key={m.id} href={`/api/ws-bestanden/${m.file_id}`} target="_blank" rel="noopener" aria-label="Afbeelding openen">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- uploaded images behind a login check */}
+                        <img src={`/api/ws-bestanden/${m.file_id}`} alt="" className="h-20 w-20 rounded-lg object-cover hover:opacity-90" />
+                      </a>
+                    ))}
                   </div>
                 )}
                 <form action={stylingImage}>

@@ -94,12 +94,8 @@ export async function requestDance(formData: FormData) {
     "insert into dance_requests (couple_id, package_id, package_name, message, requested_by_name) values ($1, $2, $3, $4, $5)",
     [ctx.couple.id, pkg?.id ?? null, packageName, message, ctx.account.name],
   );
-  // Feedback: the request also lands on Sabine's board (Taken), so it is never only in a mailbox.
-  await query(
-    `insert into tasks (couple_id, lane, title, position, created_by)
-     values ($1, 'sabine', $2, coalesce((select max(position) + 1 from tasks where couple_id = $1 and lane = 'sabine'), 1), $3)`,
-    [ctx.couple.id, `Openingsdans-aanvraag opvolgen: ${packageName}`.slice(0, 200), ctx.account.id],
-  );
+  // Feedback Sabine (5): the request has its own place on Taken (src/lib/ws/sabine-board.ts) until she
+  // marks it handled, so it is never only in a mailbox.
   if (!ctx.isAdmin) await logActivity(ctx.couple.id, ctx.account.id, `Interesse in een openingsdans (${packageName})`);
   const settings = await getSettings();
   const names = [ctx.couple.partner1_first, ctx.couple.partner2_first].filter((n) => n.trim()).join(" en ") || coupleName(ctx.couple);
@@ -172,5 +168,7 @@ export async function markDanceRequest(formData: FormData) {
   const id = str(formData, "requestId", 40);
   const handled = formData.get("handled") === "1";
   if (isUuid(id)) await query("update dance_requests set handled_at = case when $2 then now() else null end where id = $1", [id, handled]);
-  done("/beheer/bruidsparen/openingsdans#aanvragen", handled ? "Aanvraag afgehandeld." : "Aanvraag weer open.");
+  // From the Taken page back to Taken.
+  const back = str(formData, "back", 100) === "taken" ? "/beheer/bruidsparen/takenbord#openingsdans" : "/beheer/bruidsparen/openingsdans#aanvragen";
+  done(back, handled ? "Aanvraag afgehandeld." : "Aanvraag weer open.");
 }

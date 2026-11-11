@@ -30,16 +30,20 @@ const objectIcon = (kind: ObjectKind) => (kind === "music" ? "♪" : isCeremonyE
  * clicking one place and then another; Escape cancels. Sabine also places and
  * shapes the tables and the ceremony rows.
  */
-export function SeatingEditor({ coupleId, initial, isAdmin, readOnly = false }: { coupleId: string; initial: SeatingState; isAdmin: boolean; readOnly?: boolean }) {
+export function SeatingEditor({ coupleId, initial, canEditLayout, readOnly = false }: { coupleId: string; initial: SeatingState; canEditLayout: boolean; readOnly?: boolean }) {
   const [state, setState] = useState(initial);
   const [picked, setPicked] = useState<MoveSource | null>(null);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [search, setSearch] = useState("");
-  const [scale, setScale] = useState(1);
+  const [fitScale, setFitScale] = useState(1);
+  // Feedback Sabine (14): zoom in and out on the plan; 1 = the whole plan fits the width.
+  const [zoom, setZoom] = useState(1);
+  const scale = fitScale * zoom;
   const [, start] = useTransition();
   const outer = useRef<HTMLDivElement>(null);
+  const sheet = useRef<HTMLDivElement>(null);
   const { layout } = state;
   const dinner = layout.kind === "dinner";
   const aisle = !dinner && layout.shape === "rows";
@@ -47,7 +51,7 @@ export function SeatingEditor({ coupleId, initial, isAdmin, readOnly = false }: 
   useEffect(() => {
     const el = outer.current;
     if (!el) return;
-    const fit = () => setScale(el.clientWidth / CANVAS.w);
+    const fit = () => setFitScale(el.clientWidth / CANVAS.w);
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
@@ -145,7 +149,8 @@ export function SeatingEditor({ coupleId, initial, isAdmin, readOnly = false }: 
 
   // Canvas coordinates (percent) from a pointer or drop position.
   const toCanvas = (clientX: number, clientY: number) => {
-    const box = outer.current!.getBoundingClientRect();
+    // The sheet itself, so a zoomed plan that is scrolled still maps right.
+    const box = (sheet.current ?? outer.current!).getBoundingClientRect();
     return { x: ((clientX - box.left) / scale / CANVAS.w) * 100, y: ((clientY - box.top) / scale / CANVAS.h) * 100 };
   };
   const seatPct = (key: string) => {
@@ -176,7 +181,7 @@ export function SeatingEditor({ coupleId, initial, isAdmin, readOnly = false }: 
   const [ghost, setGhost] = useState<{ src: PointerDrag["src"]; x: number; y: number } | null>(null);
   const startDrag = (src: PointerDrag["src"], at?: { x: number; y: number }) => (e: React.PointerEvent) => {
     if (readOnly || e.button > 0) return;
-    if ("table" in src && !isAdmin) return;
+    if ("table" in src && !canEditLayout) return;
     const p = toCanvas(e.clientX, e.clientY);
     drag.current = { src, x0: e.clientX, y0: e.clientY, dx: at ? p.x - at.x : 0, dy: at ? p.y - at.y : 0, active: false };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -280,21 +285,37 @@ export function SeatingEditor({ coupleId, initial, isAdmin, readOnly = false }: 
       </div>
       {error && <p className="no-print text-sm text-red-700" role="alert">{error}</p>}
 
-      <div className={`grid gap-4 ${readOnly ? "" : "lg:grid-cols-[1fr_16rem]"}`}>
-        <div>
+      <div className={`grid gap-4 ${readOnly ? "" : "lg:grid-cols-[minmax(0,1fr)_16rem]"}`}>
+        {/* min-w-0: a zoomed plan scrolls inside its box instead of widening the page. */}
+        <div className="min-w-0">
           {!readOnly && <p className="no-print mb-1.5 text-xs text-muted">Sleep een gast of object naar een andere plek, of tik op een plek en daarna op de nieuwe plek. Op een bezette plek wisselen ze. Esc heft de selectie op.</p>}
-          {/* The floor plan: a 1000 x 650 canvas scaled to the width of the screen. */}
+          {!readOnly && (
+            <div className="no-print mb-1.5 flex flex-wrap items-center gap-1.5 text-xs" role="group" aria-label="Zoomen">
+              <button type="button" onClick={() => setZoom((z) => zoomStep(z, -1))} disabled={zoom <= ZOOM.min} className="btn-secondary px-2.5 py-1 text-xs" aria-label="Uitzoomen">−</button>
+              <span className="w-12 text-center tabular-nums text-muted" aria-live="polite">{Math.round(zoom * 100)}%</span>
+              <button type="button" onClick={() => setZoom((z) => zoomStep(z, 1))} disabled={zoom >= ZOOM.max} className="btn-secondary px-2.5 py-1 text-xs" aria-label="Inzoomen">+</button>
+              {zoom !== 1 && <button type="button" onClick={() => setZoom(1)} className="btn-ghost px-2 py-1 text-xs">Passend maken</button>}
+              <span className="text-muted">Ingezoomd scroll je over de plattegrond; Ctrl of ⌘ met het muiswiel zoomt ook.</span>
+            </div>
+          )}
+          {/* The floor plan: a 1000 x 650 canvas scaled to the width of the screen, times the zoom. */}
           <div
             ref={outer}
-            className="relative w-full overflow-hidden rounded-2xl border border-line bg-[#fbf9f4]"
-            style={{ height: CANVAS.h * scale }}
+            className={`relative w-full rounded-2xl border border-line bg-[#fbf9f4] ${zoom > 1 ? "overflow-auto" : "overflow-hidden"}`}
+            style={{ height: CANVAS.h * scale, maxHeight: zoom > 1 ? "75vh" : undefined }}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => drop(e)}
             onPointerMove={onMove}
             onPointerUp={endDrag}
             onPointerCancel={cancelDrag}
+            onWheel={(e) => {
+              if (readOnly || !(e.ctrlKey || e.metaKey)) return;
+              e.preventDefault();
+              setZoom((z) => zoomStep(z, e.deltaY < 0 ? 1 : -1));
+            }}
             onClick={() => { if (!justDragged.current) { setPicked(null); setSelectedTable(null); } }}
           >
+            <div ref={sheet} className={`relative ${zoom < 1 ? "mx-auto" : ""}`} style={{ width: CANVAS.w * scale, height: CANVAS.h * scale }}>
             <div className="absolute top-0 left-0 origin-top-left" style={{ width: CANVAS.w, height: CANVAS.h, transform: `scale(${scale})` }}>
               {front && (
                 <div className="absolute flex items-center justify-center rounded-xl bg-bordeaux text-center text-sm font-medium text-white" style={{ left: front.x - front.w / 2, top: front.y - front.h / 2, width: front.w, height: front.h }}>
@@ -319,8 +340,8 @@ export function SeatingEditor({ coupleId, initial, isAdmin, readOnly = false }: 
                     <div
                       key={t.id}
                       onPointerDown={startDrag({ table: t.id }, t)}
-                      onClick={(e) => { e.stopPropagation(); if (isAdmin && !readOnly && !justDragged.current) { setSelectedTable(t.id); setPicked(null); } }}
-                      className={`absolute flex flex-col items-center justify-center border-2 bg-[#efe7d6] text-center select-none ${t.shape === "round" ? "rounded-full" : "rounded-lg"} ${selectedTable === t.id ? "border-bordeaux" : "border-[#d8cbb0]"} ${isAdmin && !readOnly ? "cursor-move touch-none" : ""}`}
+                      onClick={(e) => { e.stopPropagation(); if (canEditLayout && !readOnly && !justDragged.current) { setSelectedTable(t.id); setPicked(null); } }}
+                      className={`absolute flex flex-col items-center justify-center border-2 bg-[#efe7d6] text-center select-none ${t.shape === "round" ? "rounded-full" : "rounded-lg"} ${selectedTable === t.id ? "border-bordeaux" : "border-[#d8cbb0]"} ${canEditLayout && !readOnly ? "cursor-move touch-none" : ""}`}
                       style={{ left: (pos.x / 100) * CANVAS.w - w / 2, top: (pos.y / 100) * CANVAS.h - h / 2, width: w, height: h }}
                     >
                       <span className="text-xs leading-tight font-semibold">{t.name}</span>
@@ -414,6 +435,7 @@ export function SeatingEditor({ coupleId, initial, isAdmin, readOnly = false }: 
                 </div>
               )}
             </div>
+            </div>
           </div>
 
           {!readOnly && pickedSeat && (seatOccupant?.type === "object" ? (
@@ -451,7 +473,7 @@ export function SeatingEditor({ coupleId, initial, isAdmin, readOnly = false }: 
           {!readOnly && (
             <div className="no-print mt-3 space-y-2">
               <div className="flex flex-wrap gap-2">
-                {isAdmin && dinner && (
+                {canEditLayout && dinner && (
                   <>
                     <button type="button" onClick={() => run(addTable(coupleId, layout.id, "round"))} className="btn-secondary py-1.5 text-xs">+ Ronde tafel</button>
                     <button type="button" onClick={() => run(addTable(coupleId, layout.id, "square"))} className="btn-secondary py-1.5 text-xs">+ Vierkante tafel</button>
@@ -459,7 +481,7 @@ export function SeatingEditor({ coupleId, initial, isAdmin, readOnly = false }: 
                   </>
                 )}
               </div>
-              {isAdmin && dinner && table && <TablePanel key={table.id} table={table} onChange={(c) => run(updateTable(coupleId, table.id, c))} onDone={() => setSelectedTable(null)} />}
+              {canEditLayout && dinner && table && <TablePanel key={table.id} table={table} onChange={(c) => run(updateTable(coupleId, table.id, c))} onDone={() => setSelectedTable(null)} />}
               <AddObject
                 dinner={dinner}
                 tables={state.tables}
@@ -485,7 +507,7 @@ export function SeatingEditor({ coupleId, initial, isAdmin, readOnly = false }: 
                   run(addObject(coupleId, layout.id, { kind, name, seatKey, ...at }));
                 }}
               />
-              {isAdmin && aisle && <RowsPanel rows={rows} onChange={changeRows} />}
+              {canEditLayout && aisle && <RowsPanel rows={rows} onChange={changeRows} />}
             </div>
           )}
         </div>
@@ -535,6 +557,14 @@ export function SeatingEditor({ coupleId, initial, isAdmin, readOnly = false }: 
       )}
     </div>
   );
+}
+
+const ZOOM = { min: 0.5, max: 3 } as const;
+const ZOOM_STEPS = [0.5, 0.67, 0.8, 1, 1.25, 1.5, 2, 2.5, 3];
+/** The next zoom step up (1) or down (-1). */
+function zoomStep(zoom: number, direction: 1 | -1): number {
+  if (direction > 0) return ZOOM_STEPS.find((z) => z > zoom + 0.001) ?? ZOOM.max;
+  return [...ZOOM_STEPS].reverse().find((z) => z < zoom - 0.001) ?? ZOOM.min;
 }
 
 const pick = (o?: { x: number; y: number }) => (o ? { x: o.x, y: o.y } : {});

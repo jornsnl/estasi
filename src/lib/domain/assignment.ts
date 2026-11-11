@@ -545,9 +545,28 @@ export function withKnownUploadKinds(assignment: AssignmentBlock): AssignmentBlo
   };
 }
 
-/** Lesson blocks as stored to the blocks the app works with: legacy answer blocks become assignments, stale upload kinds go. */
+/**
+ * Lesson blocks as stored to the blocks the app works with: legacy answer blocks become assignments,
+ * stale upload kinds go, and an assignment with a Feedback block under it (feedback Sabine 23)
+ * offers personal feedback.
+ */
 export const normaliseBlocks = (blocks: StoredBlock[]): Block[] =>
-  (Array.isArray(blocks) ? blocks : []).map((b) => (isLegacy(b) ? legacyToAssignment(b) : b.type === "assignment" ? withKnownUploadKinds(b) : b));
+  withFeedbackBlocks((Array.isArray(blocks) ? blocks : []).map((b) => (isLegacy(b) ? legacyToAssignment(b) : b.type === "assignment" ? withKnownUploadKinds(b) : b)));
+
+/** The assignment a Feedback block belongs to: the nearest assignment above it, or null. */
+export function assignmentAbove(blocks: Block[], index: number): AssignmentBlock | null {
+  for (let i = index - 1; i >= 0; i--) {
+    const b = blocks[i];
+    if (b.type === "assignment") return b;
+  }
+  return null;
+}
+
+export function withFeedbackBlocks(blocks: Block[]): Block[] {
+  const ids = new Set(blocks.flatMap((b, i) => (b.type === "feedback" ? [assignmentAbove(blocks, i)?.id] : [])).filter(Boolean));
+  if (ids.size === 0) return blocks;
+  return blocks.map((b) => (b.type === "assignment" && ids.has(b.id) && !b.feedbackAllowed ? { ...b, feedbackAllowed: true } : b));
+}
 
 // Plain text --------------------------------------------------------------------------
 

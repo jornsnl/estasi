@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { installments, paymentState, periodRange, revenueSummary } from "@/lib/ws/payments";
+import { excludingVat, installments, paymentState, periodRange, revenueSummary } from "@/lib/ws/payments";
 
 describe("prijs en betaling per bruidspaar", () => {
   it("splitst in twee helften, een losse cent gaat naar de tweede", () => {
@@ -35,8 +35,16 @@ describe("prijs en betaling per bruidspaar", () => {
       { sold_on: "2026-01-05", packages: 1, agreed_price_cents: null, payment_plan: "once" as const, paid_first_at: null, paid_second_at: null },
     ];
     expect(revenueSummary(couples, periodRange(2026, "q1"))).toEqual({
-      couples: 3, packages: 4, revenue: 400000, paid: 150000, open: 250000, once: 2, two: 1, withoutPrice: 1,
+      couples: 3, packages: 4, revenue: 400000, revenueExVat: 330579, paid: 150000, open: 250000, once: 2, two: 1, withoutPrice: 1,
     });
     expect(revenueSummary(couples, periodRange(2026, "q2")).revenue).toBe(50000);
+  });
+});
+
+describe("excludingVat", () => {
+  it("takes 21% VAT off a price that includes it (feedback Sabine 9)", () => {
+    expect(excludingVat(121000)).toBe(100000);
+    expect(excludingVat(0)).toBe(0);
+    expect(excludingVat(99)).toBe(82);
   });
 });

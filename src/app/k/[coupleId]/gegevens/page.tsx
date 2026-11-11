@@ -144,6 +144,13 @@ export default async function CoupleSettings({
         <input type="hidden" name="coupleId" value={couple.id} />
         <h2 className="text-xl">Coverfoto</h2>
         <p className="text-sm text-muted">Bovenaan de hoofdpagina, achter de namen. Liggend formaat werkt het best (jpg, png of webp, maximaal 10 MB).</p>
+        {/* Feedback Sabine (2): after uploading you see the photo that is linked. */}
+        {couple.cover_file_id ? (
+          // eslint-disable-next-line @next/next/no-img-element -- uploaded image behind a login check
+          <img src={`/api/ws-bestanden/${couple.cover_file_id}`} alt="Huidige coverfoto" className="h-32 w-full max-w-md rounded-xl border border-line object-cover" />
+        ) : (
+          <p className="text-sm text-muted">Nog geen coverfoto.</p>
+        )}
         <FileUpload name="cover" coupleId={couple.id} kind="image" direct={directUploads()} label="Coverfoto uploaden" />
         {couple.cover_file_id && (
           <label className="flex items-center gap-2 text-sm text-muted"><input type="checkbox" name="removeCover" /> Huidige coverfoto verwijderen</label>

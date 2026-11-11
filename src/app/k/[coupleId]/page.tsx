@@ -78,12 +78,6 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
       {/* Feedback 13.2: Sabine's question about a student who walks along, and "Meekijkers". */}
       <StudentAccessCouple couple={couple} isAdmin={isAdmin} />
 
-      {tour && (
-        <div className="flex justify-end">
-          <TourButton fileId={settings.tour_video_file_id} url={settings.tour_video_url} title={settings.tour_popup_title} text={settings.tour_popup_text} />
-        </div>
-      )}
-
       {/* The first visit: a welcome block with the same button, until the couple closes it. */}
       {tour && !tourDismissed && (
         <section aria-labelledby="welkom-titel" className="relative rounded-2xl border border-gold/50 bg-white p-5 pr-12 shadow-sm sm:p-6 sm:pr-14">
@@ -130,7 +124,15 @@ export default async function CoupleHome({ params, searchParams }: { params: Pro
         )}
       </section>
 
-      <p className="max-w-3xl text-[15px] leading-7 text-muted">{WELCOME_TEXT}</p>
+      {/* Feedback Sabine (10): the bordeaux tour button under the header, next to the welcome text. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <p className="max-w-3xl text-[15px] leading-7 text-muted">{WELCOME_TEXT}</p>
+        {tour && (
+          <div className="shrink-0">
+            <TourButton fileId={settings.tour_video_file_id} url={settings.tour_video_url} title={settings.tour_popup_title} text={settings.tour_popup_text} />
+          </div>
+        )}
+      </div>
 
       {/* Tiles */}
       <section>

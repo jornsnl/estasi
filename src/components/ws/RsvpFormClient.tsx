@@ -38,6 +38,8 @@ export function RsvpFormClient(p: Props) {
   const [attending, setAttending] = useState("");
   const [count, setCount] = useState(1);
   const [relations, setRelations] = useState<string[]>([]);
+  // Feedback Sabine (13): with "Deel van de dag", every other person of the sign up says it too.
+  const [partyAttendance, setPartyAttendance] = useState<Record<number, "partial" | "yes">>({});
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const coming = attending === "yes" || attending === "partial";
   const visible = useMemo(() => p.questions.filter((q) => isQuestionVisible(q, p.questions, answers)), [p.questions, answers]);
@@ -128,6 +130,25 @@ export function RsvpFormClient(p: Props) {
                   <label className="flex items-center gap-2 text-sm"><input type="checkbox" name={`party_${i}_kid`} className="accent-[#6B1E2E]" /> Kind</label>
                   {p.askDiet && (
                     <input name={`party_${i}_diet`} placeholder="Dieetwensen en allergieën" aria-label={`Dieetwensen gast ${i + 2}`} className="input sm:col-span-2" />
+                  )}
+                  {attending === "partial" && (
+                    <fieldset className="space-y-2 sm:col-span-2">
+                      <legend className="mb-1 text-sm font-medium">Aanwezigheid gast {i + 2}<Req /></legend>
+                      <div className="flex flex-wrap gap-2 text-sm">
+                        <label className={choice}>
+                          <input type="radio" name={`party_${i}_attendance`} value="partial" required checked={partyAttendance[i] === "partial"} onChange={() => setPartyAttendance((a) => ({ ...a, [i]: "partial" }))} className="accent-[#6B1E2E]" /> Deel van de dag
+                        </label>
+                        <label className={choice}>
+                          <input type="radio" name={`party_${i}_attendance`} value="yes" checked={partyAttendance[i] === "yes"} onChange={() => setPartyAttendance((a) => ({ ...a, [i]: "yes" }))} className="accent-[#6B1E2E]" /> Aanwezig
+                        </label>
+                      </div>
+                      {partyAttendance[i] === "partial" && (
+                        <div>
+                          <label className="label" htmlFor={`party_${i}_partialNote`}>Beschrijf hier welke tijden je aanwezig bent<Req /></label>
+                          <input id={`party_${i}_partialNote`} name={`party_${i}_partialNote`} required className="input" />
+                        </div>
+                      )}
+                    </fieldset>
                   )}
                 </div>
               ))}

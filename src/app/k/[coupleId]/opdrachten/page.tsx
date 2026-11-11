@@ -32,27 +32,36 @@ export default async function Assignments({
       </header>
       <Notice searchParams={searchParams} />
 
-      <ul className="space-y-3">
+      {/* Feedback Sabine (19): the same layout as Aanraders, a square tile per assignment with a photo, the title and the status. */}
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {assignments.map((a) => {
           const hidden = a.visible_from && a.visible_from > new Date().toISOString().slice(0, 10);
+          const unit = a.kind === "sections" ? "opdrachten afgerond" : "vragen ingevuld";
           return (
             <li key={a.id}>
-              <Link href={`/k/${couple.id}/opdrachten/${a.id}`} className="card flex flex-wrap items-center justify-between gap-3 p-5 transition hover:shadow-md">
-                <div>
-                  <h2 className="text-lg">{a.title}</h2>
-                  <p className="text-sm text-muted">
-                    {a.answered} van {a.total} {a.kind === "sections" ? "opdrachten afgerond" : "vragen ingevuld"}
+              <Link
+                href={`/k/${couple.id}/opdrachten/${a.id}`}
+                className="group flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+              >
+                <span className="relative block aspect-square w-full overflow-hidden bg-gradient-to-br from-cream-deep to-[#e2d6b8]">
+                  {a.photo_file_id && (
+                    // eslint-disable-next-line @next/next/no-img-element -- photo behind a login check
+                    <img src={`/api/ws-bestanden/${a.photo_file_id}`} alt="" className="absolute inset-0 h-full w-full object-cover transition group-hover:scale-[1.02]" />
+                  )}
+                  {a.submitted_at && <span className="absolute top-2 right-2 rounded-full bg-white/95 px-2 py-0.5 text-[11px] text-success shadow-sm">Ingestuurd</span>}
+                </span>
+                <span className="block p-3">
+                  <span className="block font-serif text-base leading-tight font-semibold">{a.title}</span>
+                  <span className="mt-1 block text-xs text-muted">
+                    {a.answered} van {a.total} {unit}
                     {isAdmin && hidden ? ` · zichtbaar vanaf ${formatDate(a.visible_from)}` : ""}
-                  </p>
-                </div>
-                <span className={`rounded-full px-2.5 py-0.5 text-xs ${a.submitted_at ? "bg-success-soft text-success" : "bg-cream text-gold-ink"}`}>
-                  {a.submitted_at ? "Ingestuurd" : "Nog open"}
+                  </span>
                 </span>
               </Link>
             </li>
           );
         })}
-        {assignments.length === 0 && <li className="card p-5 text-sm text-muted">Er staan nog geen opdrachten klaar.</li>}
+        {assignments.length === 0 && <li className="card col-span-full p-5 text-sm text-muted">Er staan nog geen opdrachten klaar.</li>}
       </ul>
 
       {isAdmin && (

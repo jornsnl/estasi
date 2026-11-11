@@ -46,6 +46,7 @@ export default async function SuppliersPage({
           present_from: r.present_from,
           present_until: r.present_until,
           documents: r.documents,
+          eats_along: r.eats_along,
         }))}
       />
       <form action={addCoupleCategory} className="card flex flex-wrap items-end gap-2 p-4">

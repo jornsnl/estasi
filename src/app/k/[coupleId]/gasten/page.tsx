@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { markInfoHandled, saveGuest } from "@/app/actions/ws-rsvp";
+import { deleteGuest, markInfoHandled, saveGuest } from "@/app/actions/ws-rsvp";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { GuestTabs } from "@/components/ws/GuestTabs";
@@ -63,7 +63,7 @@ function GuestForm({ coupleId, groups, guest }: { coupleId: string; groups: Gues
       <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" name="isKid" defaultChecked={guest?.is_kid} className="accent-[#6B1E2E]" /> Kind</label>
       <div className="flex gap-2 sm:col-span-6">
         <SubmitButton className="btn-primary py-1.5" pendingText="Opslaan…">{guest ? "Opslaan" : "Toevoegen"}</SubmitButton>
-        {guest && <SubmitButton name="intent" value="delete" className="btn-ghost py-1.5 text-bordeaux" confirm={`${guest.first_name} verwijderen uit de gastenlijst?`}>Verwijderen</SubmitButton>}
+        {guest && <SubmitButton name="intent" value="delete" className="btn-ghost py-1.5 text-bordeaux" confirm={`Weet je het zeker? ${[guest.first_name, guest.last_name].filter(Boolean).join(" ")} wordt uit de gastenlijst verwijderd.`}>Verwijderen</SubmitButton>}
       </div>
     </form>
   );
@@ -117,9 +117,13 @@ export default async function GuestList({
     let last: string | null = null;
     return (
       <div className="card overflow-x-auto">
-        <table className="w-full min-w-[720px] text-sm">
+        {/* Feedback Sabine (4): on a phone every guest is a compact card (stack-table, globals.css). */}
+        <table className="stack-table w-full text-sm sm:min-w-[720px]">
           <thead className="table-head">
-            <tr><th className="px-4 py-2.5">Naam</th><th className="px-4 py-2.5">Relatie</th><th className="px-4 py-2.5">Telefoon</th><th className="px-4 py-2.5">Aanwezig</th><th className="px-4 py-2.5">Dieet / allergieën</th></tr>
+            <tr>
+              <th className="px-4 py-2.5">Naam</th><th className="px-4 py-2.5">Relatie</th><th className="px-4 py-2.5">Telefoon</th><th className="px-4 py-2.5">Aanwezig</th><th className="px-4 py-2.5">Dieet / allergieën</th>
+              {isAdmin && <th className="px-2 py-2.5"><span className="sr-only">Verwijderen</span></th>}
+            </tr>
           </thead>
           <tbody>
             {list.map((g) => {
@@ -128,7 +132,7 @@ export default async function GuestList({
               last = key;
               return (
                 <tr key={g.id} className={`border-t border-line align-top ${shade ? "bg-cream/60" : ""}`}>
-                  <td className="px-4 py-2.5">
+                  <td className="stack-full px-4 py-2.5">
                     {isAdmin && g.email && (
                       <input type="checkbox" form="mail-gasten" name="gast" value={g.id} aria-label={`${g.first_name} selecteren om te mailen`} className="mr-2 accent-[#6B1E2E]" />
                     )}
@@ -146,21 +150,37 @@ export default async function GuestList({
                     {g.form_name && <span className="block text-xs text-muted">via {g.form_name} · {formatDateTime(g.created_at)}</span>}
                     {g.response_id && <ConfirmationLabel state={confirmation.get(g.response_id)} />}
                   </td>
-                  <td className="px-4 py-2.5">{g.relation || "–"}</td>
-                  <td className="px-4 py-2.5">
+                  <td data-label="Relatie" className="px-4 py-2.5">{g.relation || "–"}</td>
+                  <td data-label="Telefoon" className="min-w-0 px-4 py-2.5 break-words">
                     {g.phone || "–"}
                     {g.email && <span className="block text-xs text-muted">{g.email}</span>}
                     {isAdmin && g.email && <Link href={`${mailForm}?gast=${g.id}`} className="text-xs text-bordeaux underline">Mail sturen</Link>}
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td data-label="Aanwezig" className="px-4 py-2.5">
                     {ATTENDANCE[g.attendance]}
                     {g.partial_note && <span className="block text-xs text-muted">{g.partial_note}</span>}
                   </td>
-                  <td className="px-4 py-2.5">{g.diet || "–"}</td>
+                  <td data-label="Dieet / allergieën" className="px-4 py-2.5">{g.diet || "–"}</td>
+                  {isAdmin && (
+                    // Feedback Sabine (12): remove a guest, for instance after a cancellation, after "Weet je het zeker?".
+                    <td className="stack-full px-2 py-2.5 text-right">
+                      <form action={deleteGuest}>
+                        <input type="hidden" name="coupleId" value={couple.id} />
+                        <input type="hidden" name="guestId" value={g.id} />
+                        <SubmitButton
+                          className="rounded px-1.5 text-sm text-muted hover:bg-bordeaux-soft hover:text-bordeaux"
+                          confirm={`Weet je het zeker? ${[g.first_name, g.last_name].filter(Boolean).join(" ")} wordt uit de gastenlijst verwijderd.`}
+                        >
+                          <span aria-hidden className="hidden sm:inline">×</span>
+                          <span className="sm:sr-only">Verwijderen</span>
+                        </SubmitButton>
+                      </form>
+                    </td>
+                  )}
                 </tr>
               );
             })}
-            {list.length === 0 && <tr><td colSpan={5} className="px-4 py-6 text-center text-muted">Nog niemand.</td></tr>}
+            {list.length === 0 && <tr><td colSpan={isAdmin ? 6 : 5} className="stack-full px-4 py-6 text-center text-muted">Nog niemand.</td></tr>}
           </tbody>
         </table>
       </div>

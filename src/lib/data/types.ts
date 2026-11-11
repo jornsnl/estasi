@@ -125,6 +125,15 @@ export interface DownloadBlock extends BlockBase {
   file: FileRef | null;
 }
 
+/**
+ * Feedback Sabine (23): a "Feedback" block, placed under an assignment. That assignment then
+ * offers the student the checkbox for personal feedback (feedbackAllowed, set when the lesson is
+ * read: normaliseBlocks). For the student the block itself shows nothing.
+ */
+export interface FeedbackBlock extends BlockBase {
+  type: "feedback";
+}
+
 // Legacy answer blocks (before migration 0025). Migration 0025 turned every one
 // of them into an assignment block with one field and the same block id; they
 // stay here to read old lesson data (normaliseBlocks in domain/assignment.ts).
@@ -332,7 +341,7 @@ export interface ModuleUnlock {
   unlockedAt: string;
 }
 
-export type Block = HeadingBlock | GoalsBlock | VideoBlock | TextBlock | ImageBlock | DownloadBlock | AssignmentBlock;
+export type Block = HeadingBlock | GoalsBlock | VideoBlock | TextBlock | ImageBlock | DownloadBlock | AssignmentBlock | FeedbackBlock;
 
 export type BlockType = Block["type"];
 

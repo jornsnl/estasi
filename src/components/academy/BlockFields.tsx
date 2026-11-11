@@ -30,6 +30,8 @@ export interface BlockEditorProps<T extends Block = Block> {
 /** Course-wide data some editors need (the assignment editor: other assignments for "herhaling van"). */
 export interface BlockEditorContext {
   assignments: AssignmentChoice[];
+  /** For a Feedback block: the title of the assignment above it ("" without a title), null when there is none. */
+  assignmentAbove?: string | null;
 }
 
 type Editors = { [T in BlockType]: (props: BlockEditorProps<Extract<Block, { type: T }>>) => React.ReactNode };
@@ -142,7 +144,26 @@ const EDITORS: Editors = {
           </label>
         </p>
       ) : null}
-      <input type="file" name={n("file")} accept={ACCEPT_ATTR} className="text-sm" aria-label="Bestand uploaden" />
+      {!block.file && !block.url && (
+        <p className="rounded-lg bg-gold-soft px-3 py-2 text-xs text-gold-ink">Nog geen bestand of link: de cursist ziet &quot;Het bestand volgt nog&quot;.</p>
+      )}
+      <div>
+        <p className="label">{block.file ? "Ander bestand uploaden" : "Bestand uploaden"} (pdf, Word, Excel, PowerPoint, tekst of afbeelding, maximaal 10 MB)</p>
+        <input type="file" name={n("file")} accept={ACCEPT_ATTR} className="text-sm" aria-label="Bestand uploaden" />
+      </div>
+    </>
+  ),
+  feedback: ({ context }) => (
+    <>
+      {context?.assignmentAbove === null || context?.assignmentAbove === undefined ? (
+        <p role="alert" className="rounded-lg bg-bordeaux-soft px-3 py-2 text-sm text-bordeaux">
+          Er staat geen opdracht boven dit blok. Zet het Feedbackblok onder de opdracht waarbij de cursist feedback mag vragen.
+        </p>
+      ) : (
+        <p className="rounded-lg bg-gold-soft px-3 py-2 text-sm text-gold-ink">
+          De cursist kan bij de opdracht {context.assignmentAbove ? <>&quot;{context.assignmentAbove}&quot;</> : "hierboven"} persoonlijke feedback vragen (het feedbackvinkje).
+        </p>
+      )}
     </>
   ),
   assignment: ({ block, context }) => <AssignmentEditor block={block} others={(context?.assignments ?? []).filter((o) => o.id !== block.id)} />,

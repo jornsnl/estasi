@@ -10,6 +10,7 @@ import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { getStore, type AssignmentBlock, type Lesson, type Module } from "@/lib/data";
 import type { AssignmentChoice } from "@/components/academy/AssignmentEditor";
+import { assignmentAbove } from "@/lib/domain/assignment";
 import { ADD_BLOCK_OPTIONS, BLOCK_LABELS } from "@/lib/domain/blocks";
 import { LIMITS } from "@/lib/domain/input";
 import { editableContent, hasPendingChanges } from "@/lib/domain/publishing";
@@ -97,7 +98,7 @@ export default async function LessonEditor({
           {content.blocks.length === 0 && <p className="text-muted">Nog geen blokken. Voeg hieronder je eerste blok toe.</p>}
           <SortableBlocks
             formId={FORM_ID}
-            items={content.blocks.map((block) => ({
+            items={content.blocks.map((block, index) => ({
               id: block.id,
               label: BLOCK_LABELS[block.type] ?? "Blok",
               node: (
@@ -110,7 +111,10 @@ export default async function LessonEditor({
                     {"feedback" in block && block.feedback === true && <Badge tone="gold">Feedback</Badge>}
                   </div>
                   <input type="hidden" name={`b.${block.id}.present`} value="1" />
-                  <BlockFields block={block} context={editorContext} />
+                  <BlockFields
+                    block={block}
+                    context={block.type === "feedback" ? { ...editorContext, assignmentAbove: assignmentAbove(content.blocks, index)?.title ?? null } : editorContext}
+                  />
                   <div className="mt-4 flex justify-end border-t border-line pt-3">
                     <SubmitButton name="intent" value={`delete:${block.id}`} className="btn-ghost px-2 text-xs text-bordeaux" confirm="Dit blok verwijderen? Je andere wijzigingen worden opgeslagen.">
                       Blok verwijderen

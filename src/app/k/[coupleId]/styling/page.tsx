@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { saveStylingPlan, stylingImage } from "@/app/actions/ws-fase2";
+import { saveStylingPart, saveStylingPlan, stylingImage } from "@/app/actions/ws-fase2";
 import { releaseStylingPlan, savePlace } from "@/app/actions/ws-styling";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -71,39 +71,92 @@ export default async function Styling({
       </header>
       <Notice searchParams={searchParams} />
 
-      {showConcept ? (
-        <section className="card space-y-4 p-6">
-          {!plan.published && <p className="rounded-lg bg-cream px-3 py-2 text-xs text-gold-ink">Nog niet zichtbaar voor het bruidspaar.</p>}
-          {plan.concept && <p className="text-[15px] leading-7 whitespace-pre-line">{plan.concept}</p>}
-          {palette.length > 0 && (
-            <div className="flex flex-wrap gap-3">
-              {palette.map((c) => (
-                <div key={c.hex} className="w-16 text-center text-xs text-muted">
-                  <div className="mx-auto h-12 w-12 rounded-lg border border-line" style={{ background: c.hex }} />
-                  {c.name && <span className="mt-1 block truncate text-ink">{c.name}</span>}
-                  <span className="block font-mono text-[11px]">{c.hex}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      ) : (
-        !isAdmin && (
-          <section className="card p-6 text-sm text-muted">
+      {/* Feedback Sabine (18): 1 Moodboard, 2 Kleurkiezer, 3 Themaomschrijving, 4 Styling per plek. */}
+      <section id="moodboard" className="scroll-mt-6">
+        <h2 className="section-title mb-3">Moodboard</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {images.map((img) => (
+            <figure key={img.id} className="overflow-hidden rounded-2xl bg-white shadow-sm">
+              {/* Feedback Sabine (17): a picture opens large in a new tab and can be downloaded. */}
+              <a href={`/api/ws-bestanden/${img.file_id}`} target="_blank" rel="noopener" className="block" aria-label={`${img.caption || "Afbeelding"} openen`}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- uploaded image behind an access check */}
+                <img src={`/api/ws-bestanden/${img.file_id}`} alt={img.caption || "Moodboard"} className="aspect-square w-full object-cover transition-opacity hover:opacity-90" />
+              </a>
+              <figcaption className="space-y-1 px-3 py-2 text-xs text-muted">
+                {img.caption && <span className="block">{img.caption}</span>}
+                <span className="flex items-center justify-between gap-2">
+                  <span className="flex gap-3">
+                    <a href={`/api/ws-bestanden/${img.file_id}`} target="_blank" rel="noopener" className="text-bordeaux hover:underline">Openen</a>
+                    <a href={`/api/ws-bestanden/${img.file_id}?download=1`} download className="text-bordeaux hover:underline">Downloaden</a>
+                  </span>
+                  <form action={stylingImage}>
+                    <input type="hidden" name="coupleId" value={couple.id} />
+                    <input type="hidden" name="imageId" value={img.id} />
+                    <SubmitButton className="hover:text-bordeaux" confirm="Weet je het zeker? Deze afbeelding wordt verwijderd.">×</SubmitButton>
+                  </form>
+                </span>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+        <form action={stylingImage} className="mt-3 space-y-2">
+          <input type="hidden" name="coupleId" value={couple.id} />
+          <FileUpload name="image" coupleId={couple.id} kind="image" direct={direct} multiple required label="Foto's uploaden" />
+          <div className="flex flex-wrap items-center gap-2">
+            <input name="caption" placeholder="Onderschrift (optioneel)" aria-label="Onderschrift" className="input w-56 py-1.5" />
+            <SubmitButton className="btn-primary py-1.5" pendingText="Toevoegen…">Toevoegen aan moodboard</SubmitButton>
+          </div>
+        </form>
+      </section>
+
+      <section id="kleuren" className="card scroll-mt-6 space-y-3 p-6">
+        <div>
+          <h2 className="section-title">Kleuren</h2>
+          <p className="text-sm text-muted">Klik op een kleur om hem aan te passen, sleep om de volgorde te veranderen, of voeg een kleur toe.</p>
+        </div>
+        <form action={saveStylingPart} className="space-y-3">
+          <input type="hidden" name="coupleId" value={couple.id} />
+          <input type="hidden" name="part" value="colors" />
+          <ColorPalette initial={palette} />
+          <SubmitButton className="btn-primary py-1.5" pendingText="Opslaan…">Kleuren opslaan</SubmitButton>
+        </form>
+      </section>
+
+      <section id="thema" className="card scroll-mt-6 space-y-3 p-6">
+        <h2 className="section-title">Themaomschrijving</h2>
+        {isAdmin ? (
+          <form action={saveStylingPlan} className="space-y-3">
+            <input type="hidden" name="coupleId" value={couple.id} />
+            {!plan?.published && <p className="rounded-lg bg-cream px-3 py-2 text-xs text-gold-ink">Nog niet zichtbaar voor het bruidspaar.</p>}
+            <label className="sr-only" htmlFor="concept">Themaomschrijving: stijl en sfeer</label>
+            <AutoTextarea id="concept" name="concept" defaultValue={plan?.concept || plan?.ai_draft || ""} placeholder="Stijl, sfeer, materialen: het thema van de bruiloft" className="input min-h-40" />
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="published" defaultChecked={plan?.published ?? false} className="accent-[#6B1E2E]" /> Zichtbaar voor het bruidspaar</label>
+            <SubmitButton className="btn-primary py-1.5" pendingText="Opslaan…">Opslaan</SubmitButton>
+          </form>
+        ) : showConcept || plan?.published ? (
+          <form action={saveStylingPart} className="space-y-3">
+            <input type="hidden" name="coupleId" value={couple.id} />
+            <input type="hidden" name="part" value="theme" />
+            <label className="sr-only" htmlFor="concept">Themaomschrijving</label>
+            <AutoTextarea id="concept" name="concept" defaultValue={plan?.concept ?? ""} placeholder="Stijl, sfeer, materialen: jullie thema" className="input min-h-40" />
+            <SubmitButton className="btn-primary py-1.5" pendingText="Opslaan…">Opslaan</SubmitButton>
+          </form>
+        ) : (
+          <div className="text-sm text-muted">
             {source && !source.completed_at
-              ? <>Sabine maakt jullie stylingplan op basis van de opdracht <Link className="text-bordeaux underline" href={`/k/${couple.id}/opdrachten/${source.id}`}>{source.title}</Link>. Vul die eerst in.</>
+              ? <>Sabine maakt jullie themaomschrijving op basis van de opdracht <Link className="text-bordeaux underline" href={`/k/${couple.id}/opdrachten/${source.id}`}>{source.title}</Link>. Vul die eerst in.</>
               : <>
                   <span className="block font-medium text-ink">De samenvatting is binnenkort beschikbaar.</span>
-                  <span className="mt-1 block">Sabine maakt op basis van jullie antwoorden een overzicht van jullie stijl, sfeer en kleuren, en zet het hier neer.</span>
+                  <span className="mt-1 block">Sabine maakt op basis van jullie antwoorden een overzicht van jullie stijl en sfeer, en zet het hier neer.</span>
                 </>}
-          </section>
-        )
-      )}
+          </div>
+        )}
+      </section>
 
       <section id="plan" className="scroll-mt-6 space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
-            <h2 className="section-title">Stylingplan per plek</h2>
+            <h2 className="section-title">Styling per plek</h2>
             <p className="text-sm text-muted">Wat komt waar, en wie regelt het. Staat hier een van jullie namen bij, dan komt het vanzelf op de meeneemlijst &quot;Styling meenemen&quot;.</p>
           </div>
           {isAdmin && drafts > 0 && (
@@ -118,34 +171,6 @@ export default async function Styling({
           <input type="hidden" name="coupleId" value={couple.id} />
           <input name="name" required placeholder="Nieuwe plek, bijvoorbeeld: Tuin" aria-label="Nieuwe plek" className="input max-w-xs py-1.5" />
           <SubmitButton className="btn-secondary py-1.5">Plek toevoegen</SubmitButton>
-        </form>
-      </section>
-
-      <section id="moodboard" className="scroll-mt-6">
-        <h2 className="section-title mb-3">Moodboard</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {images.map((img) => (
-            <figure key={img.id} className="overflow-hidden rounded-2xl bg-white shadow-sm">
-              {/* eslint-disable-next-line @next/next/no-img-element -- uploaded image behind an access check */}
-              <img src={`/api/ws-bestanden/${img.file_id}`} alt={img.caption || "Moodboard"} className="aspect-square w-full object-cover" />
-              <figcaption className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-muted">
-                <span>{img.caption}</span>
-                <form action={stylingImage}>
-                  <input type="hidden" name="coupleId" value={couple.id} />
-                  <input type="hidden" name="imageId" value={img.id} />
-                  <SubmitButton className="hover:text-bordeaux" confirm="Deze afbeelding verwijderen?">×</SubmitButton>
-                </form>
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-        <form action={stylingImage} className="mt-3 space-y-2">
-          <input type="hidden" name="coupleId" value={couple.id} />
-          <FileUpload name="image" coupleId={couple.id} kind="image" direct={direct} multiple required label="Foto's uploaden" />
-          <div className="flex flex-wrap items-center gap-2">
-            <input name="caption" placeholder="Onderschrift (optioneel)" aria-label="Onderschrift" className="input w-56 py-1.5" />
-            <SubmitButton className="btn-primary py-1.5" pendingText="Toevoegen…">Toevoegen aan moodboard</SubmitButton>
-          </div>
         </form>
       </section>
 
@@ -172,19 +197,7 @@ export default async function Styling({
               <p className="mt-2 rounded-xl bg-cream p-4 text-sm whitespace-pre-line">{plan.ai_draft}</p>
             </details>
           )}
-          <form action={saveStylingPlan} className="space-y-3">
-            <input type="hidden" name="coupleId" value={couple.id} />
-            <div>
-              <label className="label" htmlFor="concept">Stijl en sfeer (dit ziet het bruidspaar na vrijgeven)</label>
-              <AutoTextarea id="concept" name="concept" defaultValue={plan?.concept || plan?.ai_draft || ""} className="input min-h-40" />
-            </div>
-            <div>
-              <p className="label">Kleurenpalet</p>
-              <ColorPalette initial={palette} />
-            </div>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="published" defaultChecked={plan?.published ?? false} className="accent-[#6B1E2E]" /> Zichtbaar voor het bruidspaar</label>
-            <SubmitButton className="btn-primary" pendingText="Opslaan…">Opslaan</SubmitButton>
-          </form>
+          <p className="text-sm text-muted">Neem over wat je wilt in de <a href="#thema" className="text-bordeaux underline">themaomschrijving</a> en de <a href="#kleuren" className="text-bordeaux underline">kleuren</a> hierboven.</p>
         </section>
       )}
     </div>

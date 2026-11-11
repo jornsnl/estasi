@@ -66,6 +66,12 @@ export interface SoldCouple extends PaymentFields {
 }
 
 /** Totals for the revenue overview, over the couples sold in the period. */
+/** Dutch VAT on Sabine's packages. Prices are entered including it. */
+export const VAT_RATE = 0.21;
+
+/** The amount without 21% VAT, in whole cents (feedback Sabine, nr. 9: revenue excluding VAT). */
+export const excludingVat = (cents: number) => Math.round(cents / (1 + VAT_RATE));
+
 export function revenueSummary(couples: SoldCouple[], range: { from: string; to: string }) {
   const sold = couples.filter((c) => c.sold_on >= range.from && c.sold_on <= range.to);
   let revenue = 0;
@@ -83,5 +89,5 @@ export function revenueSummary(couples: SoldCouple[], range: { from: string; to:
     if (c.payment_plan === "two") two += 1;
     else once += 1;
   }
-  return { couples: sold.length, packages, revenue, paid, open: revenue - paid, once, two, withoutPrice };
+  return { couples: sold.length, packages, revenue, revenueExVat: excludingVat(revenue), paid, open: revenue - paid, once, two, withoutPrice };
 }

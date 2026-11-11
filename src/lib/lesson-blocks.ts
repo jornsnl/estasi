@@ -70,6 +70,7 @@ const READERS: { [T in BlockType]: Reader<T> } = {
       file: file ?? (input.checked("removeFile") ? null : b.file),
     };
   },
+  feedback: (b) => b,
   assignment: (b, { raw }) => {
     // The assignment editor keeps the whole assignment as JSON in one hidden field; cleaned up here.
     const value = raw("assignment");

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { addSupplierRow, deleteCoupleCategory, deleteSupplierRow, saveSupplierField, type SupplierField } from "@/app/actions/ws-suppliers";
+import { addSupplierRow, deleteCoupleCategory, deleteSupplierRow, saveSupplierField, setSupplierMeals, type SupplierField } from "@/app/actions/ws-suppliers";
 import { AutoTextarea } from "@/components/ws/AutoTextarea";
 import { SupplierQuickNav } from "@/components/ws/SupplierQuickNav";
 import { categoryFilled, type SupplierRowLike } from "@/lib/ws/recommendations";
@@ -21,6 +21,8 @@ export interface SupplierRowData {
   email: string;
   notes: string;
   present_from: string;
+  /** Eats along: has a row on the meal list (feedback Sabine 21). */
+  eats_along: boolean;
   present_until: string;
   documents: number;
 }
@@ -123,6 +125,7 @@ function Row({
   report: (id: string, change: Partial<SupplierRowLike>) => void;
 }) {
   const [status, setStatus] = useState<Status>(row.status);
+  const [eats, setEats] = useState(row.eats_along);
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState("");
   const [, start] = useTransition();
@@ -179,6 +182,31 @@ function Row({
       <div className="mt-3 grid grid-cols-2 gap-3 sm:max-w-md">
         {input("present_from", "Aanwezig op locatie vanaf", row.present_from, "time")}
         {input("present_until", "Aanwezig op locatie tot", row.present_until, "time")}
+      </div>
+      {/* Feedback Sabine (21): eats along, then the supplier is on the meal list to tick the moments. */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={eats}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setEats(on);
+              setState("saving");
+              start(async () => {
+                const result = await setSupplierMeals(coupleId, row.id, on);
+                if (!result.ok) setEats(!on);
+                setState(result.ok ? "saved" : "error");
+                setError(result.error ?? "");
+              });
+            }}
+            className="h-4 w-4 accent-[#6B1E2E]"
+          />
+          Eet mee
+        </label>
+        {eats && (
+          <Link href={`/k/${coupleId}/eten`} className="text-xs text-bordeaux hover:underline">Eetmomenten aangeven bij Eten &amp; allergieën</Link>
+        )}
       </div>
       <label className="mt-3 block text-xs text-muted">
         Opmerkingen

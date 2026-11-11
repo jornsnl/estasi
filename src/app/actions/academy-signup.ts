@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { hit, isLimited } from "@/lib/auth/rate-limit";
-import { one, query } from "@/lib/db";
+import { one } from "@/lib/db";
 import { signupToLead } from "@/lib/pipeline/signup";
 import { addNote, createLead } from "@/lib/pipeline/server";
 import { todayIso } from "@/lib/ws/format";
@@ -18,9 +18,9 @@ const thanks = (): never => redirect(`${PAGE}?bedankt=1#aanmelden`);
 
 /**
  * Public sign up for the Academy (no login). Every sign up becomes a lead in the
- * salespipeline (Nieuw, interest Academy, source Website). Someone who signs up again
- * while an open Academy lead with the same address exists gets a note on that lead
- * instead of a second card. Sabine gets a mail with a link to the lead; the person a
+ * salespipeline (Nieuw, interest Academy, source Website), also someone who signs up
+ * again (feedback Sabine: a second sign up only became a note on the first card, so
+ * nothing new showed in the pipeline); the earlier card gets a note with a link. Sabine gets a mail with a link to the lead; the person a
  * short confirmation.
  */
 export async function submitAcademySignup(formData: FormData) {
@@ -53,23 +53,25 @@ export async function submitAcademySignup(formData: FormData) {
   let leadId = "";
   let saveError = "";
   try {
-    const existing = await one<{ id: string }>(
-      `select id from public.pipeline_leads
+    // Feedback Sabine (8): every sign up is a card of its own under Nieuw, also when the same person
+    // signed up before. An earlier open Academy lead with the same address gets a note pointing here.
+    const earlier = await one<{ id: string; title: string }>(
+      `select id, title from public.pipeline_leads
         where closed_at is null and interest = 'academy' and lower(email) = $1
         order by created_at desc limit 1`,
       [lead.email],
     );
-    if (existing) {
-      leadId = existing.id;
-      await addNote(leadId, `Opnieuw ingeschreven via de website\n${summary}`, null);
-      await query(
-        "update public.pipeline_leads set next_action = $2, next_action_date = least(coalesce(next_action_date, $3::date), $3::date) where id = $1",
-        [leadId, lead.next_action, lead.next_action_date],
-      );
+    const created = await createLead({
+      ...lead,
+      stage: "nieuw",
+      notes: earlier ? `${lead.notes}\n\nEerder ingeschreven: ${earlier.title} (${appUrl()}/beheer/pipeline/${earlier.id})` : lead.notes,
+    });
+    if (created.ok) {
+      leadId = created.value.id;
+      if (earlier) await addNote(earlier.id, `Opnieuw ingeschreven via de website: ${appUrl()}/beheer/pipeline/${leadId}`, null).catch(() => undefined);
     } else {
-      const created = await createLead({ ...lead, stage: "nieuw" });
-      if (created.ok) leadId = created.value.id;
-      else saveError = created.error;
+      console.error(`[inschrijven] lead niet opgeslagen: ${created.error}`);
+      saveError = created.error;
     }
   } catch (err) {
     console.error(`[inschrijven] lead opslaan mislukt: ${(err as Error).message}`);

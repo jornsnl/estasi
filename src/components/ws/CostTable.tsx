@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { AutoTextarea } from "./AutoTextarea";
 import { deleteCost, updateCost } from "@/app/actions/ws-costs";
 import { costDifference, costRemaining, payingSoon } from "@/lib/ws/pure";
 
@@ -41,12 +42,13 @@ export function CostTable({ coupleId, rows, categories, isAdmin, today }: { coup
       setStatus(r.ok ? "✓ Opgeslagen" : r.error ?? "Niet opgeslagen");
     });
   };
-  const cell = "w-full rounded border border-transparent bg-transparent px-1 py-0.5 hover:border-line focus:border-line focus:bg-white disabled:hover:border-transparent";
+  // On a phone the fields have a light border, so it is clear they can be filled in.
+  const cell = "w-full rounded border border-transparent bg-transparent px-1 py-0.5 hover:border-line focus:border-line focus:bg-white disabled:hover:border-transparent max-sm:border-line max-sm:bg-white max-sm:disabled:border-transparent max-sm:disabled:bg-transparent";
 
   return (
     <div className="card overflow-x-auto">
       <datalist id="cost-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
-      <table className="w-full min-w-[1080px] text-sm">
+      <table className="stack-table stack-3 w-full text-sm sm:min-w-[1080px]">
         <thead className="table-head">
           <tr>
             <th className="px-3 py-2">Kostenpost</th><th className="px-3 py-2">Categorie</th><th className="px-3 py-2">Leverancier</th>
@@ -63,7 +65,7 @@ export function CostTable({ coupleId, rows, categories, isAdmin, today }: { coup
             const soon = payingSoon(r.payment_due, r.paid, today);
             return (
               <tr key={r.id} className={`border-t border-line align-top ${r.kind === "package" ? "bg-cream/70" : ""}`}>
-                <td className="px-3 py-1.5">
+                <td className="stack-full px-3 py-1.5">
                   {r.kind === "own" || r.kind === "extra" ? (
                     <input defaultValue={r.name} aria-label="Kostenpost" onBlur={(e) => e.target.value !== e.target.defaultValue && change(r, "name", e.target.value, { name: e.target.value })} className={cell} />
                   ) : (
@@ -72,7 +74,7 @@ export function CostTable({ coupleId, rows, categories, isAdmin, today }: { coup
                   {r.kind === "package" && <span className="ml-1 rounded-full bg-bordeaux-soft px-1.5 text-[10px] text-bordeaux">Pakket Estasi</span>}
                   {soon && <span className="ml-1 rounded-full bg-[#fbe3d0] px-1.5 text-[10px] text-[#8a4b1c]">Binnenkort betalen</span>}
                 </td>
-                <td className="px-3 py-1.5">
+                <td data-label="Categorie" className="px-3 py-1.5">
                   {r.kind === "extra" ? (
                     <select defaultValue={r.category} aria-label="Categorie" onChange={(e) => change(r, "category", e.target.value, { category: e.target.value })} className={cell}>
                       <option value="">–</option>
@@ -82,22 +84,23 @@ export function CostTable({ coupleId, rows, categories, isAdmin, today }: { coup
                     <span className="px-1 text-muted">{r.category}</span>
                   )}
                 </td>
-                <td className="px-3 py-1.5">
-                  <input defaultValue={r.supplier} disabled={r.kind === "package"} aria-label="Leverancier" onBlur={(e) => e.target.value !== e.target.defaultValue && change(r, "supplier", e.target.value, { supplier: e.target.value })} className={cell} />
+                <td data-label="Leverancier" className="stack-span-2 px-3 py-1.5 sm:min-w-[10rem]">
+                  {/* Feedback Sabine (20): the cell grows with the name instead of cutting it off. */}
+                  <AutoTextarea key={r.supplier} defaultValue={r.supplier} disabled={r.kind === "package"} aria-label="Leverancier" onBlur={(e) => e.target.value !== e.target.defaultValue && change(r, "supplier", e.target.value.trim(), { supplier: e.target.value.trim() })} className={`${cell} block leading-snug`} />
                 </td>
-                <td className="px-3 py-1.5 text-right whitespace-nowrap text-muted" title="Komt uit de begroting">{r.budget ? euro(r.budget) : ""}</td>
-                <td className="px-3 py-1.5">
+                <td data-label="Begroot" className="px-3 py-1.5 text-right whitespace-nowrap text-muted" title="Komt uit de begroting">{r.budget ? euro(r.budget) : ""}</td>
+                <td data-label="Werkelijk" className="px-3 py-1.5">
                   <input defaultValue={field(r.actual)} disabled={r.kind === "package"} inputMode="decimal" aria-label="Werkelijk" onBlur={(e) => e.target.value !== e.target.defaultValue && change(r, "actual", e.target.value, { actual: parse(e.target.value) })} className={`${cell} text-right`} />
                 </td>
-                <td className={`px-3 py-1.5 text-right whitespace-nowrap ${diff === null ? "" : diff < 0 ? "bg-red-50 text-red-800" : "text-success"}`}>{diff === null || !r.budget ? "" : euro(diff)}</td>
-                <td className="px-3 py-1.5">
+                <td data-label="Verschil" className={`px-3 py-1.5 text-right whitespace-nowrap ${diff === null ? "" : diff < 0 ? "bg-red-50 text-red-800" : "text-success"}`}>{diff === null || !r.budget ? "" : euro(diff)}</td>
+                <td data-label="Aanbetaald" className="px-3 py-1.5">
                   <input defaultValue={field(r.deposit)} disabled={locked} inputMode="decimal" aria-label="Aanbetaald" onBlur={(e) => e.target.value !== e.target.defaultValue && change(r, "deposit", e.target.value, { deposit: parse(e.target.value) })} className={`${cell} text-right`} />
                 </td>
-                <td className="px-3 py-1.5 text-right whitespace-nowrap">{euro(remaining)}</td>
-                <td className="px-3 py-1.5">
+                <td data-label="Resterend" className="px-3 py-1.5 text-right whitespace-nowrap">{euro(remaining)}</td>
+                <td data-label="Betaaldatum" className="stack-span-2 px-3 py-1.5">
                   <input type="date" defaultValue={r.payment_due ?? ""} disabled={locked} aria-label="Betaaldatum" onChange={(e) => change(r, "payment_due", e.target.value, { payment_due: e.target.value || null })} className={cell} />
                 </td>
-                <td className="px-3 py-1.5 text-center">
+                <td data-label="Betaald" className="px-3 py-1.5 text-center">
                   <input type="checkbox" checked={r.paid} disabled={locked} aria-label={`${r.name} betaald`} onChange={(e) => change(r, "paid", e.target.checked, { paid: e.target.checked })} className="h-4 w-4 accent-[#6B1E2E]" />
                 </td>
                 <td className="px-2 py-1.5">

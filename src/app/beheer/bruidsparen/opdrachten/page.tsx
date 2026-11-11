@@ -1,4 +1,4 @@
-import { manageTemplate } from "@/app/actions/ws-fase2";
+import { manageTemplate, saveTemplatePhoto } from "@/app/actions/ws-fase2";
 import { saveTemplateClosing, saveTemplateSection } from "@/app/actions/ws-styling";
 import { AutoTextarea } from "@/components/ws/AutoTextarea";
 import { FileUpload } from "@/components/ws/FileUpload";
@@ -17,6 +17,7 @@ interface Template {
   archived: boolean;
   kind: "questions" | "sections";
   closing: string;
+  photo_file_id: string | null;
 }
 
 interface TemplateSection {
@@ -65,6 +66,24 @@ export default async function Templates({ searchParams }: { searchParams: Promis
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="stylingSource" defaultChecked={t.styling_source} className="accent-[#6B1E2E]" /> Basis voor het stylingplan (AI-concept)</label>
               <div className="flex gap-2">
                 <SubmitButton className="btn-primary py-1.5">Opslaan</SubmitButton>
+              </div>
+            </form>
+            {/* Feedback Sabine (19): the photo on the tile of this assignment on the Opdrachten page of every couple. */}
+            <form action={saveTemplatePhoto} className="flex flex-wrap items-start gap-4 rounded-xl bg-cream p-4 text-sm">
+              {hidden}
+              {t.photo_file_id ? (
+                // eslint-disable-next-line @next/next/no-img-element -- uploaded image behind a login check
+                <img src={`/api/ws-bestanden/${t.photo_file_id}`} alt="Foto van de opdracht" className="h-24 w-24 rounded-xl object-cover" />
+              ) : (
+                <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-white text-center text-xs text-muted">Nog geen foto</div>
+              )}
+              <div className="min-w-0 flex-1 space-y-2">
+                <p className="label">Foto op de tegel</p>
+                <FileUpload name="photo" coupleId={null} kind="image" direct={direct} label={t.photo_file_id ? "Andere foto" : "Foto uploaden"} saveLabel="Foto opslaan" />
+                {t.photo_file_id && (
+                  <label className="flex items-center gap-2 text-xs text-muted"><input type="checkbox" name="removePhoto" /> Foto weghalen</label>
+                )}
+                {t.photo_file_id && <SubmitButton className="btn-secondary py-1 text-xs">Opslaan</SubmitButton>}
               </div>
             </form>
             {t.kind === "sections" && (

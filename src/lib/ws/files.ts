@@ -203,9 +203,10 @@ const INLINE = /^(image\/(png|jpe?g|webp)|application\/pdf|audio\/(mpeg|mp4|aac|
  */
 export async function fileResponse(
   file: { name: string; mime: string; size: number; storage_path: string | null; data?: Buffer | null },
-  options: { cache?: "private" | "public"; onlyImages?: boolean } = {},
+  options: { cache?: "private" | "public"; onlyImages?: boolean; download?: boolean } = {},
 ): Promise<Response> {
-  const inline = INLINE.test(file.mime);
+  // download: always save it (feedback Sabine 17: a moodboard picture can be opened and downloaded).
+  const inline = INLINE.test(file.mime) && !options.download;
   if (options.onlyImages && !/^image\/(png|jpe?g|webp)$/.test(file.mime)) return new Response("Niet gevonden", { status: 404 });
   const cache = `${options.cache ?? "private"}, max-age=300`;
 
@@ -217,7 +218,7 @@ export async function fileResponse(
   if (!file.data) return new Response("Bestand niet gevonden", { status: 404 });
   return new Response(new Uint8Array(file.data), {
     headers: {
-      "Content-Type": inline ? file.mime : "application/octet-stream",
+      "Content-Type": inline || options.download ? file.mime : "application/octet-stream",
       "Content-Length": String(file.data.length),
       "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
       "Cache-Control": cache,

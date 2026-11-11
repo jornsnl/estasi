@@ -4,6 +4,7 @@ import { Certificate } from "@/components/Certificate";
 import { PrintButton } from "@/components/PrintButton";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
+import { academyLogoSrc } from "@/lib/brand-logos";
 
 export const metadata = { title: "Certificaat" };
 
@@ -29,7 +30,7 @@ export default async function CertificatePage() {
           Je hebt ook een praktijkcertificaat: <Link href="/certificaat/praktijk" className="text-bordeaux underline">bekijk en bewaar het hier</Link>.
         </p>
       )}
-      <Certificate name={user.name} date={enrollment.certificateReleasedAt} code={enrollment.certificateCode} />
+      <Certificate name={user.name} date={enrollment.certificateReleasedAt} code={enrollment.certificateCode} logoSrc={await academyLogoSrc()} />
       <p className="no-print mt-4 text-sm text-muted">Kies in het printvenster bij de printer voor &quot;Opslaan als pdf&quot;. Het certificaat staat al liggend op één A4.</p>
     </div>
   );

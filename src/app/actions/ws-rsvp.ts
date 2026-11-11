@@ -246,6 +246,17 @@ export async function saveGuest(formData: FormData) {
   done(back, `${firstName} toegevoegd (handmatig, zonder bevestigingsmail).`);
 }
 
+/** Feedback Sabine (12): a guest taken off the list (after "Weet je het zeker?"), for instance after a cancellation. */
+export async function deleteGuest(formData: FormData) {
+  const ctx = await adminFrom(formData);
+  const guestId = uuid(formData, "guestId");
+  const back = guests(ctx.couple.id);
+  if (!guestId) done(back, "Gast niet gevonden.", true);
+  const gone = await one<{ first_name: string; last_name: string }>("delete from guests where id = $1 and couple_id = $2 returning first_name, last_name", [guestId, ctx.couple.id]);
+  if (!gone) done(back, "Gast niet gevonden.", true);
+  done(back, `${[gone.first_name, gone.last_name].filter(Boolean).join(" ")} is uit de gastenlijst verwijderd.`);
+}
+
 /** The dress code question answered with "Nee, ik ontvang graag meer informatie": handled. */
 export async function markInfoHandled(formData: FormData) {
   const ctx = await adminFrom(formData);

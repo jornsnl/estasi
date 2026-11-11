@@ -38,13 +38,31 @@ function Ornament() {
 }
 
 /** The certificate of the online part, or (kind "praktijk") of the practical part with the shadow wedding. */
-export function Certificate({ name, date, code, kind = "online" }: { name: string; date: string; code: string; kind?: "online" | "praktijk" }) {
+export function Certificate({
+  name,
+  date,
+  code,
+  kind = "online",
+  logoSrc = null,
+}: {
+  name: string;
+  date: string;
+  code: string;
+  kind?: "online" | "praktijk";
+  /** Feedback Sabine (26): the Future Weddings Academy logo from Instellingen, Logo's; without one the monogram. */
+  logoSrc?: string | null;
+}) {
   return (
     <>
       <style>{PRINT_CSS}</style>
       <div className="certificate-sheet mx-auto w-full max-w-4xl bg-white p-3 shadow-sm sm:aspect-[1.414] print:fixed print:inset-0 print:z-50 print:m-0 print:h-[210mm] print:w-[297mm] print:max-w-none print:p-[9mm] print:shadow-none">
         <div className="flex h-full flex-col items-center justify-center border-2 border-gold bg-[#fffdf8] p-8 text-center outline outline-1 outline-offset-4 outline-gold/50 sm:p-12 print:p-[14mm]">
-          <Monogram />
+          {logoSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element -- the uploaded logo, may be an SVG
+            <img src={logoSrc} alt="Future Weddings Academy" className="h-20 w-auto max-w-[16rem] object-contain sm:h-24 print:h-[24mm]" />
+          ) : (
+            <Monogram />
+          )}
           <p className="eyebrow mt-4">Estasi Weddings</p>
           <p className="mt-1 font-serif text-2xl text-gold-ink">Future Weddings Academy</p>
           <h1 className="mt-5 text-4xl sm:text-6xl">{kind === "praktijk" ? "Praktijkcertificaat" : "Certificaat"}</h1>

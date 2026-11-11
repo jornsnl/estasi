@@ -29,9 +29,40 @@ type Field = "at_time" | "what" | "info" | "location" | "rain_location";
 const SCHEDULE: [Field | "people", string][] = [["at_time", "Tijd"], ["people", "Wie"], ["what", "Wat"], ["info", "Meer info"], ["location", "Waar"], ["rain_location", "Waar (regen)"]];
 const LIST: [Field | "people", string][] = [["what", "Wat"], ["people", "Wie"], ["info", "Meer info"]];
 const GRID = {
-  schedule: "sm:grid-cols-[4rem_4.5rem_minmax(8rem,1fr)_minmax(9rem,1.4fr)_minmax(9rem,1.4fr)_minmax(6rem,1fr)_minmax(6rem,1fr)_2rem]",
-  list: "sm:grid-cols-[4rem_minmax(10rem,1.6fr)_minmax(8rem,1fr)_minmax(10rem,1.8fr)_2rem]",
+  schedule: "grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,1fr)] sm:grid-cols-[4rem_4.5rem_minmax(8rem,1fr)_minmax(9rem,1.4fr)_minmax(9rem,1.4fr)_minmax(6rem,1fr)_minmax(6rem,1fr)_2rem]",
+  list: "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.5rem] sm:grid-cols-[4rem_minmax(10rem,1.6fr)_minmax(8rem,1fr)_minmax(10rem,1.8fr)_2rem]",
 };
+
+/**
+ * Feedback Sabine (16): on a phone one activity of the day planning took the whole screen (every
+ * field under the other). Now a row is a compact block of cells: time and what on top, who, where
+ * and more info next to each other below, each with a small label. From sm up the normal columns.
+ */
+const RESET = "sm:col-start-auto sm:row-start-auto sm:col-span-1";
+const CELL: Record<"schedule" | "list", Record<Field | "people" | "controls" | "actions", string>> = {
+  schedule: {
+    at_time: "col-start-1 row-start-1",
+    what: "col-start-2 col-span-2 row-start-1",
+    people: "col-start-2 row-start-2",
+    location: "col-start-3 row-start-2",
+    info: "col-start-2 row-start-3",
+    rain_location: "col-start-3 row-start-3",
+    controls: "col-start-1 row-start-2",
+    actions: "col-start-1 row-start-3 items-start sm:items-end",
+  },
+  list: {
+    what: "col-start-1 col-span-2 row-start-1",
+    people: "col-start-1 row-start-2",
+    info: "col-start-2 row-start-2",
+    controls: "col-start-3 row-start-2 flex-col sm:flex-row",
+    actions: "col-start-3 row-start-1",
+    at_time: "",
+    location: "",
+    rain_location: "",
+  },
+};
+const cell = (kind: "schedule" | "list", part: keyof (typeof CELL)["schedule"]) => `${CELL[kind][part]} ${RESET}`;
+const MobileLabel = ({ children }: { children: React.ReactNode }) => <span className="mb-0.5 block text-[10px] leading-none text-muted sm:hidden">{children}</span>;
 
 /**
  * The day planning (and the simple list tabs). Every field can be edited by
@@ -259,11 +290,11 @@ function Row(props: {
   return (
     <div
       onBlur={onBlur}
-      className={`mb-2 grid items-stretch gap-2 rounded-xl border-l-4 bg-cream/50 p-2 sm:mb-1.5 sm:bg-transparent sm:p-1 ${GRID[kind]}`}
+      className={`mb-1.5 grid items-stretch gap-x-2 gap-y-1.5 rounded-xl border-l-4 bg-cream/50 p-1.5 sm:mb-1.5 sm:gap-2 sm:bg-transparent sm:p-1 ${GRID[kind]}`}
       style={{ borderLeftColor: stripe }}
     >
       {/* Grip and arrows side by side, so a row with one line of text stays one line high. */}
-      <div className="flex items-start gap-0.5 sm:pt-1.5">
+      <div className={`flex items-start gap-0.5 sm:pt-1.5 ${cell(kind, "controls")}`}>
         {editable ? (
           <>
             <span
@@ -288,8 +319,9 @@ function Row(props: {
       </div>
       {columns.map(([field, label]) =>
         field === "people" ? (
+          <div key="people" className={`flex flex-col ${cell(kind, "people")}`}>
+          <MobileLabel>{label}</MobileLabel>
           <PeoplePicker
-            key="people"
             value={draft.people}
             editable={editable}
             people={props.people}
@@ -300,11 +332,15 @@ function Row(props: {
               set({ people: list });
             }}
           />
+          </div>
         ) : (
-          <div key={field} className="flex flex-col">{text(field, label)}</div>
+          <div key={field} className={`flex flex-col ${cell(kind, field)}`}>
+            {field !== "at_time" && field !== "what" && <MobileLabel>{label}</MobileLabel>}
+            {text(field, label)}
+          </div>
         ),
       )}
-      <div className="flex flex-col items-end justify-between">
+      <div className={`flex flex-col items-end justify-between ${cell(kind, "actions")}`}>
         {editable && !source && (
           <button type="button" onClick={() => confirm("Deze regel verwijderen?") && props.onDelete()} className="px-1 text-sm text-muted hover:text-bordeaux" aria-label="Regel verwijderen">×</button>
         )}

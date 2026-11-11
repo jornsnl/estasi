@@ -152,6 +152,43 @@ export async function deleteAppointment(formData: FormData) {
   done(portal(ctx.couple.id, "/afspraken"), "Verwijderd.");
 }
 
+// Afspraken met de locatie (feedback Sabine, nr. 22): couple and Sabine -------------------------
+
+const VENUE_FIELDS = ["venue", "times_due", "guest_list_due", "diet_due", "notes"] as const;
+
+/** Saves one venue with its agreements; a new one is added with intent "add", removed with "delete". */
+export async function saveVenueAgreement(formData: FormData) {
+  const ctx = await ctxFrom(formData);
+  const back = portal(ctx.couple.id, "/afspraken#locatie");
+  const id = str(formData, "venueId", 40);
+  const intent = str(formData, "intent", 10);
+  if (intent === "delete") {
+    if (isUuid(id)) {
+      const gone = await one<{ venue: string }>("delete from venue_agreements where id = $1 and couple_id = $2 returning venue", [id, ctx.couple.id]);
+      if (gone) await note(ctx, `Afspraken met de locatie verwijderd${gone.venue ? `: ${gone.venue}` : ""}`);
+    }
+    done(back, "Locatie verwijderd.");
+  }
+  const values = VENUE_FIELDS.map((f) => str(formData, f, f === "notes" ? 4000 : 300));
+  if (intent === "add" || !isUuid(id)) {
+    await query(
+      `insert into venue_agreements (couple_id, venue, times_due, guest_list_due, diet_due, notes, position)
+       values ($1, $2, $3, $4, $5, $6, coalesce((select max(position) + 1 from venue_agreements where couple_id = $1), 0))`,
+      [ctx.couple.id, ...values],
+    );
+    await note(ctx, `Afspraken met de locatie toegevoegd${values[0] ? `: ${values[0]}` : ""}`);
+    done(back, "Locatie toegevoegd.");
+  }
+  const saved = await one(
+    `update venue_agreements set venue = $3, times_due = $4, guest_list_due = $5, diet_due = $6, notes = $7
+      where id = $1 and couple_id = $2 returning id`,
+    [id, ctx.couple.id, ...values],
+  );
+  if (!saved) done(back, "Locatie niet gevonden.", true);
+  await note(ctx, `Afspraken met de locatie bijgewerkt${values[0] ? `: ${values[0]}` : ""}`);
+  done(back, "Afspraken met de locatie opgeslagen.");
+}
+
 // Meetings ("Jullie Pakket"), Sabine only ---------------------------------------------------
 
 export async function saveMeeting(formData: FormData) {

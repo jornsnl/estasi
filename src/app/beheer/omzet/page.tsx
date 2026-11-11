@@ -102,7 +102,12 @@ export default async function RevenuePage({ searchParams }: { searchParams: Prom
 
       <section aria-label="Totalen" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Tile label="Pakketten verkocht" value={String(summary.packages)} note={`${summary.couples} ${summary.couples === 1 ? "bruidspaar" : "bruidsparen"}`} />
-        <Tile label="Omzet" value={formatMoney(summary.revenue)} note={summary.withoutPrice ? `${summary.withoutPrice} zonder prijs, telt nog niet mee` : "afgesproken prijzen"} />
+        {/* Feedback Sabine (9): prices are entered including 21% VAT; revenue is shown without it. */}
+        <Tile
+          label="Omzet (excl. btw)"
+          value={formatMoney(summary.revenueExVat)}
+          note={`${formatMoney(summary.revenue)} incl. 21% btw${summary.withoutPrice ? ` · ${summary.withoutPrice} zonder prijs, telt nog niet mee` : ""}`}
+        />
         <Tile label="Al betaald" value={formatMoney(summary.paid)} note={`nog open: ${formatMoney(summary.open)}`} />
         <Tile label="Betaalwijze" value={`${summary.once} × 1 · ${summary.two} × 2`} note="in één keer · in twee keer" />
       </section>

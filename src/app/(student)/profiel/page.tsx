@@ -44,24 +44,21 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       <form action={saveProfile} className="space-y-8">
         <section className="card space-y-4 p-6">
           <h2 className="text-2xl">Gegevens</h2>
-          <div className="flex items-center gap-4">
-            {profile?.photoFileId ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={`/api/bestanden/${profile.photoFileId}`} alt="" className="h-20 w-20 rounded-full border border-line object-cover" />
-            ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gold-soft font-serif text-2xl text-gold-ink">
-                {user.name.charAt(0)}
-              </div>
+          {/* Feedback Sabine (25): a circle, so it is clear a profile photo goes there; after saving the photo is in it. */}
+          <div className="text-sm">
+            <p className="label">Profielfoto</p>
+            <PhotoInput
+              name="photo"
+              label="Profielfoto kiezen"
+              saveLabel="Profielfoto opslaan"
+              avatar={{ src: profile?.photoFileId ? `/api/bestanden/${profile.photoFileId}` : null, initial: user.name.charAt(0) || "?" }}
+            />
+            {profile?.photoFileId && (
+              <label className="mt-1 flex items-center gap-1.5 text-muted">
+                <input type="checkbox" name="removePhoto" /> foto verwijderen
+              </label>
             )}
-            <div className="text-sm">
-              <p className="label">Profielfoto</p>
-              <PhotoInput name="photo" label="Profielfoto kiezen" saveLabel="Profielfoto opslaan" />
-              {profile?.photoFileId && (
-                <label className="mt-1 flex items-center gap-1.5 text-muted">
-                  <input type="checkbox" name="removePhoto" /> foto verwijderen
-                </label>
-              )}
-            </div>
+            <p className="mt-1 text-xs text-muted">Staat bij je berichten in de community.</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {text("name", "Naam", user.name, LIMITS.name, "text", "name")}

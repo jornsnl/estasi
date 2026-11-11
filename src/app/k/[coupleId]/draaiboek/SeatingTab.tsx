@@ -44,14 +44,14 @@ function LayoutForm({ coupleId, groups, layout, kind }: { coupleId: string; grou
       )}
       <div className="flex gap-2 sm:col-span-2">
         <SubmitButton className="btn-primary py-1.5">{layout ? "Opslaan" : "Opstelling maken"}</SubmitButton>
-        {layout && <SubmitButton name="intent" value="delete" className="btn-ghost py-1.5 text-bordeaux" confirm={`"${layout.name}" met alle plaatsen verwijderen?`}>Verwijderen</SubmitButton>}
+        {layout && <SubmitButton name="intent" value="delete" className="btn-ghost py-1.5 text-bordeaux" confirm={`Weet je het zeker? "${layout.name}" wordt met alle plaatsen verwijderd.`}>Verwijderen</SubmitButton>}
       </div>
     </form>
   );
 }
 
 /** Dinner and ceremony seating, as a tab of the run sheet. */
-export async function SeatingTab({ coupleId, isAdmin, layoutId }: { coupleId: string; isAdmin: boolean; layoutId?: string }) {
+export async function SeatingTab({ coupleId, layoutId }: { coupleId: string; isAdmin?: boolean; layoutId?: string }) {
   const [layouts, groups] = await Promise.all([layoutsFor(coupleId), groupsOf(coupleId)]);
   const current = layouts.find((l) => l.id === layoutId) ?? layouts[0];
   const state = current ? await seatingState(coupleId, current.id) : null;
@@ -65,34 +65,31 @@ export async function SeatingTab({ coupleId, isAdmin, layoutId }: { coupleId: st
           ))}
         </nav>
       )}
-      {!current && <p className="card p-5 text-sm text-muted">{isAdmin ? "Nog geen opstelling. Maak hieronder een dineropstelling of ceremonieopstelling." : "Sabine maakt de opstelling voor jullie klaar."}</p>}
+      {!current && <p className="card p-5 text-sm text-muted">Nog geen opstelling. Maak hieronder een dineropstelling of ceremonieopstelling.</p>}
       {current && state && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="section-title">{current.name}</h2>
             <a href={`/k/${coupleId}/draaiboek/print?tabs=seating:${current.id}&print=1`} target="_blank" rel="noopener" className="btn-secondary py-1.5">Download als PDF</a>
           </div>
-          <SeatingEditor key={current.id} coupleId={coupleId} initial={state} isAdmin={isAdmin} />
-          {isAdmin && (
-            <details className="card p-4">
-              <summary className="cursor-pointer text-sm font-medium text-bordeaux">Opstelling aanpassen</summary>
-              <div className="mt-3"><LayoutForm coupleId={coupleId} groups={groups} layout={current} kind={current.kind} /></div>
-            </details>
-          )}
+          {/* Feedback Sabine (15): the couple makes and changes the layouts too. */}
+          <SeatingEditor key={current.id} coupleId={coupleId} initial={state} canEditLayout />
+          <details className="card p-4">
+            <summary className="cursor-pointer text-sm font-medium text-bordeaux">Opstelling aanpassen</summary>
+            <div className="mt-3"><LayoutForm coupleId={coupleId} groups={groups} layout={current} kind={current.kind} /></div>
+          </details>
         </>
       )}
-      {isAdmin && (
-        <div className="grid gap-3 md:grid-cols-2">
-          <details className="card p-4">
-            <summary className="cursor-pointer text-sm font-medium text-bordeaux">+ Dineropstelling</summary>
-            <div className="mt-3"><LayoutForm coupleId={coupleId} groups={groups} kind="dinner" /></div>
-          </details>
-          <details className="card p-4">
-            <summary className="cursor-pointer text-sm font-medium text-bordeaux">+ Ceremonieopstelling</summary>
-            <div className="mt-3"><LayoutForm coupleId={coupleId} groups={groups} kind="ceremony" /></div>
-          </details>
-        </div>
-      )}
+      <div className="grid gap-3 md:grid-cols-2">
+        <details className="card p-4">
+          <summary className="cursor-pointer text-sm font-medium text-bordeaux">+ Dineropstelling</summary>
+          <div className="mt-3"><LayoutForm coupleId={coupleId} groups={groups} kind="dinner" /></div>
+        </details>
+        <details className="card p-4">
+          <summary className="cursor-pointer text-sm font-medium text-bordeaux">+ Ceremonieopstelling</summary>
+          <div className="mt-3"><LayoutForm coupleId={coupleId} groups={groups} kind="ceremony" /></div>
+        </details>
+      </div>
     </div>
   );
 }
@@ -106,7 +103,7 @@ export async function SeatingPrint({ coupleId, layoutId }: { coupleId: string; l
       {states.map((s) => s && (
         <div key={s.layout.id} className="break-inside-avoid">
           <h3 className="mb-1 text-sm font-semibold">{s.layout.name}</h3>
-          <SeatingEditor coupleId={coupleId} initial={s} isAdmin={false} readOnly />
+          <SeatingEditor coupleId={coupleId} initial={s} canEditLayout={false} readOnly />
         </div>
       ))}
     </div>

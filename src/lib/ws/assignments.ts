@@ -19,6 +19,8 @@ export interface Assignment {
   /** "Budgetplanning & prioriteiten": the budget table comes with it. */
   budget: boolean;
   completed_at: Date | null;
+  /** The photo of its standard assignment, for the tile (feedback Sabine 19). */
+  photo_file_id: string | null;
   /** Questions answered, or for an assignment in parts: parts marked done. */
   answered: number;
   total: number;
@@ -63,7 +65,8 @@ export async function assignmentsFor(coupleId: string, isAdmin: boolean): Promis
                  else (select count(*)::int from assignment_questions q where q.assignment_id = a.id and q.answer <> '') end as answered,
             case when a.kind = 'sections'
                  then (select count(*)::int from assignment_sections s where s.assignment_id = a.id)
-                 else (select count(*)::int from assignment_questions q where q.assignment_id = a.id) end as total
+                 else (select count(*)::int from assignment_questions q where q.assignment_id = a.id) end as total,
+            (select t.photo_file_id from assignment_templates t where t.id = a.template_id) as photo_file_id
        from assignments a
       where a.couple_id = $1 and ($2 or a.visible_from is null or a.visible_from <= $3)
       order by a.position`,

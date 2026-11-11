@@ -185,10 +185,16 @@ export function StylingPlaces({
       ))}
 
       {zoom && (
-        <button type="button" onClick={() => setZoom(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" aria-label="Sluiten">
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/80 p-4" onClick={() => setZoom(null)}>
           {/* eslint-disable-next-line @next/next/no-img-element -- uploaded image behind a login check */}
-          <img src={zoom} alt="" className="max-h-full max-w-full rounded-lg" />
-        </button>
+          <img src={zoom} alt="" className="max-h-[85vh] max-w-full rounded-lg" />
+          {/* Feedback Sabine (17): open the picture on its own or download it. */}
+          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+            <a href={zoom} target="_blank" rel="noopener" className="btn-secondary py-1.5 text-sm">Openen</a>
+            <a href={`${zoom}?download=1`} download className="btn-secondary py-1.5 text-sm">Downloaden</a>
+            <button type="button" onClick={() => setZoom(null)} className="btn-secondary py-1.5 text-sm">Sluiten</button>
+          </div>
+        </div>
       )}
     </div>
   );

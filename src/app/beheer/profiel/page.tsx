@@ -61,22 +61,19 @@ export default async function OwnerProfilePage({ searchParams }: { searchParams:
           <h2 className="text-2xl">Profielfoto</h2>
           <p className="mt-2 text-sm text-muted">Staat bij je berichten in de community en in de privéchat met cursisten.</p>
         </div>
-        <form action={saveOwnerPhoto} className="flex flex-wrap items-start gap-4">
-          {profile?.photoFileId ? (
-            // eslint-disable-next-line @next/next/no-img-element -- photo behind a login check
-            <img src={`/api/bestanden/${profile.photoFileId}`} alt="" className="h-20 w-20 rounded-full border border-line object-cover" />
-          ) : (
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-bordeaux font-serif text-2xl text-white">{owner.name.charAt(0)}</div>
+        <form action={saveOwnerPhoto} className="space-y-2">
+          <PhotoInput
+            name="photo"
+            label="Profielfoto kiezen"
+            saveLabel="Profielfoto opslaan"
+            avatar={{ src: profile?.photoFileId ? `/api/bestanden/${profile.photoFileId}` : null, initial: owner.name.charAt(0) || "S" }}
+          />
+          {profile?.photoFileId && (
+            <label className="flex items-center gap-2 text-xs text-muted">
+              <input type="checkbox" name="removePhoto" /> Foto verwijderen
+            </label>
           )}
-          <div className="space-y-2">
-            <PhotoInput name="photo" label="Profielfoto kiezen" saveLabel="Profielfoto opslaan" />
-            {profile?.photoFileId && (
-              <label className="flex items-center gap-2 text-xs text-muted">
-                <input type="checkbox" name="removePhoto" /> Foto verwijderen
-              </label>
-            )}
-            <SubmitButton className="btn-secondary px-3 py-1.5 text-sm">Opslaan</SubmitButton>
-          </div>
+          <SubmitButton className="btn-secondary px-3 py-1.5 text-sm">Opslaan</SubmitButton>
         </form>
       </section>
 

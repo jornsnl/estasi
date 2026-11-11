@@ -68,6 +68,33 @@ export async function saveSupplierField(
   return { ok: true };
 }
 
+/**
+ * Feedback Sabine (21): "Eet mee". Ticked, the supplier gets a row on the meal list (Eten &
+ * allergieën) where the moments are ticked; the meal counts in the day planning follow from it.
+ */
+export async function setSupplierMeals(coupleId: string, supplierId: string, on: boolean): Promise<{ ok: boolean; error?: string }> {
+  const ctx = await requireCouple(coupleId);
+  if (!ctx.planning || !isUuid(supplierId)) return { ok: false, error: "Niet gevonden." };
+  const supplier = await one<{ name: string; category: string }>(
+    `select s.name, c.name as category from couple_suppliers s join supplier_categories c on c.id = s.category_id where s.id = $1 and s.couple_id = $2`,
+    [supplierId, ctx.couple.id],
+  );
+  if (!supplier) return { ok: false, error: "Niet gevonden." };
+  if (on) {
+    await query(
+      `insert into meal_rows (couple_id, kind, name, role, supplier_id, position)
+       values ($1, 'person', $2, $3, $4, coalesce((select max(position) + 1 from meal_rows where couple_id = $1 and kind = 'person'), 0))
+       on conflict do nothing`,
+      [ctx.couple.id, supplier.name || supplier.category, supplier.category, supplierId],
+    );
+  } else {
+    await query("delete from meal_rows where supplier_id = $1 and couple_id = $2", [supplierId, ctx.couple.id]);
+  }
+  await note(ctx, on ? `${supplier.name || supplier.category} eet mee` : `${supplier.name || supplier.category} eet niet meer mee`);
+  await syncAfterSave(ctx.couple.id);
+  return { ok: true };
+}
+
 /** Another supplier in the same category (e.g. two photographers to compare). */
 export async function addSupplierRow(formData: FormData) {
   const ctx = await requireCouple(str(formData, "coupleId", 40));

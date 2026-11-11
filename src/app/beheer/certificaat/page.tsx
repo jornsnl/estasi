@@ -4,6 +4,7 @@ import { PrintButton } from "@/components/PrintButton";
 import { requireOwner } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
 import { isUuid } from "@/lib/ws/db";
+import { academyLogoSrc } from "@/lib/brand-logos";
 
 export const metadata = { title: "Voorbeeldcertificaat" };
 
@@ -44,7 +45,7 @@ export default async function CertificatePreview({ searchParams }: { searchParam
           </Link>
         ))}
       </nav>
-      <Certificate kind={kind} name={user?.name ?? "Voorbeeld Cursist"} date={released ?? new Date().toISOString()} code={code} />
+      <Certificate kind={kind} name={user?.name ?? "Voorbeeld Cursist"} date={released ?? new Date().toISOString()} code={code} logoSrc={await academyLogoSrc()} />
       <p className="no-print mt-4 text-sm text-muted">Kies in het printvenster bij de printer voor &quot;Opslaan als pdf&quot;. Het certificaat staat al liggend op één A4.</p>
     </div>
   );

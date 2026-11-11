@@ -57,8 +57,21 @@ export function ContentBlock({ block }: { block: Block }) {
       );
     case "download": {
       const href = block.file ? `/api/bestanden/${block.file.id}` : block.url;
+      // Feedback Sabine (24): without a file or link the block was a link to the page itself, so a
+      // click only reloaded the lesson. Now it says that the file is still coming.
+      if (!href) {
+        return (
+          <div className="card flex items-center gap-4 p-4 opacity-70">
+            <span className="flex h-10 w-10 items-center justify-center rounded-md bg-cream text-muted" aria-hidden>↓</span>
+            <span className="flex-1">
+              <span className="block font-medium">{block.label || "Download"}</span>
+              <span className="block text-sm text-muted">Het bestand volgt nog.</span>
+            </span>
+          </div>
+        );
+      }
       return (
-        <a href={href} target="_blank" rel="noopener noreferrer" className="card flex items-center gap-4 p-4 hover:border-gold">
+        <a href={href} target="_blank" rel="noopener noreferrer" download={block.file && !/^(image\/|application\/pdf)/.test(block.file.mime) ? block.file.name : undefined} className="card flex items-center gap-4 p-4 hover:border-gold">
           <span className="flex h-10 w-10 items-center justify-center rounded-md bg-gold-soft text-gold-ink" aria-hidden>↓</span>
           <span className="flex-1">
             <span className="block font-medium">{block.label || "Download"}</span>
