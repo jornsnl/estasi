@@ -16,6 +16,8 @@ export interface Invitation {
   sent: boolean;
   response_id: string | null;
   position: number;
+  /** Names of the adults of the household (feedback Sabine, nr. 11); children are in invitation_children. */
+  people: string[];
 }
 
 export type InvitationRow = Invitation & { responded: "yes" | "maybe" | "no"; match_id: string | null; candidate?: string; children: string[] };
@@ -95,7 +97,7 @@ export async function syncInvitationChildren(coupleId: string): Promise<void> {
   });
 }
 
-const HEADERS = ["Namen", "Aantal personen", "Waarvan kinderen", "Namen kinderen", "Gastengroep", "Adres", "E-mail", "Kaart versturen via", "Kaart verstuurd", "Gereageerd"];
+const HEADERS = ["Namen", "Aantal personen", "Namen personen", "Waarvan kinderen", "Namen kinderen", "Gastengroep", "Adres", "E-mail", "Kaart versturen via", "Kaart verstuurd", "Gereageerd"];
 
 /** The list as an Excel file (addresses for the envelopes, among other things). */
 export async function invitationsWorkbook(rows: InvitationRow[], groups: Map<string, string>): Promise<Buffer> {
@@ -104,11 +106,11 @@ export async function invitationsWorkbook(rows: InvitationRow[], groups: Map<str
   ws.addRow(HEADERS).font = { bold: true };
   for (const r of rows) {
     ws.addRow([
-      r.names, r.party_size, r.children.length, r.children.filter(Boolean).join(", "), r.group_id ? groups.get(r.group_id) ?? "" : "", r.address, r.email, r.send_via === "mail" ? "Mail" : "Post",
+      r.names, r.party_size, (r.people ?? []).filter(Boolean).join(", "), r.children.length, r.children.filter(Boolean).join(", "), r.group_id ? groups.get(r.group_id) ?? "" : "", r.address, r.email, r.send_via === "mail" ? "Mail" : "Post",
       r.sent ? "Ja" : "Nee", r.responded === "yes" ? "Ja" : r.responded === "maybe" ? "Misschien" : "Nee",
     ]);
   }
-  ws.columns.forEach((c, i) => (c.width = [32, 10, 10, 28, 16, 40, 30, 12, 12, 12][i]));
+  ws.columns.forEach((c, i) => (c.width = [32, 10, 32, 10, 28, 16, 40, 30, 12, 12, 12][i]));
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 

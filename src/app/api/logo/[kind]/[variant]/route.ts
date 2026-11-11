@@ -1,5 +1,5 @@
 import { getFiles } from "@/lib/data";
-import { getBrandLogos, LOGO_KINDS, LOGO_VARIANTS, renderLogo, type LogoKind, type LogoVariant } from "@/lib/brand-logos";
+import { getBrandLogos, getLogoCrops, LOGO_KINDS, LOGO_VARIANTS, renderLogo, type LogoKind, type LogoVariant } from "@/lib/brand-logos";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ kin
   if (!LOGO_KINDS.includes(kind as LogoKind)) return new Response("Niet gevonden", { status: 404 });
   const logos = await getBrandLogos();
   // The beheer app without its own icon takes the logo of Estasi Weddings.
-  const fileId = logos[kind as LogoKind] ?? (kind === "app" ? logos.estasi : null);
+  const own = logos[kind as LogoKind];
+  const fileId = own ?? (kind === "app" ? logos.estasi : null);
+  const crops = await getLogoCrops();
+  const crop = crops[own ? (kind as LogoKind) : "estasi"];
   const variant = raw.replace(/\.png$/, "");
 
   if (variant === "original") {
@@ -44,7 +47,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ kin
   }
 
   if (!LOGO_VARIANTS.includes(variant as LogoVariant)) return new Response("Niet gevonden", { status: 404 });
-  const png = fileId ? await renderLogo(fileId, variant as LogoVariant).catch((err) => (console.error(`[logo] ${kind} ${variant}: ${(err as Error).message}`), null)) : null;
+  const png = fileId ? await renderLogo(fileId, variant as LogoVariant, crop).catch((err) => (console.error(`[logo] ${kind} ${variant}: ${(err as Error).message}`), null)) : null;
   if (!png) {
     const fallback = FALLBACK[variant as LogoVariant];
     return fallback ? new Response(null, { status: 302, headers: { Location: fallback, "Cache-Control": "public, max-age=600" } }) : new Response("Niet gevonden", { status: 404 });

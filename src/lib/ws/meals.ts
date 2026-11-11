@@ -29,6 +29,8 @@ export interface MealRow {
   cells: Record<string, { checked: boolean; count: number }>;
   /** RSVP rows: the diet summary of these guests. */
   summary: string;
+  /** A supplier that eats along (Leveranciers, "Eet mee"). */
+  supplier_id?: string | null;
 }
 
 export interface MealGuest {
@@ -58,9 +60,16 @@ export async function mealsFor(coupleId: string) {
   const [moments, rows, cells, guests, exclusions] = await Promise.all([
     query<MealMoment>("select id, name, active, at_time, caterer, menu, updated_by_name, updated_at from meal_moments where couple_id = $1 order by position", [coupleId]),
     query<Omit<MealRow, "cells" | "summary">>(
-      `select r.id, r.kind, case when r.kind = 'rsvp' then g.name || case when r.kids then ' kinderen' else ' volwassenen' end else r.name end as name,
-              r.role, r.group_id, r.kids, g.kind as group_kind, r.diet
+      // A supplier that eats along (feedback Sabine 21) keeps the name and category it has on Leveranciers.
+      `select r.id, r.kind,
+              case when r.kind = 'rsvp' then g.name || case when r.kids then ' kinderen' else ' volwassenen' end
+                   when r.supplier_id is not null then coalesce(nullif(s.name, ''), sc.name, r.name)
+                   else r.name end as name,
+              case when r.supplier_id is not null then coalesce(sc.name, r.role) else r.role end as role,
+              r.group_id, r.kids, g.kind as group_kind, r.diet, r.supplier_id
          from meal_rows r left join guest_groups g on g.id = r.group_id
+         left join couple_suppliers s on s.id = r.supplier_id
+         left join supplier_categories sc on sc.id = s.category_id
         where r.couple_id = $1 order by case r.kind when 'person' then 0 when 'group' then 1 else 2 end, r.position, r.created_at`,
       [coupleId],
     ),

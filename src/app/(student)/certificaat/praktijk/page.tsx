@@ -4,6 +4,7 @@ import { Certificate } from "@/components/Certificate";
 import { PrintButton } from "@/components/PrintButton";
 import { requireStudent } from "@/lib/auth/session";
 import { getStore } from "@/lib/data";
+import { academyLogoSrc } from "@/lib/brand-logos";
 
 export const metadata = { title: "Praktijkcertificaat" };
 
@@ -27,7 +28,7 @@ export default async function PracticalCertificatePage() {
           Je online certificaat vind je <Link href="/certificaat" className="text-bordeaux underline">hier</Link>.
         </p>
       )}
-      <Certificate kind="praktijk" name={user.name} date={enrollment.practicalCertificateReleasedAt} code={enrollment.practicalCertificateCode} />
+      <Certificate kind="praktijk" name={user.name} date={enrollment.practicalCertificateReleasedAt} code={enrollment.practicalCertificateCode} logoSrc={await academyLogoSrc()} />
       <p className="no-print mt-4 text-sm text-muted">Kies in het printvenster bij de printer voor &quot;Opslaan als pdf&quot;. Het certificaat staat al liggend op één A4.</p>
     </div>
   );

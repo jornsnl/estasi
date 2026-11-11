@@ -40,7 +40,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   }
   if (!allowed) return new Response("Geen toegang", { status: 403 });
 
-  const inline = /^(image\/|application\/pdf)/.test(meta.mime);
+  // Only pictures every browser shows and pdf open in the browser; everything else (also an SVG) downloads.
+  const inline = /^(image\/(png|jpe?g|webp|gif)|application\/pdf)$/.test(meta.mime);
   return new Response(new Uint8Array(file.data), {
     headers: {
       "Content-Type": meta.mime,

@@ -317,20 +317,44 @@ export async function archiveCategory(formData: FormData) {
 
 export async function addAgendaItem(formData: FormData) {
   const admin = await requireOwner();
+  const back = "/beheer/bruidsparen/agenda";
   const coupleId = str(formData, "coupleId", 40);
   const title = str(formData, "title", 200);
   const onDate = dateField(formData, "onDate");
-  if (!isUuid(coupleId) || !title || !onDate) done("/beheer/bruidsparen/agenda", "Kies een bruidspaar en vul een omschrijving en datum in.", true);
+  const atTime = /^\d{2}:\d{2}$/.test(str(formData, "atTime", 5)) ? str(formData, "atTime", 5) : "";
+  // Feedback Sabine (7): "Afspraak met mij", "Afspraak" (of the couple, without her) or "Deadline".
+  const type = str(formData, "kind", 20);
+  const kind = type === "deadline" ? "deadline" : "appointment";
+  const withSabine = type === "deadline" || type === "appointment";
+  const own = coupleId === "sabine";
+  if ((!own && !isUuid(coupleId)) || !title || !onDate) done(back, "Kies een bruidspaar of Sabine en vul een omschrijving en datum in.", true);
+  if (own) {
+    // Feedback Sabine (7): her own appointment, without a couple.
+    await query("insert into own_appointments (kind, title, on_date, at_time, notes, created_by) values ($1, $2, $3, $4, $5, $6)", [
+      kind, title, onDate, atTime, str(formData, "notes", 2000), admin.id,
+    ]);
+    done(`${back}?maand=${onDate.slice(0, 7)}&dag=${onDate}#dag`, `Eigen ${kind === "deadline" ? "deadline" : "afspraak"} toegevoegd op ${formatDate(onDate)}.`);
+  }
   await tx(async (db) => {
     const exists = await one("select 1 from couples where id = $1", [coupleId], db);
     if (!exists) throw new Error("Bruidspaar niet gevonden.");
     await query(
-      `insert into appointments (couple_id, kind, title, on_date, at_time, with_sabine, created_by) values ($1, $2, $3, $4, $5, true, $6)`,
-      [coupleId, str(formData, "kind") === "deadline" ? "deadline" : "appointment", title, onDate, /^\d{2}:\d{2}$/.test(str(formData, "atTime", 5)) ? str(formData, "atTime", 5) : "", admin.id],
+      `insert into appointments (couple_id, kind, title, on_date, at_time, with_sabine, notes, created_by) values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [coupleId, kind, title, onDate, atTime, withSabine, str(formData, "notes", 2000), admin.id],
       db,
     );
   });
-  done("/beheer/bruidsparen/agenda", `Toegevoegd op ${formatDate(onDate)}.`);
+  done(`${back}?maand=${onDate.slice(0, 7)}&dag=${onDate}${withSabine ? "" : "&alles=1"}#dag`, `Toegevoegd op ${formatDate(onDate)}.`);
+}
+
+/** Removes one of Sabine's own appointments (feedback Sabine, nr. 7). */
+export async function deleteOwnAppointment(formData: FormData) {
+  await requireOwner();
+  const id = str(formData, "appointmentId", 40);
+  const back = str(formData, "back", 200);
+  const path = back.startsWith("/beheer/bruidsparen/agenda") ? back : "/beheer/bruidsparen/agenda";
+  if (isUuid(id)) await query("delete from own_appointments where id = $1", [id]);
+  done(path, "Afspraak verwijderd.");
 }
 
 /** Price, payment plan, date of sale and what has been paid (feedback Sabine). */
@@ -354,4 +378,16 @@ export async function saveCouplePayment(formData: FormData) {
     [couple.id, price, plan, soldOn, first, second],
   );
   done(back, "Prijs en betaling opgeslagen.");
+}
+
+// Taken (feedback Sabine, nr. 6) -------------------------------------------------------------
+
+/** Sabine ticks a submitted assignment off once she made its summary; it then leaves the Taken page. */
+export async function markSummaryDone(formData: FormData) {
+  await requireOwner();
+  const id = str(formData, "assignmentId", 40);
+  const back = "/beheer/bruidsparen/takenbord#samenvatten";
+  if (!isUuid(id)) done(back, "Opdracht niet gevonden.", true);
+  const row = await one<{ title: string }>("update assignments set summary_done_at = now() where id = $1 returning title", [id]);
+  done(back, row ? `"${row.title}" afgevinkt: de samenvatting is gemaakt.` : "Opdracht niet gevonden.", !row);
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { confirmInvitationResponse, deleteInvitation, setInvitationChildren, updateInvitation } from "@/app/actions/ws-invitations";
+import { confirmInvitationResponse, deleteInvitation, setInvitationChildren, setInvitationPeople, updateInvitation } from "@/app/actions/ws-invitations";
 import { partyLabel } from "@/lib/ws/guest-counts";
 
 export interface InvitationData {
@@ -17,25 +17,81 @@ export interface InvitationData {
   match_id: string | null;
   candidate?: string;
   children: string[];
+  people: string[];
 }
 
-/** "Aantal kinderen" with a name field per child, for the form "Huishouden toevoegen". */
-export function ChildrenFields() {
-  const [count, setCount] = useState(0);
+/**
+ * Feedback Sabine (nr. 11): "Aantal personen" with a name for every person of the household,
+ * also when it is not a child; tick "Kind" for a child (children count in the number of people).
+ */
+export function HouseholdFields() {
+  const [size, setSize] = useState(2);
+  const [kids, setKids] = useState<boolean[]>([]);
+  const kidCount = kids.slice(0, size).filter(Boolean).length;
   return (
     <div className="space-y-2 sm:col-span-2">
       <label className="flex items-center gap-2 text-sm">
-        Aantal kinderen
-        <input name="kids" type="number" min={0} max={50} value={count} onChange={(e) => setCount(Math.max(0, Math.min(50, Math.round(Number(e.target.value)) || 0)))} className="input w-20 py-1" />
-        <span className="text-xs text-muted">tellen mee in het aantal personen</span>
+        Aantal personen (inclusief kinderen)
+        <input
+          name="partySize"
+          type="number"
+          min={1}
+          max={50}
+          value={size}
+          onChange={(e) => setSize(Math.max(1, Math.min(50, Math.round(Number(e.target.value)) || 1)))}
+          className="input w-20 py-1"
+        />
       </label>
-      {count > 0 && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {Array.from({ length: count }, (_, i) => (
-            <input key={i} name={`child_${i}`} placeholder={`Naam kind ${i + 1}`} aria-label={`Naam kind ${i + 1}`} className="input py-1.5" />
-          ))}
-        </div>
-      )}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {Array.from({ length: size }, (_, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input name={`person_${i}`} placeholder={`Naam persoon ${i + 1}`} aria-label={`Naam persoon ${i + 1}`} maxLength={120} className="input min-w-0 flex-1 py-1.5" />
+            <label className="flex shrink-0 items-center gap-1 text-xs text-muted">
+              <input
+                type="checkbox"
+                name={`person_kid_${i}`}
+                checked={kids[i] ?? false}
+                onChange={(e) => setKids((k) => Object.assign([...k], { [i]: e.target.checked }))}
+                className="accent-[#6B1E2E]"
+              />
+              Kind
+            </label>
+          </div>
+        ))}
+      </div>
+      <input type="hidden" name="kids" value={kidCount} />
+      <p className="text-xs text-muted">Vul per persoon de naam in (mag ook later); vink &quot;Kind&quot; aan bij een kind.</p>
+    </div>
+  );
+}
+
+/** The names of the adults of one household in the table (one field per person who is not a child). */
+function PeopleCell({ coupleId, row, count, onSaved }: { coupleId: string; row: InvitationData; count: number; onSaved: (msg: string) => void }) {
+  const [names, setNames] = useState<string[]>(row.people);
+  const [, start] = useTransition();
+  const shown = Array.from({ length: Math.max(0, count) }, (_, i) => names[i] ?? "");
+  if (shown.length === 0) return null;
+  return (
+    <div className="mt-1 space-y-1">
+      {shown.map((n, i) => (
+        <input
+          key={i}
+          defaultValue={n}
+          placeholder={`Naam persoon ${i + 1}`}
+          aria-label={`Naam persoon ${i + 1} van ${row.names}`}
+          maxLength={120}
+          onBlur={(e) => {
+            if (e.target.value === (names[i] ?? "")) return;
+            const next = shown.map((x, j) => (j === i ? e.target.value : x));
+            setNames(next);
+            start(async () => {
+              const result = await setInvitationPeople(coupleId, row.id, next);
+              onSaved(result.ok ? "✓ Opgeslagen" : result.error ?? "Niet opgeslagen");
+            });
+          }}
+          className="input min-w-44 py-1 text-xs"
+        />
+      ))}
     </div>
   );
 }
@@ -132,7 +188,10 @@ export function InvitationTable({ coupleId, rows, groups }: { coupleId: string; 
           <tbody>
             {shown.map((r) => (
               <tr key={r.id} className="border-t border-line align-top">
-                <td className="px-3 py-2"><input defaultValue={r.names} onBlur={onBlur(r.id, "names")} aria-label="Namen" className={`${cell} min-w-44`} /></td>
+                <td className="px-3 py-2">
+                  <input defaultValue={r.names} onBlur={onBlur(r.id, "names")} aria-label="Namen" className={`${cell} min-w-44`} />
+                  <PeopleCell coupleId={coupleId} row={r} count={(sizes[r.id] ?? r.party_size) - (kids[r.id] ?? 0)} onSaved={setMessage} />
+                </td>
                 <td className="px-3 py-2">
                   <input
                     type="number"

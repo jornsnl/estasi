@@ -4,7 +4,7 @@ import { isUuid, one } from "@/lib/ws/db";
 import { FILE_COLUMNS, fileResponse } from "@/lib/ws/files";
 
 /** Serves a stored file after checking that the viewer may see that couple's files. */
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const account = await currentUser();
   if (!account || (account.role !== "owner" && account.role !== "couple")) return new Response("Niet ingelogd", { status: 401 });
   const { id } = await params;
@@ -19,7 +19,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const own = file.couple_id ? file.couple_id === (await coupleIdOf(account.id)) : await isSharedDocument(id);
     if (!own) return new Response("Niet gevonden", { status: 404 });
   }
-  return fileResponse(file);
+  // ?download=1 saves the file instead of showing it (moodboard pictures, feedback Sabine 17).
+  return fileResponse(file, { download: new URL(req.url).searchParams.get("download") === "1" });
 }
 
 /** Files without a couple that every couple may open: fixed documents and Sabine's recommendations. */
@@ -29,6 +30,7 @@ async function isSharedDocument(fileId: string) {
       `select 1 where exists (select 1 from documents where file_id = $1 and couple_id is null)
                    or exists (select 1 from recommendations where (photo_file_id = $1 or brochure_file_id = $1) and not archived)
                    or exists (select 1 from assignment_template_sections where example_file_id = $1)
+                   or exists (select 1 from assignment_templates where photo_file_id = $1)
                    or exists (select 1 from assignment_sections where example_file_id = $1)
                    or exists (select 1 from settings where dance_video_file_id = $1 or tour_video_file_id = $1)`,
       [fileId],

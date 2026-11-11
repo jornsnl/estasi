@@ -26,15 +26,17 @@ export async function addInvitation(formData: FormData) {
   const names = str(formData, "names", 300);
   if (!names) done(page(ctx.couple.id), "Vul de namen van het huishouden in.", true);
   const size = Math.max(1, Math.min(50, Math.round(Number(str(formData, "partySize", 3))) || 1));
-  const kidCount = Math.max(0, Math.round(Number(str(formData, "kids", 3))) || 0);
-  if (kidCount > size) done(page(ctx.couple.id), "Er zijn meer kinderen dan personen. Kinderen tellen mee in het aantal personen.", true);
-  const kids = cleanChildren(Array.from({ length: kidCount }, (_, i) => str(formData, `child_${i}`, 120)), size);
+  // Feedback Sabine (11): a name per person; the ones ticked "Kind" are the children.
+  const persons = Array.from({ length: size }, (_, i) => ({ name: str(formData, `person_${i}`, 120), kid: formData.get(`person_kid_${i}`) === "on" }));
+  const kidCount = persons.filter((p) => p.kid).length;
+  const kids = cleanChildren(persons.filter((p) => p.kid).map((p) => p.name), size);
+  const people = cleanPeople(persons.filter((p) => !p.kid).map((p) => p.name), size - kidCount);
   await tx(async (db) => {
     const row = await one<{ id: string }>(
-      `insert into invitations (couple_id, names, party_size, group_id, address, email, send_via, position)
-       values ($1, $2, $3, $4, $5, $6, $7, (select coalesce(max(position), 0) + 1 from invitations where couple_id = $1)) returning id`,
+      `insert into invitations (couple_id, names, party_size, group_id, address, email, send_via, people, position)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, (select coalesce(max(position), 0) + 1 from invitations where couple_id = $1)) returning id`,
       [ctx.couple.id, names, size, await groupOf(ctx, str(formData, "groupId", 40)), str(formData, "address", 300),
-       str(formData, "email", 200).toLowerCase(), str(formData, "sendVia") === "mail" ? "mail" : "post"],
+       str(formData, "email", 200).toLowerCase(), str(formData, "sendVia") === "mail" ? "mail" : "post", people],
       db,
     );
     for (const [i, name] of kids.entries()) {
@@ -44,6 +46,27 @@ export async function addInvitation(formData: FormData) {
   await syncInvitationChildren(ctx.couple.id);
   await note(ctx, "Uitnodigingslijst bijgewerkt");
   done(page(ctx.couple.id), `${names} toegevoegd.`);
+}
+
+/** Names of the adults: trimmed, at most as many as there are adults, empty ones at the end dropped. */
+function cleanPeople(names: string[], max: number): string[] {
+  const list = names.slice(0, Math.max(0, max)).map((n) => String(n).trim().slice(0, 120));
+  while (list.length && !list[list.length - 1]) list.pop();
+  return list;
+}
+
+/** Feedback Sabine (11): the names of the adults of a household, from the table. */
+export async function setInvitationPeople(coupleId: string, invitationId: string, names: string[]): Promise<{ ok: boolean; error?: string }> {
+  const ctx = await requireCouple(coupleId);
+  if (!ctx.planning || !isUuid(invitationId) || !Array.isArray(names)) return { ok: false, error: "Niet gevonden." };
+  const inv = await one<{ party_size: number; kids: number }>(
+    "select party_size, (select count(*)::int from invitation_children c where c.invitation_id = i.id) as kids from invitations i where id = $1 and couple_id = $2",
+    [invitationId, ctx.couple.id],
+  );
+  if (!inv) return { ok: false, error: "Niet gevonden." };
+  await query("update invitations set people = $3 where id = $1 and couple_id = $2", [invitationId, ctx.couple.id, cleanPeople(names.map(String), inv.party_size - inv.kids)]);
+  await note(ctx, "Uitnodigingslijst bijgewerkt");
+  return { ok: true };
 }
 
 type Field = "names" | "party_size" | "group_id" | "address" | "email" | "send_via" | "sent";

@@ -40,11 +40,12 @@ export async function suppliersFor(coupleId: string) {
         and not exists (select 1 from couple_suppliers s where s.couple_id = $1 and s.category_id = c.id)`,
     [coupleId],
   );
-  return query<CoupleSupplier & { documents: number; category_couple_id: string | null }>(
+  return query<CoupleSupplier & { documents: number; category_couple_id: string | null; eats_along: boolean }>(
     `select s.id, c.id as category_id, c.name as category_name, c.couple_id as category_couple_id, s.status,
             s.name, s.contact_person, s.phone, s.email, s.website, s.address, s.notes, s.recommendation_id,
             s.present_from, s.present_until,
-            (select count(*)::int from supplier_documents d where d.supplier_id = s.id) as documents
+            (select count(*)::int from supplier_documents d where d.supplier_id = s.id) as documents,
+            exists (select 1 from meal_rows m where m.supplier_id = s.id) as eats_along
        from couple_suppliers s
        join supplier_categories c on c.id = s.category_id
       where s.couple_id = $1 and not c.archived

@@ -3,7 +3,7 @@
 import { Calendar, GraduationCap, Heart, Kanban, ListChecks, MessageCircle, Settings, Sparkles, Star, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Feedback Sabine: the main parts of the admin menu have a thin line icon (Lucide, stroke 1.5) in
@@ -91,9 +91,11 @@ function blocks(items: NavItem[]): Block[] {
   return out;
 }
 
+// Feedback Sabine (27): when the app starts, every group is folded. What you open stays open while
+// you move around (sessionStorage, per tab), but a fresh start of the app begins folded again.
 function readStored(): string[] {
   try {
-    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
+    const value = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? "[]");
     return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
   } catch {
     return [];
@@ -102,7 +104,7 @@ function readStored(): string[] {
 
 function store(open: Set<string>) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...open]));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify([...open]));
   } catch {
     // Private mode or blocked storage: the menu simply starts folded next time.
   }
@@ -135,23 +137,29 @@ function Item({ item, active }: { item: NavItem; active: boolean }) {
 }
 
 /**
- * The menu. Groups with a heading start folded; the group of the page you
- * are on opens by itself, and what you open yourself stays open (per browser).
+ * The menu. Groups with a heading start folded, also the group of the page the app opens on (its
+ * heading shows in bordeaux). Going to a page in a folded group later opens that group, and what you
+ * open yourself stays open until the app is closed.
  */
 export function NavLinks({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
   const groups = blocks(items);
   const current = groups.find((g) => g.section && g.items.some((i) => isActive(pathname, i)))?.section;
-  const [open, setOpen] = useState<Set<string>>(() => new Set(current ? [current] : []));
+  const [open, setOpen] = useState<Set<string>>(() => new Set());
+  const first = useRef(true);
 
-  // What was opened earlier in this browser (after the first render, so server and browser agree).
+  // What was opened earlier in this tab (after the first render, so server and browser agree).
   useEffect(() => {
     const stored = readStored();
     if (stored.length) setOpen((o) => new Set([...o, ...stored]));
   }, []);
 
-  // Going to a page in a folded group opens that group.
+  // Going to a page in a folded group opens that group, but not on the page the app starts on.
   useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
     if (current) setOpen((o) => (o.has(current) ? o : new Set([...o, current])));
   }, [current]);
 

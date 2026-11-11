@@ -217,15 +217,58 @@ export async function saveStylingPlan(formData: FormData) {
   } catch {
     names = {};
   }
+  // The palette has its own form now (feedback Sabine 18); only saved here when it came along.
+  const withColors = formData.has("colors");
   const hexes = [...str(formData, "colors", 500).matchAll(/#[0-9a-fA-F]{6}/g)].map((m) => m[0].toLowerCase());
   const palette = writePalette(readPalette(hexes, names));
   await query(
     `insert into styling_plans (couple_id, concept, colors, color_names, published, updated_at) values ($1, $2, $3::jsonb, $4::jsonb, $5, now())
-     on conflict (couple_id) do update set concept = excluded.concept, colors = excluded.colors, color_names = excluded.color_names,
+     on conflict (couple_id) do update set concept = excluded.concept,
+       colors = case when $6 then excluded.colors else styling_plans.colors end,
+       color_names = case when $6 then excluded.color_names else styling_plans.color_names end,
        published = excluded.published, updated_at = now()`,
-    [ctx.couple.id, str(formData, "concept", 20_000), JSON.stringify(palette.colors), JSON.stringify(palette.names), formData.get("published") === "on"],
+    [ctx.couple.id, str(formData, "concept", 20_000), JSON.stringify(palette.colors), JSON.stringify(palette.names), formData.get("published") === "on", withColors],
   );
   done(back, formData.get("published") === "on" ? "Stylingplan opgeslagen en zichtbaar voor het bruidspaar." : "Stylingplan opgeslagen (nog niet zichtbaar voor het bruidspaar).");
+}
+
+/**
+ * Feedback Sabine (18): the couple sees the colour picker too and adds colours themselves, and
+ * writes in the theme description once Sabine made it visible. Sabine uses the same forms.
+ */
+export async function saveStylingPart(formData: FormData) {
+  const ctx = await ctxFrom(formData);
+  if (!ctx.planning) done(portal(ctx.couple.id), "Niet beschikbaar.", true);
+  const part = str(formData, "part", 10);
+  if (part === "colors") {
+    let names: Record<string, unknown> = {};
+    try {
+      names = JSON.parse(str(formData, "colorNames", 5000) || "{}");
+    } catch {
+      names = {};
+    }
+    const hexes = [...str(formData, "colors", 500).matchAll(/#[0-9a-fA-F]{6}/g)].map((m) => m[0].toLowerCase());
+    const palette = writePalette(readPalette(hexes, names));
+    await query(
+      `insert into styling_plans (couple_id, colors, color_names, updated_at) values ($1, $2::jsonb, $3::jsonb, now())
+       on conflict (couple_id) do update set colors = excluded.colors, color_names = excluded.color_names, updated_at = now()`,
+      [ctx.couple.id, JSON.stringify(palette.colors), JSON.stringify(palette.names)],
+    );
+    if (!ctx.isAdmin) await logActivity(ctx.couple.id, ctx.account.id, "Kleurenpalet aangepast");
+    done(portal(ctx.couple.id, "/styling#kleuren"), "Kleuren opgeslagen.");
+  }
+  if (part === "theme") {
+    const plan = await one<{ published: boolean }>("select published from styling_plans where couple_id = $1", [ctx.couple.id]);
+    if (!ctx.isAdmin && !plan?.published) done(portal(ctx.couple.id, "/styling#thema"), "Sabine maakt de themaomschrijving eerst klaar.", true);
+    await query(
+      `insert into styling_plans (couple_id, concept, updated_at) values ($1, $2, now())
+       on conflict (couple_id) do update set concept = excluded.concept, updated_at = now()`,
+      [ctx.couple.id, str(formData, "concept", 20_000)],
+    );
+    if (!ctx.isAdmin) await logActivity(ctx.couple.id, ctx.account.id, "Themaomschrijving aangepast");
+    done(portal(ctx.couple.id, "/styling#thema"), "Themaomschrijving opgeslagen.");
+  }
+  done(portal(ctx.couple.id, "/styling"), "Niets om op te slaan.", true);
 }
 
 export async function stylingImage(formData: FormData) {
@@ -256,6 +299,29 @@ export async function stylingImage(formData: FormData) {
   }
   await note(ctx, count === 1 ? "Afbeelding aan het moodboard toegevoegd" : `${count} afbeeldingen aan het moodboard toegevoegd`);
   done(back, count === 1 ? "Afbeelding toegevoegd aan het moodboard." : `${count} afbeeldingen toegevoegd aan het moodboard.`);
+}
+
+/** Feedback Sabine (19): the photo of a standard assignment, on its tile on the Opdrachten page. */
+export async function saveTemplatePhoto(formData: FormData) {
+  const owner = await requireOwner();
+  const templateId = id(formData, "templateId");
+  const list = "/beheer/bruidsparen/opdrachten";
+  if (!templateId) done(list, "Opdracht niet gevonden.", true);
+  const back = `${list}#t-${templateId}`;
+  const current = await one<{ photo_file_id: string | null }>("select photo_file_id from assignment_templates where id = $1", [templateId]);
+  if (!current) done(list, "Opdracht niet gevonden.", true);
+  let photo = current.photo_file_id;
+  try {
+    const file = await storeUpload(formData.get("photo"), { coupleId: null, accountId: owner.id, kind: "image" });
+    if (file) photo = file.id;
+    else if (formData.get("removePhoto") === "on") photo = null;
+    else done(back, "Kies eerst een foto.", true);
+  } catch (err) {
+    if (err instanceof UploadError) done(back, err.message, true);
+    throw err;
+  }
+  await query("update assignment_templates set photo_file_id = $2 where id = $1", [templateId, photo]);
+  done(back, photo ? "Foto opgeslagen. Staat op de tegel bij elk bruidspaar." : "Foto weggehaald.");
 }
 
 // Sabine's templates and photo -------------------------------------------------------------------------

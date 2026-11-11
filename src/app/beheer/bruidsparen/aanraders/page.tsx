@@ -60,6 +60,10 @@ export default async function RecommendationsAdmin({ searchParams }: { searchPar
       </div>
       <div className="text-sm">
         <p className="label">Foto</p>
+        {r?.photo_file_id && (
+          // eslint-disable-next-line @next/next/no-img-element -- uploaded image behind a login check
+          <img src={`/api/ws-bestanden/${r.photo_file_id}`} alt="Huidige foto" className="mb-2 h-24 w-24 rounded-xl border border-line object-cover" />
+        )}
         <FileUpload name="photo" coupleId={null} kind="image" direct={direct} label={r?.photo_file_id ? "Andere foto" : "Foto uploaden"} />
         {r?.photo_file_id && <label className="mt-1 flex items-center gap-2 text-xs text-muted"><input type="checkbox" name="removePhoto" /> Foto verwijderen</label>}
       </div>

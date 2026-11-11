@@ -1,6 +1,7 @@
 "use server";
 
-import { requireCouple, requireCoupleAdmin, type CoupleContext } from "@/lib/ws/access";
+import { notFound } from "next/navigation";
+import { requireCouple, type CoupleContext } from "@/lib/ws/access";
 import { logActivity } from "@/lib/ws/couples";
 import { isUuid, one, query, tx } from "@/lib/ws/db";
 import { done, str } from "@/lib/ws/redirect";
@@ -9,8 +10,8 @@ import { ceremonyRows, ceremonySeats, cleanRows, evenRows, rowChange, tableSeats
 import { isObjectKind, planMove, type MoveSource, type MoveTarget } from "@/lib/ws/seating-moves";
 
 /**
- * Opstelling. Sabine makes the plans (shape, guest groups, tables, ceremony
- * rows); the couple and Sabine place guests, typed names, styling and
+ * Opstelling. Sabine and the couple make the plans (shape, guest groups, tables, ceremony
+ * rows; feedback Sabine 15: before, only Sabine could); the couple and Sabine place guests, typed names, styling and
  * ceremony elements, and move or swap them.
  */
 
@@ -37,11 +38,22 @@ async function groupIds(ctx: CoupleContext, formData: FormData) {
 }
 const int = (formData: FormData, name: string, fallback: number) => Math.max(1, Math.min(40, Math.round(Number(str(formData, name, 4))) || fallback));
 
+// Feedback Sabine (15): the couple makes and changes layouts too, not only Sabine.
+async function editor(coupleId: unknown): Promise<CoupleContext> {
+  const ctx = await requireCouple(coupleId);
+  if (!ctx.planning) notFound();
+  return ctx;
+}
+const logEdit = async (ctx: CoupleContext, action = "Opstelling bijgewerkt") => {
+  if (!ctx.isAdmin) await logActivity(ctx.couple.id, ctx.account.id, action);
+};
+
 export async function saveLayout(formData: FormData) {
-  const ctx = await requireCoupleAdmin(str(formData, "coupleId", 40));
+  const ctx = await editor(str(formData, "coupleId", 40));
   const layoutId = str(formData, "layoutId", 40);
   if (formData.get("intent") === "delete" && isUuid(layoutId)) {
     await query("delete from seating_layouts where id = $1 and couple_id = $2", [layoutId, ctx.couple.id]);
+    await logEdit(ctx, "Opstelling verwijderd");
     done(tab(ctx), "Opstelling verwijderd.");
   }
   const kind = str(formData, "kind") === "ceremony" ? "ceremony" : "dinner";
@@ -62,6 +74,7 @@ export async function saveLayout(formData: FormData) {
         where id = $1 and couple_id = $2`,
       [layoutId, ctx.couple.id, ...values, JSON.stringify(rowSeats)],
     );
+    await logEdit(ctx);
     done(tab(ctx, layoutId), "Opstelling opgeslagen.");
   }
   const row = await one<{ id: string }>(
@@ -69,15 +82,17 @@ export async function saveLayout(formData: FormData) {
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, (select coalesce(max(position), 0) + 1 from seating_layouts where couple_id = $1)) returning id`,
     [ctx.couple.id, kind, ...values, JSON.stringify(kind === "ceremony" ? evenRows(rows, perRow, perRow) : [])],
   );
+  await logEdit(ctx, kind === "dinner" ? "Dineropstelling gemaakt" : "Ceremonieopstelling gemaakt");
   done(tab(ctx, row!.id), kind === "dinner" ? "Dineropstelling gemaakt. Voeg tafels toe." : "Ceremonieopstelling gemaakt.");
 }
 
-// Tables (Sabine) -------------------------------------------------------------------------------------
+// Tables (Sabine and the couple) -------------------------------------------------------------------------------------
 
 export async function addTable(coupleId: string, layoutId: string, shape: "round" | "square" | "long"): Promise<Result> {
-  const ctx = await requireCoupleAdmin(coupleId);
+  const ctx = await editor(coupleId);
   const layout = await layoutOf(ctx, layoutId);
   if (!layout || layout.kind !== "dinner") return { ok: false, error: "Niet gevonden." };
+  await logEdit(ctx);
   const count = (await one<{ n: number }>("select count(*)::int as n from seating_tables where layout_id = $1", [layout.id]))!.n;
   await query(
     "insert into seating_tables (layout_id, shape, name, x, y, seats) values ($1, $2, $3, $4, $5, $6)",
@@ -92,7 +107,7 @@ export async function updateTable(
   tableId: string,
   change: { x?: number; y?: number; rotation?: number; seats?: number; name?: string; long_sides?: string; head_seats?: boolean; duplicate?: boolean; remove?: boolean },
 ): Promise<Result> {
-  const ctx = await requireCoupleAdmin(coupleId);
+  const ctx = await editor(coupleId);
   if (!isUuid(tableId)) return { ok: false, error: "Niet gevonden." };
   const table = await one<{ layout_id: string; seats: number }>(
     "select t.layout_id, t.seats from seating_tables t join seating_layouts l on l.id = t.layout_id where t.id = $1 and l.couple_id = $2",
@@ -132,9 +147,10 @@ export async function updateTable(
  * guests). Guests on chairs that no longer exist go back to "Te plaatsen".
  */
 export async function updateRows(coupleId: string, layoutId: string, rows: RowSeats[], removed?: number): Promise<Result> {
-  const ctx = await requireCoupleAdmin(coupleId);
+  const ctx = await editor(coupleId);
   const layout = await layoutOf(ctx, layoutId);
   if (!layout || layout.kind !== "ceremony") return { ok: false, error: "Niet gevonden." };
+  await logEdit(ctx);
   const after = cleanRows(rows);
   if (!after.length) return { ok: false, error: "Er moet minstens één rij blijven." };
   await tx(async (db) => {

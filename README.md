@@ -64,6 +64,17 @@ Overige commando's: `npm test` (regels voor toegang, voortgang en feedback; met 
 * Bekijk als cursist (`/beheer/voorbeeld`): dashboard, Mijn opleiding en lessen zoals een nieuwe cursist van pakket A of B ze ziet, of als een bestaande cursist met de eigen voortgang en antwoorden. Alleen lezen: er wordt niets opgeslagen, ingediend of als gelezen gemarkeerd
 * Logboek van alle beheeracties
 
+**Feedback Sabine, november (27 punten, migraties `0039` en `0040`)**
+* Menu: bij het opstarten zijn alle groepen ingeklapt; wat je openklapt blijft open zolang de app open is (`sessionStorage`)
+* Foto's: elk fotoveld laat de gekoppelde foto zien, en een gekozen foto als voorbeeld vóór het opslaan; profielfoto's (cursist en Sabine) staan in een cirkel die je aanklikt om een foto te kiezen
+* Logo's: per logo een uitsnede kiezen voor het app-icoon (grootte en positie, `src/components/LogoCropper.tsx`, `crops` in `brand_logos`). Een nieuw logo staat van rand tot rand, dus zonder witte rand. Het certificaat toont het Academy-logo
+* Mobiel: brede tabellen (Kosten, gastenlijst, Afspraken) worden onder 640 px compacte kaarten (`.stack-table` in `globals.css`); de dagplanning van het draaiboek staat compact in cellen
+* Taken: een eigen blok voor aanvragen van een openingsdanspakket (met "Afgehandeld"), en bij "Ingeleverde opdrachten om samen te vatten" alleen Thema & Styling, met een vinkje voor een gemaakte samenvatting (`summary_done_at`)
+* Agenda: eigen afspraken zonder bruidspaar ("Sabine", tabel `own_appointments`, in de groene huisstijlkleur), type "Afspraak" naast "Afspraak met mij" en "Deadline", en een klik op een datum toont de afspraken van die dag
+* Pipeline: elke Academy-inschrijving is een eigen kaart onder Nieuw; een eerdere kaart van hetzelfde adres krijgt een notitie. Omzet toont het totaal exclusief 21% btw
+* Your Wedding Space: rondleidingsknop naast de welkomsttekst; per persoon in een huishouden een naam (`invitations.people`); gast verwijderen met "Weet je het zeker?"; RSVP met "deel van de dag" vraagt het per meekomende gast; opstellingen in- en uitzoomen en ook door het bruidspaar te maken; moodboardfoto's openen en downloaden (`?download=1`); Styling in de volgorde Moodboard, Kleuren (ook voor het bruidspaar), Themaomschrijving, Styling per plek; Opdrachten als tegels met foto (foto per standaardopdracht); een vastgelegde leverancier komt in het kostenoverzicht; "Eet mee" bij een leverancier zet die op de etenslijst (`meal_rows.supplier_id`); "Afspraken met de locatie" op Afspraken (`venue_agreements`)
+* Lesinhoud: blok "Feedback" onder een opdracht zet het feedbackvinkje bij die opdracht aan; een download-/linkblok zonder bestand of link zegt "Het bestand volgt nog" in plaats van naar de pagina zelf te linken, en meer documenttypen mogen
+
 ## Community en privéberichten (Academy)
 
 Eén gezamenlijke community voor alle cursisten met actieve toegang en Sabine, plus een privégesprek tussen Sabine en elke cursist afzonderlijk. Cursist: **Community** (`/community`) en **Privéchat** (`/prive-chat`). Beheer: **Community** (`/beheer/community`) en **Privéberichten** (`/beheer/berichten`). Het menu toont het aantal ongelezen berichten (bij Sabine telt de community ook open meldingen mee).

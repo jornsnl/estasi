@@ -11,6 +11,10 @@ export type CostLine = BudgetItem & { kind: "category" | "own" | "extra" | "pack
  * one per supplier category (hidden when the couple marked it "Niet nodig"),
  * the couple's own budget parts and extra costs, and one line per Estasi
  * package with the package price.
+ *
+ * Feedback Sabine (nr. 20): as soon as a supplier "Staat vast" on the page Leveranciers, its name
+ * is the supplier of that category's line (several booked ones are joined with a comma), unless
+ * a supplier was typed on the line itself.
  */
 export async function costLines(coupleId: string): Promise<CostLine[]> {
   await query(
@@ -54,7 +58,7 @@ export async function costLines(coupleId: string): Promise<CostLine[]> {
             case when b.kind = 'category'
                  then coalesce(nullif(b.supplier, ''), (select string_agg(s.name, ', ') from couple_suppliers s
                                                         where s.couple_id = b.couple_id and s.category_id = b.supplier_category_id
-                                                          and s.name <> '' and s.status <> 'not_needed'), '')
+                                                          and s.name <> '' and s.status = 'booked'), '')
                  else b.supplier end as supplier
        from budget_items b
        left join supplier_categories c on c.id = b.supplier_category_id

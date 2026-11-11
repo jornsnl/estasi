@@ -27,7 +27,11 @@ type Item = {
   progress: number;
   fileId?: string;
   error?: string;
+  /** A local preview of a chosen photo (feedback Sabine: see which photo you uploaded). */
+  preview?: string;
 };
+
+const previewOf = (blob: Blob) => (blob.type.startsWith("image/") && !/hei[cf]/.test(blob.type) ? URL.createObjectURL(blob) : undefined);
 
 export function FileUpload({
   name,
@@ -101,7 +105,7 @@ export function FileUpload({
       const { blob, fileName } = kind === "image" ? await shrink(file) : { blob: file as Blob, fileName: file.name };
       const problem = checkUpload(kind, fileName, blob.size);
       if (problem) throw new Error(problem);
-      update(key, { name: fileName, size: blob.size });
+      update(key, { name: fileName, size: blob.size, preview: kind === "image" ? previewOf(blob) : undefined });
       const ticket = await requestUpload({ coupleId, kind, name: fileName, size: blob.size });
       if (!ticket.ok) throw new Error(ticket.error);
       await send(ticket.signedUrl, blob, ticket.mime, (progress) => update(key, { progress }));
@@ -115,7 +119,7 @@ export function FileUpload({
     setError(null);
     const files = Array.from(event.target.files ?? []);
     if (!direct) {
-      setItems(files.map((f, n) => ({ key: `${n}-${f.name}`, name: f.name, size: f.size, state: "done", progress: 1 })));
+      setItems(files.map((f, n) => ({ key: `${n}-${f.name}`, name: f.name, size: f.size, state: "done", progress: 1, preview: kind === "image" ? previewOf(f) : undefined })));
       return;
     }
     event.target.value = "";
@@ -145,6 +149,8 @@ export function FileUpload({
   }, [submitWhenReady, items]);
 
   function remove(key: string) {
+    const gone = itemsRef.current.find((i) => i.key === key);
+    if (gone?.preview) URL.revokeObjectURL(gone.preview);
     setItems((list) => list.filter((i) => i.key !== key));
     if (!direct && input.current) input.current.value = "";
   }
@@ -185,6 +191,10 @@ export function FileUpload({
         <ul className="space-y-1 text-sm" aria-live="polite">
           {items.map((item) => (
             <li key={item.key} className="flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-1.5">
+              {item.preview && (
+                // eslint-disable-next-line @next/next/no-img-element -- local preview of the chosen photo
+                <img src={item.preview} alt="" className="h-10 w-10 shrink-0 rounded-md border border-line object-cover" />
+              )}
               <span className="min-w-0 flex-1">
                 <span className="block truncate">{item.name}</span>
                 {item.state === "working" && (

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { toggleTask } from "@/app/actions/ws-portal";
+import { markSummaryDone } from "@/app/actions/ws-admin";
+import { markDanceRequest } from "@/app/actions/ws-dance";
 import { FeedbackStatusBadge } from "@/components/academy/FeedbackStatusBadge";
 import { Notice } from "@/components/Notice";
 import { loadSabineBoard, type Row } from "@/lib/ws/sabine-board";
@@ -12,12 +14,14 @@ export const metadata = { title: "Taken" };
  * for her in one place:
  *   1. the "Sabine" column of every couple's task board, at most four per row;
  *   2. questions of couples that have no answer yet;
- *   3. assignments couples sent in that still need a summary (Thema & Styling...);
- *   4. feedback requests of students, Nieuw / Bezig met nakijken / Klaar. A
+ *   3. requests of couples for an opening dance package, until marked handled;
+ *   4. Thema & Styling once a couple sent it in, until Sabine ticks off that she made the summary
+ *      (Budgetplanning never needs one);
+ *   5. feedback requests of students, Nieuw / Bezig met nakijken / Klaar. A
  *      request leaves the page once it is Klaar and the feedback was sent.
  */
 export default async function SabineBoard({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const { rows, questions, summaries, feedback } = await loadSabineBoard();
+  const { rows, questions, summaries, feedback, dances } = await loadSabineBoard();
   const groups = new Map<string, Row[]>();
   for (const row of rows) groups.set(row.couple_id, [...(groups.get(row.couple_id) ?? []), row]);
   const today = todayIso();
@@ -28,7 +32,7 @@ export default async function SabineBoard({ searchParams }: { searchParams: Prom
       <header>
         <p className="eyebrow">Beheer</p>
         <h1 className="mt-1 text-3xl">Taken</h1>
-        <p className="mt-1 text-sm text-muted">Alles wat op jou wacht: je taken per bruidspaar, open vragen, opdrachten om samen te vatten en feedback voor cursisten.</p>
+        <p className="mt-1 text-sm text-muted">Alles wat op jou wacht: je taken per bruidspaar, open vragen, aanvragen voor een openingsdans, opdrachten om samen te vatten en feedback voor cursisten.</p>
       </header>
       <Notice searchParams={searchParams} />
 
@@ -88,15 +92,54 @@ export default async function SabineBoard({ searchParams }: { searchParams: Prom
         )}
       </section>
 
-      <section aria-labelledby="samenvatten" className="space-y-3">
-        <h2 id="samenvatten" className="text-2xl">Ingeleverde opdrachten om samen te vatten{count(summaries.length)}</h2>
+      <section id="openingsdans" aria-labelledby="openingsdans-kop" className="scroll-mt-6 space-y-3">
+        <h2 id="openingsdans-kop" className="text-2xl">Aanvragen openingsdanspakket{count(dances.length)}</h2>
+        {dances.length === 0 ? (
+          <p className="card p-5 text-sm text-muted">Geen open aanvragen voor een openingsdanspakket.</p>
+        ) : (
+          <ul className="card divide-y divide-line">
+            {dances.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 text-sm">
+                <div className="min-w-0">
+                  <Link href={`/k/${r.couple_id}/openingsdans`} className="font-medium hover:text-bordeaux">{coupleName(r)}</Link>
+                  <span className="text-muted"> · trouwdatum {r.wedding_date ? formatDate(r.wedding_date) : "onbekend"}</span>
+                  <p className="mt-0.5"><strong>{r.package_name}</strong></p>
+                  {r.message && <p className="mt-1 line-clamp-3 whitespace-pre-line text-muted">{r.message}</p>}
+                  <p className="mt-1 text-xs text-muted">{formatDateTime(r.created_at)}{r.requested_by_name ? ` · ${r.requested_by_name}` : ""}</p>
+                </div>
+                <form action={markDanceRequest}>
+                  <input type="hidden" name="requestId" value={r.id} />
+                  <input type="hidden" name="handled" value="1" />
+                  <input type="hidden" name="back" value="taken" />
+                  <button type="submit" className="btn-secondary py-1 text-xs">Afgehandeld</button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section id="samenvatten" aria-labelledby="samenvatten-kop" className="scroll-mt-6 space-y-3">
+        <h2 id="samenvatten-kop" className="text-2xl">Ingeleverde opdrachten om samen te vatten{count(summaries.length)}</h2>
         {summaries.length === 0 ? (
-          <p className="card p-5 text-sm text-muted">Geen ingeleverde opdrachten zonder samenvatting.</p>
+          <p className="card p-5 text-sm text-muted">Geen ingeleverde opdrachten om samen te vatten.</p>
         ) : (
           <ul className="card divide-y divide-line">
             {summaries.map((a) => (
-              <li key={a.id}>
-                <Link href={`/k/${a.couple_id}/opdrachten/${a.id}`} className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3 hover:bg-cream/60">
+              <li key={a.id} className="flex items-center gap-3 px-4 py-3">
+                {/* Feedback Sabine (6): tick it off once the summary is made. */}
+                <form action={markSummaryDone}>
+                  <input type="hidden" name="assignmentId" value={a.id} />
+                  <button
+                    type="submit"
+                    aria-label={`Samenvatting van ${a.title} (${coupleName(a)}) is gemaakt`}
+                    title="Samenvatting gemaakt"
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-gold text-transparent hover:bg-gold/20 hover:text-gold-ink"
+                  >
+                    ✓
+                  </button>
+                </form>
+                <Link href={`/k/${a.couple_id}/opdrachten/${a.id}`} className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-2 hover:text-bordeaux">
                   <span><span className="font-medium">{a.title}</span> <span className="text-muted">· {coupleName(a)}</span></span>
                   <span className="text-xs text-muted">Ingeleverd {formatDateTime(a.submitted_at)}</span>
                 </Link>
@@ -104,6 +147,7 @@ export default async function SabineBoard({ searchParams }: { searchParams: Prom
             ))}
           </ul>
         )}
+        <p className="text-xs text-muted">Alleen Thema &amp; Styling hoeft samengevat te worden. Vink een opdracht af zodra je de samenvatting hebt gemaakt.</p>
       </section>
 
       <section aria-labelledby="cursisten" className="space-y-3">

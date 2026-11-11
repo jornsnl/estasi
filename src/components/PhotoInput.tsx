@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { HEIC_MESSAGE, shrinkPhoto } from "@/lib/shrink-photo";
 
 /**
@@ -20,6 +21,7 @@ export function PhotoInput({
   maxBytes = 10 * 1024 * 1024,
   saveLabel = "Foto opslaan",
   className = "",
+  avatar,
 }: {
   name: string;
   /** Accessible name of the input. */
@@ -30,12 +32,18 @@ export function PhotoInput({
   maxBytes?: number;
   saveLabel?: string;
   className?: string;
+  /**
+   * Feedback Sabine (25): a round profile photo. The circle shows the photo there is now, or the
+   * chosen one before saving; without a photo the first letter. A click on the circle picks a photo.
+   */
+  avatar?: { src: string | null; initial: string };
 }) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<"idle" | "working" | "ready" | "error">("idle");
   const [message, setMessage] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
+  const { pending } = useFormStatus();
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -85,25 +93,48 @@ export function PhotoInput({
     }
   }
 
+  const shown = preview ?? avatar?.src ?? null;
   return (
     <div className={`space-y-2 ${className}`}>
+      {avatar && (
+        <button
+          type="button"
+          onClick={() => input.current?.click()}
+          className="group relative block h-24 w-24 shrink-0 overflow-hidden rounded-full border border-line bg-gold-soft"
+          aria-label={shown ? "Andere profielfoto kiezen" : "Profielfoto kiezen"}
+        >
+          {shown ? (
+            // eslint-disable-next-line @next/next/no-img-element -- the profile photo, behind a login check or a local preview
+            <img src={shown} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center font-serif text-3xl text-gold-ink">{avatar.initial}</span>
+          )}
+          <span className="absolute inset-x-0 bottom-0 bg-black/45 py-0.5 text-center text-[10px] font-medium text-white opacity-90 group-hover:opacity-100">
+            {shown ? "Wijzigen" : "Foto kiezen"}
+          </span>
+        </button>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <input ref={input} id={id} type="file" name={name} accept={accept} onChange={onChange} aria-label={label} className="min-w-0 max-w-full text-sm" />
         {(state === "ready" || state === "working") && (
           <button
             type="button"
-            disabled={state === "working"}
+            disabled={state === "working" || pending}
             onClick={() => input.current?.form?.requestSubmit()}
             className="btn-primary px-3 py-1.5 text-sm"
           >
-            {state === "working" ? "Even wachten…" : saveLabel}
+            {state === "working" ? "Even wachten…" : pending ? "Opslaan…" : saveLabel}
           </button>
         )}
       </div>
-      {preview && (
-        // eslint-disable-next-line @next/next/no-img-element -- local preview of the chosen photo
-        <img src={preview} alt="" className="h-20 w-auto max-w-[12rem] rounded-lg border border-line object-cover" />
+      {preview && !avatar && (
+        <figure>
+          {/* eslint-disable-next-line @next/next/no-img-element -- local preview of the chosen photo */}
+          <img src={preview} alt="" className="h-20 w-auto max-w-[12rem] rounded-lg border border-line object-cover" />
+          <figcaption className="mt-1 text-xs text-muted">{pending ? "Wordt opgeslagen…" : "Nieuwe foto, nog niet opgeslagen"}</figcaption>
+        </figure>
       )}
+      {avatar && preview && <p className="text-xs text-muted">{pending ? "Wordt opgeslagen…" : "Nieuwe foto, nog niet opgeslagen"}</p>}
       {message && (
         <p role={state === "error" ? "alert" : "status"} className={`text-xs ${state === "error" ? "text-bordeaux" : "text-muted"}`}>
           {message}

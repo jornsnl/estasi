@@ -15,6 +15,7 @@ export const BLOCK_LABELS: Record<BlockType, string> = {
   image: "Afbeelding",
   download: "Download of link",
   assignment: "Opdracht",
+  feedback: "Feedback",
 };
 
 /** The "Blok toevoegen" buttons: intent add:<type>[:<variant>]. */
@@ -29,6 +30,7 @@ export const ADD_BLOCK_OPTIONS: { intent: string; label: string }[] = [
   { intent: "add:image", label: "Afbeelding" },
   { intent: "add:download", label: "Download / link" },
   { intent: "add:assignment", label: "Opdracht" },
+  { intent: "add:feedback", label: "Feedback" },
 ];
 
 /** The styles of a title block, in the order of the editor. */
@@ -50,6 +52,7 @@ const NEW_BLOCK: { [T in BlockType]: (id: string, variant: string) => Extract<Bl
   download: (id) => ({ id, type: "download", label: "", description: "", url: "", file: null }),
   // Fields and parts get their own ids; the editor adds more with crypto.randomUUID().
   assignment: (id) => newAssignment(id, () => crypto.randomUUID()),
+  feedback: (id) => ({ id, type: "feedback" }),
 };
 
 /** Blocks that only show content (everything else is an assignment). */

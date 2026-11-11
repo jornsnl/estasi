@@ -59,8 +59,14 @@ export async function submitRsvp(formData: FormData) {
     name: str(formData, `party_${i}_name`, 120),
     kid: formData.get(`party_${i}_kid`) === "on",
     diet: form.ask_diet ? str(formData, `party_${i}_diet`, 500) : "",
+    // Feedback Sabine (13): with "Deel van de dag" every other person chooses "Deel van de dag" or "Aanwezig".
+    attendance: (attending === "partial" ? (str(formData, `party_${i}_attendance`) === "yes" ? "yes" : str(formData, `party_${i}_attendance`) === "partial" ? "partial" : null) : attending) as
+      | "yes" | "partial" | "no" | null,
+    partialNote: attending === "partial" && str(formData, `party_${i}_attendance`) === "partial" ? str(formData, `party_${i}_partialNote`, 300) : "",
   }));
   if (party.some((g) => !g.name)) back("Vul de namen van de andere gasten in.");
+  if (party.some((g) => !g.attendance)) back("Laat voor elke gast weten of die een deel van de dag of de hele dag aanwezig is.");
+  if (party.some((g) => g.attendance === "partial" && !g.partialNote)) back("Beschrijf voor elke gast die een deel van de dag komt welke tijden die aanwezig is.");
   const dresscodeOk = coming && form.ask_dresscode ? (str(formData, "dresscodeOk") === "yes" ? true : str(formData, "dresscodeOk") === "no" ? false : null) : null;
   if (coming && form.ask_dresscode && dresscodeOk === null) back("Laat weten of de dresscode duidelijk is.");
 
@@ -105,7 +111,7 @@ export async function submitRsvp(formData: FormData) {
       await query(
         `insert into guests (couple_id, response_id, form_id, group_id, first_name, last_name, relation, attendance, partial_note, is_kid, diet, notes, created_at)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, clock_timestamp())`,
-        [couple.id, response!.id, form.id, form.group_id, first, last, relation, attending, partialNote, guest.kid, guest.diet,
+        [couple.id, response!.id, form.id, form.group_id, first, last, relation, guest.attendance, guest.partialNote, guest.kid, guest.diet,
          `Aangemeld door ${firstName} ${lastName}`],
         db,
       );
@@ -127,7 +133,10 @@ export async function submitRsvp(formData: FormData) {
     `Aanwezigheid: ${ATTENDANCE[attending!]}${partialNote ? ` (${partialNote})` : ""}`,
     coming ? `Aantal personen: ${partyCount}` : "",
     diet ? `Dieetwensen en allergieën: ${diet}` : "",
-    ...party.map((g, i) => `Gast ${i + 2}: ${g.name}${g.kid ? " (kind)" : ""}${g.diet ? `, dieet: ${g.diet}` : ""}`),
+    ...party.map(
+      (g, i) =>
+        `Gast ${i + 2}: ${g.name}${g.kid ? " (kind)" : ""}${attending === "partial" && g.attendance ? `, ${ATTENDANCE[g.attendance]}${g.partialNote ? ` (${g.partialNote})` : ""}` : ""}${g.diet ? `, dieet: ${g.diet}` : ""}`,
+    ),
     dresscodeOk === null ? "" : `Dresscode duidelijk: ${dresscodeOk ? "ja" : "nee, graag meer informatie"}`,
     ...answers.map((a) => `${a.question}: ${a.answer}`),
   ].filter(Boolean).join("\n");

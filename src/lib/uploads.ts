@@ -3,7 +3,8 @@ import { getFiles, type FileRef } from "@/lib/data";
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
-const ALLOWED = new Set(["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "jpg", "jpeg", "png", "webp", "heic"]);
+// Feedback Sabine (24): also the Apple and OpenOffice formats and csv/rtf, so a document is not refused.
+const ALLOWED = new Set(["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "rtf", "csv", "odt", "ods", "odp", "pages", "numbers", "key", "jpg", "jpeg", "png", "webp", "gif", "heic"]);
 
 export const ACCEPT_ATTR = [...ALLOWED].map((ext) => `.${ext}`).join(",");
 
