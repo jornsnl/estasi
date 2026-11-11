@@ -9,6 +9,7 @@ import type {
   SubmissionStatus,
   SubmissionVersion,
 } from "@/lib/data/types";
+import { inlineFormatHtml } from "./inline-format";
 import { answersAsText, assignmentsOf, assignmentTitle, filesIn, sameAnswers, STATUS_LABELS } from "./assignment";
 import { uniqueNames } from "./privacy";
 
@@ -256,7 +257,7 @@ export function portfolioHtml(portfolio: PortfolioModule[], options: HtmlOptions
               const intro = (item.versions.at(-1)?.assignment ?? item.draft?.assignment)?.intro;
               return `<div class="card"><h4>${escapeHtml(item.title)}<span class="badge">${escapeHtml(STATUS_LABELS[item.status])}</span>${
                 item.graded ? '<span class="badge">Eindopdracht</span>' : ""
-              }</h4>${intro ? `<p class="meta">${text(intro)}</p>` : ""}${versions}${draft}</div>`;
+              }</h4>${intro ? `<p class="meta">${inlineFormatHtml(intro, escapeHtml).replace(/\n/g, "<br>")}</p>` : ""}${versions}${draft}</div>`;
             })
             .join("\n");
           return `<h3>${escapeHtml(l.title)}</h3>\n${items}`;

@@ -289,11 +289,12 @@ export async function saveSettings(formData: FormData) {
   const owner = await requireOwner();
   const store = getStore();
   const before = await store.getSettings();
-  const practicalSpotsAvailable = formData.get("practicalSpotsAvailable") === "on";
   let headerImageFileId = formData.get("removeHeaderImage") === "on" ? null : before.headerImageFileId ?? null;
+  let newHeader = false;
   try {
     const image = await storeImageUpload(formData.get("headerImage"), owner.id);
     if (image) headerImageFileId = image.id;
+    newHeader = Boolean(image);
   } catch (err) {
     if (err instanceof UploadError) done("/beheer/instellingen", err.message, true);
     throw err;
@@ -306,15 +307,30 @@ export async function saveSettings(formData: FormData) {
     welcomeText: before.welcomeText,
     headerImageFileId,
     contactEmail: str(formData, "contactEmail", LIMITS.contactEmail) || before.contactEmail,
-    practicalSpotsAvailable,
-    practicalSpotsNote: str(formData, "practicalSpotsNote", LIMITS.practicalSpotsNote),
+    // Feedback Sabine: the practical spots have their own box with their own save (savePracticalSpotsOpenAction),
+    // and the note under the tick box is gone. What was stored stays as it was.
+    practicalSpotsAvailable: before.practicalSpotsAvailable,
+    practicalSpotsNote: before.practicalSpotsNote,
     answersPrivacyNotice: str(formData, "answersPrivacyNotice", LIMITS.privacyNotice) || before.answersPrivacyNotice,
     privacyText: str(formData, "privacyText", LIMITS.privacyText),
   });
+  done(
+    "/beheer/instellingen",
+    newHeader ? "Headerfoto opgeslagen. Hij staat nu bovenaan de hoofdpagina van de Academy." : headerImageFileId === null && before.headerImageFileId ? "Headerfoto weggehaald." : "Instellingen opgeslagen.",
+  );
+}
+
+/** The tick box "Er zijn praktijkplekken beschikbaar", saved on its own (it sits with the weddings, outside the settings form). */
+export async function savePracticalSpotsOpenAction(formData: FormData) {
+  const owner = await requireOwner();
+  const store = getStore();
+  const before = await store.getSettings();
+  const practicalSpotsAvailable = formData.get("practicalSpotsAvailable") === "on";
   if (before.practicalSpotsAvailable !== practicalSpotsAvailable) {
+    await store.saveSettings({ ...before, practicalSpotsAvailable });
     await audit(owner, practicalSpotsAvailable ? "Praktijkplekken opengezet" : "Praktijkplekken gesloten");
   }
-  done("/beheer/instellingen", "Instellingen opgeslagen.");
+  done(SPOTS_PATH, practicalSpotsAvailable ? "Praktijkplekken staan open." : "Praktijkplekken staan dicht.");
 }
 
 // Praktijkplekken (feedback Sabine): weddings with a date, the couple's names and a linked student.
@@ -333,7 +349,7 @@ async function spotInput(formData: FormData) {
     if (!user || user.role !== "student") done(SPOTS_PATH, "Die cursist bestaat niet (meer).", true);
     student = user;
   }
-  return { input: { wedding_date: date, couple_names: names, student_user_id: student?.id ?? null, note: str(formData, "note", 300) }, student };
+  return { input: { wedding_date: date, couple_names: names, location: str(formData, "location", 200), student_user_id: student?.id ?? null, note: str(formData, "note", 300) }, student };
 }
 
 export async function addPracticalSpotAction(formData: FormData) {

@@ -1,3 +1,4 @@
+import { stripInlineFormat } from "@/lib/domain/inline-format";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { copyLesson, saveLessonEditor } from "@/app/actions/content";
@@ -189,7 +190,7 @@ function assignmentChoices(modules: Module[], lessons: Lesson[]): AssignmentChoi
           .filter((b): b is AssignmentBlock => b.type === "assignment")
           .map((b, i) => ({
             id: b.id,
-            label: `Module ${mi + 1} · ${content.title} · ${b.title || b.parts[0]?.fields[0]?.label?.slice(0, 60) || `Opdracht ${i + 1}`}`,
+            label: `Module ${mi + 1} · ${content.title} · ${b.title || stripInlineFormat(b.parts[0]?.fields[0]?.label ?? "").slice(0, 60) || `Opdracht ${i + 1}`}`,
             parts: b.parts,
           }));
       }),

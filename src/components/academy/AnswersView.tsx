@@ -1,3 +1,4 @@
+import { InlineText } from "@/components/InlineText";
 import type { AssignmentAnswers, AssignmentBlock, AssignmentField, FieldAnswer } from "@/lib/data/types";
 import { allFields, isFieldAnswered } from "@/lib/domain/assignment";
 import { VideoLinkEmbed } from "./VideoLinkEmbed";
@@ -12,14 +13,14 @@ export function AnswersView({ assignment, answers }: { assignment: AssignmentBlo
   const orphans = Object.entries(answers).filter(([id]) => !known.has(id));
   return (
     <div className="space-y-4">
-      {assignment.intro && <p className="text-sm whitespace-pre-wrap text-muted">{assignment.intro}</p>}
+      {assignment.intro && <p className="text-sm whitespace-pre-wrap text-muted"><InlineText text={assignment.intro} /></p>}
       {assignment.parts.map((part) => (
         <div key={part.id} className="space-y-3">
           {part.title && <p className="font-semibold">{part.title}</p>}
           {part.fields.map((field) => (
             <div key={field.id}>
-              <p className="text-sm font-medium whitespace-pre-line">
-                {field.label || "(veld zonder tekst)"}
+              <p className="text-sm whitespace-pre-line">
+                {field.label ? <InlineText text={field.label} /> : "(veld zonder tekst)"}
                 {field.required && <span className="ml-1 text-bordeaux">*</span>}
               </p>
               <FieldAnswerView field={field} answer={answers[field.id]} />

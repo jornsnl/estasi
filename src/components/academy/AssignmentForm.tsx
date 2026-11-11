@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { InlineText } from "@/components/InlineText";
+import { stripInlineFormat } from "@/lib/domain/inline-format";
 import {
   saveAssignmentDraft,
   submitAssignment,
@@ -371,7 +373,7 @@ export function AssignmentForm(props: Props) {
         </div>
         {props.preview ? <span className="text-sm text-muted">Voorbeeld, er wordt niets opgeslagen</span> : <SaveIndicator state={saveState} savedAt={savedAt} onRetry={() => void save(true)} />}
       </header>
-      {assignment.intro && <p className="mb-4 whitespace-pre-wrap text-[15px]">{assignment.intro}</p>}
+      {assignment.intro && <p className="mb-4 whitespace-pre-wrap text-[15px]"><InlineText text={assignment.intro} /></p>}
 
       {status === "verbetering_nodig" && (
         <div role="alert" className="mb-4 rounded-lg border border-bordeaux/30 bg-bordeaux-soft p-4 text-sm">
@@ -402,7 +404,7 @@ export function AssignmentForm(props: Props) {
             {(part.title || part.intro) && (
               <div className={pi > 0 ? "border-t border-line pt-6" : ""}>
                 {part.title && <h4 className="font-sans text-lg font-semibold whitespace-pre-line">{part.title}</h4>}
-                {part.intro && <p className="mt-1 whitespace-pre-wrap text-[15px] text-muted">{part.intro}</p>}
+                {part.intro && <p className="mt-1 whitespace-pre-wrap text-[15px] text-muted"><InlineText text={part.intro} /></p>}
               </div>
             )}
             {part.fields.map((field) => (
@@ -618,8 +620,9 @@ function FieldInput({
   const inputId = `in-${field.id}`;
   const label = (
     <>
-      {/* Feedback Sabine: a label typed over several lines keeps its lines for the student. */}
-      <span className={`whitespace-pre-line ${prominent ? "font-sans text-lg font-medium" : "font-medium"}`}>{field.label || "Antwoord"}</span>
+      {/* Feedback Sabine: a label typed over several lines keeps its lines for the student. Not bold by
+          itself: Sabine chooses bold, italic and underline herself (src/lib/domain/inline-format.ts). */}
+      <span className={`whitespace-pre-line ${prominent ? "font-sans text-lg" : ""}`}>{field.label ? <InlineText text={field.label} /> : "Antwoord"}</span>
       <RequiredBadge required={field.required} />
     </>
   );
@@ -647,7 +650,7 @@ function FieldInput({
           ) : (
             !answer?.url && <p className="hint">Zet je video eerst op YouTube of Vimeo (bijvoorbeeld als niet-openbare video) en plak hier de link.</p>
           )}
-          {answer?.url && <VideoLinkEmbed url={answer.url} title={field.label || "Video"} />}
+          {answer?.url && <VideoLinkEmbed url={answer.url} title={stripInlineFormat(field.label) || "Video"} />}
         </div>
       )}
       {field.type === "short" && (
@@ -666,7 +669,7 @@ function FieldInput({
       )}
       {(field.type === "single" || field.type === "multi") && (
         <fieldset className="space-y-2">
-          <legend className="sr-only">{field.label}</legend>
+          <legend className="sr-only">{stripInlineFormat(field.label)}</legend>
           {field.options.map((option) => {
             const checked = field.type === "single" ? answer?.choice === option : (answer?.choices ?? []).includes(option);
             return (
@@ -699,7 +702,7 @@ function FieldInput({
       {field.type === "scale" && (
         <>
           {field.explanation && <ScaleExplanation text={field.explanation} />}
-          <ScalePicker name={`schaal-${field.id}`} label={field.label} min={field.min} max={field.max} value={answer?.score ?? null} onChange={(score) => onChange({ score })} />
+          <ScalePicker name={`schaal-${field.id}`} label={stripInlineFormat(field.label)} min={field.min} max={field.max} value={answer?.score ?? null} onChange={(score) => onChange({ score })} />
           {(field.minLabel || field.maxLabel) && (
             <p className="mt-1 flex justify-between text-xs text-muted">
               <span>{field.min} = {field.minLabel}</span>
@@ -769,7 +772,7 @@ function FieldInput({
           {(answer?.files ?? []).length < field.maxFiles && (
             <input
               type="file"
-              aria-label={`Bestand uploaden: ${field.label}`}
+              aria-label={`Bestand uploaden: ${stripInlineFormat(field.label)}`}
               accept={acceptFor(field.accept)}
               disabled={uploading}
               className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-cream file:px-3 file:py-2 file:text-ink"
@@ -792,7 +795,7 @@ function FieldInput({
 }
 
 function ScaleExplanation({ text }: { text: string }) {
-  return <div className="mb-3 rounded-lg bg-cream/70 p-3 text-sm whitespace-pre-wrap">{text}</div>;
+  return <div className="mb-3 rounded-lg bg-cream/70 p-3 text-sm whitespace-pre-wrap"><InlineText text={text} /></div>;
 }
 
 function ScalePicker({ name, label, min, max, value, onChange }: { name: string; label: string; min: number; max: number; value: number | null; onChange: (v: number) => void }) {

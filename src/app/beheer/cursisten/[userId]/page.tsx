@@ -200,7 +200,7 @@ export default async function StudentDetail({
               {spots.length > 0 && (
                 <Row label="Praktijkplek">
                   <span>
-                    {spots.map((spot) => `${formatDate(spot.wedding_date)} · ${spot.couple_names}`).join(", ")}{" "}
+                    {spots.map((spot) => `${formatDate(spot.wedding_date)} · ${spot.couple_names}${spot.location ? ` · ${spot.location}` : ""}`).join(", ")}{" "}
                     <Link href="/beheer/instellingen#praktijkplekken" className="text-bordeaux underline">Praktijkplekken</Link>
                   </span>
                 </Row>

@@ -116,7 +116,6 @@ export default async function InschrijvenPage({ searchParams }: { searchParams: 
   ]);
   const logoSrc = page?.logo_file_id ? photo(page.logo_file_id) : logos?.academy ? `/api/logo/academy/original?v=${logos.academy.slice(0, 8)}` : null;
   const spotsOpen = settings?.practicalSpotsAvailable ?? true;
-  const spotsNote = settings?.practicalSpotsNote?.trim() ?? "";
   const contact = settings?.contactEmail?.trim() || "";
   const reviewPhotos = [page?.review_photo1_file_id, page?.review_photo2_file_id].filter((id): id is string => Boolean(id));
 
@@ -266,7 +265,7 @@ export default async function InschrijvenPage({ searchParams }: { searchParams: 
               </ul>
               {!spotsOpen && (
                 <p className="mt-6 rounded-md bg-gold-soft px-3 py-2 text-sm text-gold-ink">
-                  {spotsNote || "De praktijkplekken zijn op dit moment vol. Schrijf je in, dan hoor je als eerste wanneer er weer plek is."}
+                  De praktijkplekken zijn op dit moment vol. Schrijf je in, dan hoor je als eerste wanneer er weer plek is.
                 </p>
               )}
               <a href="#aanmelden" className="btn-primary mt-8">Inschrijven voor pakket B</a>

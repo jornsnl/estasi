@@ -1,3 +1,4 @@
+import { InlineText } from "@/components/InlineText";
 import { Markdown } from "@/components/Markdown";
 import { VideoEmbed } from "@/components/VideoEmbed";
 import type { Block } from "@/lib/data";
@@ -31,7 +32,7 @@ export function ContentBlock({ block }: { block: Block }) {
           <h3 className="font-serif text-lg font-semibold text-success">{block.title || "Leerdoelen"}</h3>
           <ul className="mt-2 space-y-1.5 text-[15px] text-ink">
             {block.items.map((item, i) => (
-              <li key={i} className="flex gap-2"><span className="text-success" aria-hidden>✓</span><span>{item}</span></li>
+              <li key={i} className="flex gap-2"><span className="text-success" aria-hidden>✓</span><span><InlineText text={item} /></span></li>
             ))}
           </ul>
         </section>

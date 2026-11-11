@@ -42,26 +42,26 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
       profileHref="/beheer/profiel"
       items={[
         // Everything on the Taken page: own tasks, open questions, assignments to summarise and feedback for students.
-        { href: "/beheer/bruidsparen/takenbord", label: "Taken", badge: openTasks, strong: true },
-        { href: "/beheer/bruidsparen/agenda", label: "Agenda", strong: true },
+        { href: "/beheer/bruidsparen/takenbord", label: "Taken", badge: openTasks, strong: true, icon: "list-checks" },
+        { href: "/beheer/bruidsparen/agenda", label: "Agenda", strong: true, icon: "calendar" },
         // The badge: open leads whose next step is due today or earlier.
-        { href: "/beheer/pipeline", label: "Pipeline", badge: followUps, strong: true },
+        { href: "/beheer/pipeline", label: "Pipeline", badge: followUps, strong: true, icon: "kanban" },
         // Feedback Sabine: revenue per year or quarter and the open amounts of all couples.
         { href: "/beheer/omzet", label: "Omzet", sub: true },
-        { href: "/beheer/community", label: "Community", section: "Communicatie", sectionBadge: counts.community + counts.private, badge: counts.community },
+        { href: "/beheer/community", label: "Community", section: "Communicatie", sectionIcon: "message-circle", sectionBadge: counts.community + counts.private, badge: counts.community },
         { href: "/beheer/berichten", label: "Privéberichten", badge: counts.private },
-        { href: "/beheer/bruidsparen", label: "Bruidsparen", section: "Your Wedding Space", exact: true, alsoActive: ["/beheer/bruidsparen/nieuw"] },
+        { href: "/beheer/bruidsparen", label: "Bruidsparen", section: "Your Wedding Space", sectionIcon: "heart", exact: true, alsoActive: ["/beheer/bruidsparen/nieuw"] },
         { href: "/beheer/bruidsparen/opdrachten", label: "Opdrachten" },
         { href: "/beheer/bruidsparen/speeches", label: "Speeches" },
         // Cursist toevoegen and Feedback are reached from the Cursisten page; the open feedback shows as a count here.
-        { href: "/beheer", label: "Cursisten", section: "Future Weddings Academy", badge: feedback, exact: true, alsoActive: ["/beheer/cursisten", "/beheer/feedback"] },
+        { href: "/beheer", label: "Cursisten", section: "Future Weddings Academy", sectionIcon: "graduation-cap", badge: feedback, exact: true, alsoActive: ["/beheer/cursisten", "/beheer/feedback"] },
         { href: "/beheer/inhoud", label: "Lesinhoud" },
         // Feedback Sabine: see the student pages without signing in as a student.
         { href: "/beheer/voorbeeld", label: "Bekijk als cursist" },
-        { href: "/beheer/bruidsparen/pakketten", label: "Pakketten", section: "Diensten" },
+        { href: "/beheer/bruidsparen/pakketten", label: "Pakketten", section: "Diensten", sectionIcon: "sparkles" },
         { href: "/beheer/bruidsparen/openingsdans", label: "Openingsdans" },
-        { href: "/beheer/bruidsparen/aanraders", label: "Aanraders", group: true, strong: true },
-        { href: "/beheer/instellingen", label: "Instellingen", section: "Systeem" },
+        { href: "/beheer/bruidsparen/aanraders", label: "Aanraders", group: true, strong: true, icon: "star" },
+        { href: "/beheer/instellingen", label: "Instellingen", section: "Systeem", sectionIcon: "settings" },
         { href: "/beheer/rondleiding", label: "Rondleiding" },
         { href: "/beheer/bruidsparen/standaardlijsten", label: "Standaardlijsten" },
         { href: "/beheer/mailgeschiedenis", label: "Mailgeschiedenis" },
