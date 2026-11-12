@@ -256,7 +256,7 @@ En in Render bij Settings (met de blueprint staat dit er al in):
 * **Auto-Deploy**: *On Commit*, dan gaat elke push naar `main` live
 * **Pre-Deploy Command**: `node scripts/migrate.mjs`
 
-Het migratiescript voert alleen de nieuwe bestanden uit `supabase/migrations` uit, op volgorde. Wat al gedaan is staat in de tabel `public.schema_migrations`; migraties die eerder met de hand zijn uitgevoerd worden herkend. Elke migratie loopt in één transactie: mislukt hij, dan wordt alles teruggedraaid, stopt de deploy en blijft de vorige versie draaien. Een nieuwe migratie is dus gewoon een nieuw bestand, bijvoorbeeld `0003_iets.sql`. De container draait het script bovendien zelf bij het opstarten (zie `Dockerfile`), dus ook als het Pre-Deploy Command ontbreekt komt een nieuwe migratie er toch in voordat de app start.
+Het migratiescript voert alleen de nieuwe bestanden uit `supabase/migrations` uit, op volgorde. Wat al gedaan is staat in de tabel `public.schema_migrations`; migraties die eerder met de hand zijn uitgevoerd (in de SQL editor) worden herkend aan de tabellen en kolommen die ze aanmaken en alleen vastgelegd, niet opnieuw uitgevoerd. Elke migratie loopt in één transactie: mislukt hij, dan wordt alles teruggedraaid, stopt de deploy en blijft de vorige versie draaien. Een nieuwe migratie is dus gewoon een nieuw bestand, bijvoorbeeld `0003_iets.sql`. De container draait het script bovendien zelf bij het opstarten (zie `Dockerfile`), dus ook als het Pre-Deploy Command ontbreekt komt een nieuwe migratie er toch in voordat de app start.
 
 ### E-mail via Resend
 
