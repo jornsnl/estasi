@@ -181,6 +181,10 @@ Hoe het in elkaar zit:
 
 Raakt de opleider de authenticator app kwijt: in Supabase onder Authentication, Users, het account openen en de MFA factor verwijderen. Daarna logt ze weer in met alleen haar wachtwoord en kan ze via Instellingen een nieuwe app koppelen.
 
+### Migraties via Supabase MCP
+
+Staan er nieuwe migraties in `supabase/migrations` die nog niet in de database zitten, voer ze dan uit met de Supabase MCP (`apply_migration`), één bestand per keer en op volgorde. Controleer vooraf met `list_migrations` wat er al is uitgevoerd en daarna met `get_advisors` of er geen beveiligings of prestatiemeldingen bij zijn gekomen. Het migratiescript bij de deploy herkent een migratie die zo al is uitgevoerd en legt hem alleen vast in `public.schema_migrations`.
+
 ## Passkeys en MCP (beheeraccount)
 
 Onder **Beheer, Profiel en beveiliging** (`/beheer/profiel`) staan twee dingen voor het opleidersaccount.
